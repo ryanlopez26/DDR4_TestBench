@@ -1,0 +1,5 @@
+2026-05-25 21:21:33,198 - [DEBUG] Getting bitbake variable STAGING_DIR_NATIVE from kconfig-frontends-native
+2026-05-25 21:21:33,198 - [DEBUG] Bitbake parsing recipes
+2026-05-25 21:23:13,101 - [ERROR] The tool mconf is required but not found.  This is usually built with the bitbake target of kconfig-frontends-native.
+Unable to get required kconfig-frontends-native sysroot path  This often means your build's tmp directory is corrupted.  Often removing it will fix the issue.
+2026-05-25 21:23:13,104 - [DEBUG] Shutting down bitbake
