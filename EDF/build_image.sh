@@ -1,0 +1,1 @@
+MACHINE=amd-cortexa53-common bitbake core-image-minimal
