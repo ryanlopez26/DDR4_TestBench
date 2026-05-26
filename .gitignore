@@ -81,6 +81,10 @@ __pycache__/
 *.so
 *.elf
 
+# Rust
+zcu_app/target/
+zcu_app/Cargo.lock
+
 # ============================================================
 # What IS tracked:
 #
