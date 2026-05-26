@@ -83,7 +83,7 @@ find_outputs() {
     fi
 
     # Find ZCU104 boot files
-    BOOT_BIN="${DEPLOY_BOOT}/BOOT.BIN"
+    BOOT_BIN=$(ls ${DEPLOY_BOOT}/BOOT-*.bin 2>/dev/null | head -1)
     KERNEL="${DEPLOY_BOOT}/Image"
     DTB="${DEPLOY_BOOT}/system.dtb"
     BOOTSCR="${DEPLOY_BOOT}/boot.scr"
