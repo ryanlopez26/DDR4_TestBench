@@ -192,7 +192,7 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
 
             let payload = bincode::serialize(&rsp).unwrap();
 
-            if let Err(e) = send_response(stream, CMD_WRITE, payload) {
+            if let Err(e) = send_response(stream, CMD_VERIFY, payload) {
                 eprintln!("[!] Failed to send progress update: {}", e);
                 return;
             }
