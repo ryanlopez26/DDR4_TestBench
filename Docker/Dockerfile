@@ -65,14 +65,15 @@ RUN dpkg --add-architecture i386 && \
         # bmap-tools  → bmaptool for fast image flashing
         # util-linux  → losetup, fdisk, mount for partition ops
         # parted      → partition table inspection
+        fdisk \
         dosfstools \
         mtools \
         bmap-tools \
         util-linux \
-        parted \
         mount \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+    
 
 # ──────────────────────────────────────────
 # Python packages
