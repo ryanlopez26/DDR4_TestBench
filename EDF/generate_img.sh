@@ -1,27 +1,27 @@
 #!/bin/bash
 # ============================================================
 # generate_img.sh
-# Generates a flashable sdcard.img from BitBake build outputs.
+# Generates a flashable sdcard.img matching the original
+# ZCU104 SD card partition layout:
 #
-# Uses mtools to write boot files directly into the FAT
-# partition of the WIC image without needing mount or loop
+#   Partition 1: 2GB  FAT32  (BOOT - kernel, DTB, BOOT.BIN)
+#   Partition 2: 4GB  ext4   (Linux rootfs)
+#   Total:       ~6.1GB
+#
+# Uses mtools to write FAT32 files without mount or loop
 # devices. Works inside Docker without --privileged.
 #
 # Usage:
 #   sh generate_img.sh
 #
 # Output:
-#   /home/edf/projects/EDF/sdcard.img
-#   /home/edf/projects/EDF/sdcard.img.bmap
+#   /home/edf/projects/EDF/sdcard.img        (flash with Etcher)
+#   /home/edf/projects/EDF/sdcard.img.bmap   (for bmaptool)
 #
-# Flash with Balena Etcher:
-#   Open Etcher → Select sdcard.img → Select SD card → Flash
-#
-# Flash with bmaptool (faster):
-#   sudo bmaptool copy sdcard.img /dev/sdX
-#
-# Flash with dd (fallback):
-#   sudo dd if=sdcard.img of=/dev/sdX bs=4M status=progress
+# Flash options:
+#   Balena Etcher: Open → Select sdcard.img → Flash
+#   bmaptool:      sudo bmaptool copy sdcard.img /dev/sdX
+#   dd:            sudo dd if=sdcard.img of=/dev/sdX bs=4M status=progress
 # ============================================================
 
 set -e
@@ -48,31 +48,49 @@ OUTPUT_BMAP="${OUTPUT_DIR}/sdcard.img.bmap"
 
 DEPLOY="${BUILD_DIR}/tmp/deploy/images/${MACHINE}"
 
-# Tell mtools not to check geometry constraints on image files
+# ── Partition layout (matching original SD card) ───────────────
+#   MBR/header     : sector 0-7      (8 sectors)
+#   BOOT (FAT32)   : sector 8        to 4194311  (2GB  = 4194304 sectors)
+#   rootfs (ext4)  : sector 4194312  to 12582919 (4GB  = 8388608 sectors)
+BOOT_START=8
+BOOT_SECTORS=4194304          # 2GB
+ROOTFS_START=4194312
+ROOTFS_SECTORS=8388608        # 4GB
+TOTAL_SECTORS=12582920        # ~6.1GB total
+
+BOOT_OFFSET_BYTES=$(( BOOT_START * 512 ))
+
+# mtools env var — skip geometry checks on image files
 export MTOOLS_SKIP_CHECK=1
 
 # ── Check required tools ──────────────────────────────────────
 check_tools() {
     log_info "Checking required tools..."
 
-    for tool in dd fdisk mcopy mdir; do
-        command -v "$tool" >/dev/null 2>&1 || \
-            log_error "${tool} not found.
-        Install: sudo apt-get install -y mtools fdisk
-        On Arch: sudo pacman -S mtools util-linux"
+    MISSING=0
+    for tool in dd sfdisk mkfs.vfat mcopy mdir fdisk; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            log_warn "Missing: ${tool}"
+            MISSING=1
+        fi
     done
+
+    [ "$MISSING" = "1" ] && \
+        log_error "Install missing tools:
+        Ubuntu/Debian: sudo apt-get install -y dosfstools mtools fdisk util-linux
+        Arch:          sudo pacman -S dosfstools mtools util-linux"
 
     command -v bmaptool >/dev/null 2>&1 && \
         HAVE_BMAPTOOL=1 || HAVE_BMAPTOOL=0
 
-    log_success "Tools OK (using mtools — no mount/loop devices needed)"
+    log_success "Tools OK"
 }
 
 # ── Locate build outputs ──────────────────────────────────────
 find_outputs() {
     log_info "Locating build outputs..."
 
-    # WIC image — exclude qemu variants
+    # WIC image (source of rootfs partition)
     WIC_IMAGE=$(ls "${DEPLOY}/${IMAGE_NAME}"*.rootfs.wic \
                    "${DEPLOY}/${IMAGE_NAME}"*.wic \
                    2>/dev/null | grep -v qemu | head -1)
@@ -81,7 +99,7 @@ find_outputs() {
         log_error "WIC image not found in ${DEPLOY}/
         Run: MACHINE=${MACHINE} bitbake ${IMAGE_NAME}"
 
-    # BOOT.BIN — handle all naming variants
+    # BOOT.BIN
     BOOT_BIN=$(ls "${DEPLOY}/BOOT.BIN" \
                   "${DEPLOY}/BOOT-${MACHINE}"*.bin \
                   "${DEPLOY}/boot.bin" \
@@ -105,16 +123,13 @@ find_outputs() {
     [ -n "$DTB" ] || \
         log_error "system.dtb not found in ${DEPLOY}/"
 
-    # If symlink resolves to empty file, find the real timestamped one
+    # If symlink resolves to empty, find the real timestamped one
     DTB_SIZE=$(stat -L -c%s "$DTB" 2>/dev/null || echo 0)
     if [ "$DTB_SIZE" -eq 0 ]; then
-        log_warn "system.dtb is empty — searching for timestamped DTB..."
-        DTB=$(ls "${DEPLOY}/${MACHINE}-system-"*.dtb 2>/dev/null | \
-            xargs -I{} stat -L -c "%s {}" {} 2>/dev/null | \
-            sort -rn | head -1 | awk '{print $2}')
+        log_warn "system.dtb symlink is empty — searching for real DTB..."
+        DTB=$(ls -S "${DEPLOY}/${MACHINE}-system-"*.dtb 2>/dev/null | head -1)
         [ -n "$DTB" ] && [ -f "$DTB" ] || \
             log_error "Could not find a non-empty system.dtb"
-        log_info "Using DTB: ${DTB}"
     fi
 
     # boot.scr (optional)
@@ -127,107 +142,168 @@ find_outputs() {
     log_info "  BOOT.BIN  : ${BOOT_BIN} ($(du -sh ${BOOT_BIN} | cut -f1))"
     log_info "  Kernel    : ${KERNEL} ($(du -sh ${KERNEL} | cut -f1))"
     log_info "  DTB       : ${DTB} ($(du -sh ${DTB} | cut -f1))"
-    [ -n "$BOOTSCR" ] && \
-        log_info "  boot.scr  : ${BOOTSCR}"
-}
-
-# ── Get image size ────────────────────────────────────────────
-get_image_size() {
-    WIC_SIZE_BYTES=$(stat -c%s "$WIC_IMAGE")
-    WIC_SIZE_MB=$(( WIC_SIZE_BYTES / 1024 / 1024 + 1 ))
-    log_info "WIC image size: ${WIC_SIZE_MB} MB"
+    [ -n "$BOOTSCR" ] && log_info "  boot.scr  : ${BOOTSCR}"
 }
 
 # ── Check disk space ──────────────────────────────────────────
 check_space() {
-    AVAILABLE=$(df "${OUTPUT_DIR}" | awk 'NR==2 {print int($4/1024)}')
-    WIC_MB=$(du -sm "${WIC_IMAGE}" | cut -f1)
-    NEEDED=$(( WIC_MB + 100 ))
+    # Need ~6.2GB for the output image
+    NEEDED_MB=6300
+    AVAILABLE_MB=$(df "${OUTPUT_DIR}" | awk 'NR==2 {print int($4/1024)}')
 
-    [ "$AVAILABLE" -ge "$NEEDED" ] || \
-        log_error "Insufficient space: ${AVAILABLE}MB available, ~${NEEDED}MB needed"
+    [ "$AVAILABLE_MB" -ge "$NEEDED_MB" ] || \
+        log_error "Insufficient space: ${AVAILABLE_MB}MB available, ~${NEEDED_MB}MB needed"
 
-    log_info "Disk space OK: ${AVAILABLE}MB available"
+    log_info "Disk space OK: ${AVAILABLE_MB}MB available"
 }
 
-# ── Get BOOT partition offset ─────────────────────────────────
-get_boot_offset() {
-    log_info "Locating BOOT partition..."
+# ── Get rootfs partition info from WIC ────────────────────────
+get_wic_rootfs_info() {
+    log_info "Reading WIC partition layout..."
 
-    FDISK_OUT=$(fdisk -l "${OUTPUT_IMG}" 2>/dev/null)
+    WIC_FDISK=$(fdisk -l "${WIC_IMAGE}" 2>/dev/null)
+    echo "$WIC_FDISK"
+    echo ""
 
-    # Parse start sector — handle optional boot flag (*) in column 2
-    # With flag:    img1  *  8  ...  W95 FAT32
-    # Without flag: img1     8  ...  W95 FAT32
-    BOOT_START=$(echo "$FDISK_OUT" | \
-        awk '/FAT|fat|W95/{
+    # Get rootfs (Linux) partition start and size from WIC
+    WIC_ROOTFS_START=$(echo "$WIC_FDISK" | \
+        awk '/Linux/{
             if ($2 == "*") print $3
             else print $2
         }' | head -1)
 
-    if [ -z "$BOOT_START" ] || [ "$BOOT_START" = "*" ]; then
-        log_warn "Partition auto-detection failed — using default sector 8"
-        BOOT_START=8
+    WIC_ROOTFS_SECTORS=$(echo "$WIC_FDISK" | \
+        awk '/Linux/{
+            if ($2 == "*") print $5
+            else print $4
+        }' | head -1)
+
+    if [ -z "$WIC_ROOTFS_START" ] || [ -z "$WIC_ROOTFS_SECTORS" ]; then
+        log_error "Could not parse rootfs partition from WIC image"
     fi
 
-    BOOT_OFFSET_BYTES=$(( BOOT_START * 512 ))
-
-    log_info "BOOT partition: sector ${BOOT_START}, offset ${BOOT_OFFSET_BYTES} bytes"
+    log_info "WIC rootfs: start sector=${WIC_ROOTFS_START}, sectors=${WIC_ROOTFS_SECTORS}"
 }
 
-# ── Build the SD card image ───────────────────────────────────
-build_image() {
-    log_info "Building SD card image..."
+# ── Step 1: Create blank image ────────────────────────────────
+create_blank_image() {
+    log_info "[1/5] Creating blank image ($(( TOTAL_SECTORS * 512 / 1024 / 1024 ))MB)..."
+    log_info "      This matches the original SD card partition layout"
+
+    # Remove old image if exists
+    rm -f "${OUTPUT_IMG}"
+
+    # Create sparse file — fast, only allocates space as data is written
+    dd if=/dev/zero of="${OUTPUT_IMG}" \
+        bs=512 count=0 seek="${TOTAL_SECTORS}" 2>/dev/null
+
+    log_success "Blank image created ($(du -sh ${OUTPUT_IMG} | cut -f1) sparse)"
+}
+
+# ── Step 2: Create partition table ───────────────────────────
+create_partitions() {
+    log_info "[2/5] Creating partition table (matching original layout)..."
+    log_info "      BOOT:   sector ${BOOT_START} → $(( BOOT_START + BOOT_SECTORS - 1 )) (2GB FAT32)"
+    log_info "      rootfs: sector ${ROOTFS_START} → $(( ROOTFS_START + ROOTFS_SECTORS - 1 )) (4GB Linux)"
+
+    # Use sfdisk for scriptable partition creation
+    sfdisk "${OUTPUT_IMG}" << EOF
+label: dos
+unit: sectors
+
+start=${BOOT_START},    size=${BOOT_SECTORS},   type=c, bootable
+start=${ROOTFS_START},  size=${ROOTFS_SECTORS},  type=83
+EOF
+
+    log_success "Partition table written"
+
+    # Verify
+    fdisk -l "${OUTPUT_IMG}"
+}
+
+# ── Step 3: Format BOOT partition as FAT32 ───────────────────
+format_boot_fat32() {
+    log_info "[3/5] Formatting BOOT partition as FAT32..."
+
+    # Extract the BOOT region into a temporary file for formatting
+    BOOT_TMP=$(mktemp)
+    trap "rm -f ${BOOT_TMP}" EXIT
+
+    # Create a blank file the size of the BOOT partition
+    dd if=/dev/zero of="${BOOT_TMP}" \
+        bs=512 count="${BOOT_SECTORS}" 2>/dev/null
+
+    # Format as FAT32
+    mkfs.vfat -F 32 -n "BOOT" "${BOOT_TMP}"
+
+    # Write formatted FAT32 back into the correct offset of the image
+    dd if="${BOOT_TMP}" of="${OUTPUT_IMG}" \
+        bs=512 seek="${BOOT_START}" conv=notrunc 2>/dev/null
+
+    rm -f "${BOOT_TMP}"
+    trap - EXIT
+
+    log_success "BOOT partition formatted as FAT32"
+}
+
+# ── Step 4: Copy rootfs from WIC ─────────────────────────────
+copy_rootfs() {
+    log_info "[4/5] Copying rootfs from WIC image..."
+    log_info "      Source: WIC sector ${WIC_ROOTFS_START} (${WIC_ROOTFS_SECTORS} sectors)"
+    log_info "      Dest  : sdcard.img sector ${ROOTFS_START}"
+    log_info "      Note  : rootfs will be smaller than 4GB partition"
+    log_info "              Run 'resize2fs /dev/mmcblk0p2' on ZCU104 to expand"
+
+    dd if="${WIC_IMAGE}" of="${OUTPUT_IMG}" \
+        bs=512 \
+        skip="${WIC_ROOTFS_START}" \
+        seek="${ROOTFS_START}" \
+        count="${WIC_ROOTFS_SECTORS}" \
+        conv=notrunc \
+        status=progress
+
+    log_success "Rootfs copied"
+}
+
+# ── Step 5: Write boot files via mtools ──────────────────────
+write_boot_files() {
+    log_info "[5/5] Writing ZCU104 boot files to BOOT partition..."
+    log_info "      Using mtools — no mount or loop devices needed"
     echo ""
 
-    # ── Step 1: Copy WIC as base ──────────────────────────────
-    log_info "[1/4] Copying WIC image as base..."
-    cp "${WIC_IMAGE}" "${OUTPUT_IMG}"
-    log_success "Base image copied ($(du -sh ${OUTPUT_IMG} | cut -f1))"
-
-    # ── Step 2: Locate BOOT partition ─────────────────────────
-    log_info "[2/4] Locating BOOT partition..."
-    get_boot_offset
-
-    # mtools image spec with partition offset
-    # Format: image@@offset_in_bytes
+    # mtools image spec: image@@byte_offset
     MTOOLS_IMG="${OUTPUT_IMG}@@${BOOT_OFFSET_BYTES}"
-
-    # ── Step 3: Write boot files via mtools ───────────────────
-    log_info "[3/4] Writing ZCU104 boot files via mtools..."
-    log_info "      (no mount or loop devices required)"
-    echo ""
 
     log_info "  Writing BOOT.BIN..."
     mcopy -i "${MTOOLS_IMG}" -o "${BOOT_BIN}" ::BOOT.BIN
-    log_success "  BOOT.BIN written ($(du -sh ${BOOT_BIN} | cut -f1))"
+    log_success "  BOOT.BIN  ($(du -sh ${BOOT_BIN} | cut -f1))"
 
     log_info "  Writing Image (kernel)..."
     mcopy -i "${MTOOLS_IMG}" -o "${KERNEL}" ::Image
-    log_success "  Image written ($(du -sh ${KERNEL} | cut -f1))"
+    log_success "  Image     ($(du -sh ${KERNEL} | cut -f1))"
 
     log_info "  Writing system.dtb..."
     mcopy -i "${MTOOLS_IMG}" -o "${DTB}" ::system.dtb
-    log_success "  system.dtb written ($(du -sh ${DTB} | cut -f1))"
+    log_success "  system.dtb ($(du -sh ${DTB} | cut -f1))"
 
     if [ -n "$BOOTSCR" ]; then
         log_info "  Writing boot.scr..."
         mcopy -i "${MTOOLS_IMG}" -o "${BOOTSCR}" ::boot.scr
-        log_success "  boot.scr written"
+        log_success "  boot.scr"
     fi
 
     echo ""
-    log_info "  Final BOOT partition contents:"
+    log_info "  BOOT partition contents:"
     mdir -i "${MTOOLS_IMG}" :: | sed 's/^/    /'
+}
 
-    log_success "Boot files written successfully"
-
-    # ── Step 4: Generate bmap ─────────────────────────────────
-    log_info "[4/4] Generating bmap file..."
+# ── Generate bmap ─────────────────────────────────────────────
+generate_bmap() {
+    log_info "Generating bmap file for fast flashing..."
 
     if [ "$HAVE_BMAPTOOL" = "1" ]; then
         bmaptool create "${OUTPUT_IMG}" > "${OUTPUT_BMAP}"
-        log_success "bmap file generated: ${OUTPUT_BMAP}"
+        log_success "bmap generated: ${OUTPUT_BMAP}"
     else
         log_warn "bmaptool not found — skipping bmap generation"
         log_warn "Install: sudo apt-get install -y bmap-tools"
@@ -246,19 +322,25 @@ print_summary() {
     [ -f "$OUTPUT_BMAP" ] && \
         log_success "bmap  : ${OUTPUT_BMAP}"
     echo ""
+    echo " Partition layout:"
+    fdisk -l "${OUTPUT_IMG}" | grep -E "img[0-9]|Device"
+    echo ""
     echo " Flash options:"
     echo ""
-    echo " 1. Balena Etcher (Windows/macOS/Linux GUI):"
+    echo " 1. Balena Etcher (Windows/macOS/Linux):"
     echo "    Open Etcher → Select sdcard.img → Flash"
     echo ""
-    echo " 2. bmaptool (fast, Linux):"
+    echo " 2. bmaptool (fastest, Linux):"
     echo "    sudo bmaptool copy ${OUTPUT_IMG} /dev/sdX"
     echo ""
     echo " 3. dd (fallback):"
     echo "    sudo dd if=${OUTPUT_IMG} of=/dev/sdX \\"
     echo "        bs=4M status=progress conv=fsync"
     echo ""
-    echo " ZCU104 boot mode switches (SW6):"
+    echo " After first boot — expand rootfs to fill 4GB:"
+    echo "    resize2fs /dev/mmcblk0p2"
+    echo ""
+    echo " ZCU104 boot mode (SW6):"
     echo "    1=OFF 2=OFF 3=OFF 4=ON  → SD card boot"
     echo ""
     echo " Serial console: 115200 baud, /dev/ttyUSB1"
@@ -274,7 +356,12 @@ echo ""
 
 check_tools
 find_outputs
-get_image_size
 check_space
-build_image
+get_wic_rootfs_info
+create_blank_image
+create_partitions
+format_boot_fat32
+copy_rootfs
+write_boot_files
+generate_bmap
 print_summary
