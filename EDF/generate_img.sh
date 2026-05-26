@@ -42,7 +42,7 @@ log_error()   { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 BUILD_DIR="/home/edf/projects/EDF/build"
 OUTPUT_DIR="/home/edf/projects/EDF"
 MACHINE_BOOT="zynqmp-zcu104-sdt-full"
-MACHINE_LINUX="amd-cortexa53-common"
+MACHINE_LINUX="zynqmp-zcu104-sdt-full"
 IMAGE_NAME="core-image-minimal"
 OUTPUT_IMG="${OUTPUT_DIR}/sdcard.img"
 OUTPUT_BMAP="${OUTPUT_DIR}/sdcard.img.bmap"

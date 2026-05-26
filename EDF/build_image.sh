@@ -1,1 +1,1 @@
-MACHINE=amd-cortexa53-common bitbake core-image-minimal
+MACHINE=zynqmp-zcu104-sdt-full bitbake core-image-minimal
