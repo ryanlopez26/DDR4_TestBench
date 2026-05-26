@@ -59,6 +59,18 @@ RUN dpkg --add-architecture i386 && \
         # Embedded tools
         u-boot-tools device-tree-compiler \
         bc gnupg pax \
+        # ── SD card image generation ──────────────────────────
+        # dosfstools  → mkfs.vfat for FAT32 BOOT partition
+        # mtools      → mcopy for copying files into FAT images
+        # bmap-tools  → bmaptool for fast image flashing
+        # util-linux  → losetup, fdisk, mount for partition ops
+        # parted      → partition table inspection
+        dosfstools \
+        mtools \
+        bmap-tools \
+        util-linux \
+        parted \
+        mount \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
