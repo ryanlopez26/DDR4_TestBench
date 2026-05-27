@@ -6,5 +6,8 @@ namespace DDR4_TestingApp
 {
     public static class Deconstruct
     {
+
+        //Memory cell location
+
     }
 }
