@@ -86,6 +86,7 @@ __pycache__/
 zcu_app/target/
 zcu_app/zcu_server
 zcu_app/Cargo.lock
+zcu-server
 
 # ── C# / .NET / Visual Studio ────────────────────────────────
 # Build outputs (case-insensitive: bin/Bin/BIN, obj/Obj/OBJ, etc.)
