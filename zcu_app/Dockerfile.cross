@@ -13,6 +13,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 # --- Build dependencies + aarch64 cross-toolchain --------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl pkg-config \
+        build-essential \
         gcc-aarch64-linux-gnu \
         libc6-dev-arm64-cross \
     && rm -rf /var/lib/apt/lists/*
