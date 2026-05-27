@@ -5,14 +5,16 @@ SRC_URI = "file://eth0-static.network"
 
 S = "${WORKDIR}"
 
-inherit systemd
-SYSTEMD_AUTO_ENABLE = "enable"
-SYSTEMD_SERVICE:${PN} = "systemd-networkd.service"
+RDEPENDS:${PN} = "systemd"
 
-FILES:${PN} += "${sysconfdir}/systemd/network/eth0-static.network"
+FILES:${PN} = "${sysconfdir}/systemd/network/eth0-static.network"
 
 do_install() {
     install -d ${D}${sysconfdir}/systemd/network
     install -m 0644 ${WORKDIR}/eth0-static.network \
         ${D}${sysconfdir}/systemd/network/
+}
+
+pkg_postinst_ontarget:${PN}() {
+    systemctl enable systemd-networkd.service
 }
