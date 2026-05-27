@@ -83,6 +83,7 @@ __pycache__/
 
 # Rust
 zcu_app/target/
+zcu_app/zcu_server
 zcu_app/Cargo.lock
 
 # ── C# / .NET / Visual Studio ────────────────────────────────

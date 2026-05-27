@@ -74,14 +74,14 @@ docker run --rm -it \
     "$IMAGE" "$@"
 
 # --------------------------------------------------------------------------
-# Copy the built binary into the project root as `zcu_app`.
+# Copy the built binary into the project root as `zcu_server`.
 #
 # Cargo's output lands in $OUT_DIR with no file extension — the .d files are
 # dependency info and .rlib files are static libs, so the binary is the file
 # without a dot in its name. Grab the first such file.
 
 OUT_DIR="$PROJECT_DIR/target/aarch64-unknown-linux-gnu/release"
-DEST="$PROJECT_DIR/zcu_app"
+DEST="$PROJECT_DIR/zcu_server"
 
 SRC_BIN=$(find "$OUT_DIR" -maxdepth 1 -type f ! -name '*.*' 2>/dev/null | head -n 1)
 
