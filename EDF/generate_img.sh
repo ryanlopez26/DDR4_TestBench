@@ -234,7 +234,7 @@ format_boot_fat32() {
         bs=512 count="${BOOT_SECTORS}" 2>/dev/null
 
     # Format as FAT32
-    mkfs.vfat -F 32 -n "BOOT" "${BOOT_TMP}"
+    mkfs.vfat -F 32 -n "boot" "${BOOT_TMP}"
 
     # Write formatted FAT32 back into the correct offset of the image
     dd if="${BOOT_TMP}" of="${OUTPUT_IMG}" \

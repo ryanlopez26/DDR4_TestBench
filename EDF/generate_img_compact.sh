@@ -257,7 +257,7 @@ format_boot_fat32() {
     dd if=/dev/zero of="${BOOT_TMP}" \
         bs=512 count="${BOOT_SECTORS}" 2>/dev/null
 
-    mkfs.vfat -F 32 -n "BOOT" "${BOOT_TMP}"
+    mkfs.vfat -F 32 -n "boot" "${BOOT_TMP}"
 
     dd if="${BOOT_TMP}" of="${OUTPUT_IMG}" \
         bs=512 seek="${BOOT_START}" conv=notrunc 2>/dev/null
