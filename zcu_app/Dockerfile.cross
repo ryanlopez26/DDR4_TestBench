@@ -29,6 +29,7 @@ ENV RUSTUP_HOME=/opt/rust \
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
         sh -s -- -y --no-modify-path --default-toolchain stable \
     && rustup target add aarch64-unknown-linux-gnu \
+    && mkdir -p /opt/cargo/registry /opt/cargo/git \
     && chmod -R a+rwX /opt/rust /opt/cargo
 
 # --- Cross-linker config ---------------------------------------------------
