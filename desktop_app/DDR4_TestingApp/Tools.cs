@@ -48,9 +48,7 @@ namespace DDR4_TestingApp
                 dialog.Description = "Select a folder";
                 dialog.UseDescriptionForTitle = true;
                 dialog.ShowNewFolderButton = true;
-
-                if (FileManager.IsValidWorkspace(initialPath))
-                    dialog.InitialDirectory = initialPath;
+                dialog.InitialDirectory = initialPath;
 
                 return dialog.ShowDialog() == DialogResult.OK
                     ? dialog.SelectedPath

@@ -3,9 +3,15 @@ namespace DDR4_TestingApp
 
     internal static class Program
     {
-        /// <summary>
-        ///  The main entry point for the application.
-        /// </summary>
+
+        // Current global status
+        public static String taskName = "===";
+        public static String taskInfo = "Welcome";
+        public static float  taskProgress = 1.0f;
+
+
+
+
         [STAThread]
         static void Main()
         {
@@ -13,7 +19,7 @@ namespace DDR4_TestingApp
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
             ApplicationConfiguration.Initialize();
-            Application.Run(new Form1());
+            Application.Run(new MainForm());
 
 
         }

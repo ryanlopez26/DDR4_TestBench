@@ -1,0 +1,14 @@
+[Unit]
+Description=ZCU DDR4 test server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/zcu-server
+Restart=on-failure
+RestartSec=2
+# User= is omitted — systemd defaults to root, which is what /dev/mem needs
+
+[Install]
+WantedBy=multi-user.target

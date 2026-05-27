@@ -1,25 +1,19 @@
 using System.ComponentModel;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace DDR4_TestingApp
 {
-    public partial class Form1 : Form
+    public partial class MainForm : Form
     {
 
         private readonly System.Windows.Forms.Timer _uiTimer = new();
 
-        //Binding for capture table
-        private BindingSource CaptureTable_bindings = new();
 
-        // CaptureInfos
-        private List<CaptureInfo> capture_infos = new List<CaptureInfo>();
 
-        //Selected chip button
-        private Int32 selected_chip_index = 0;
-
-        public Form1()
+        public MainForm()
         {
 
             _uiTimer.Interval = 1000;          // milliseconds — 4x per second
@@ -30,9 +24,7 @@ namespace DDR4_TestingApp
 
         }
 
-        // On the form class:
-        private InfoRsp? _lastInfo;
-        private bool _infoFetchInProgress;
+
 
         private void UpdateDramPanels(byte ramOrg, byte selectedChip)
         {
@@ -73,40 +65,18 @@ namespace DDR4_TestingApp
             connectionState.Text = connected ? "CONNECTED" : "DISCONNECTED";
             connectionState.BackColor = connected ? Color.Green : Color.Red;
 
-            if (!connected)
-            {
-                _lastInfo = null;
-                ClearInfoFields();
-                return;
-            }
+            //Attempt to update information
+            Info.update();
 
-            // --- Fire an info fetch if one isn't already in flight ---
-            // The 100 ms server-side sample in info_command means each request takes
-            // ~100 ms + RTT, so if the timer ticks faster than that we'd otherwise
-            // pile up overlapping requests. The flag drops ticks that arrive while
-            // a fetch is still going.
-            if (!_infoFetchInProgress)
-            {
-                _infoFetchInProgress = true;
-                try
-                {
-                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                    _lastInfo = await TcpManager.SendInfoAsync(cts.Token);
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Info fetch failed: {ex.GetType().Name}: {ex.Message}");
-                    System.Diagnostics.Debug.WriteLine(ex.StackTrace);
-                    _lastInfo = null;
-                }
-                finally
-                {
-                    _infoFetchInProgress = false;
-                }
-            }
+            UpdateInfoFields(Info.sys);
+        }
 
-            // --- Refresh UI from whatever we have ---
-            UpdateInfoFields(_lastInfo);
+        public void UpdateStatusBar()
+        {
+            //Attempt to update task indicator
+            taskProgress.Value = (int)Program.taskProgress;
+            taskInfo.Text = Program.taskInfo;
+            taskName.Text = Program.taskName;
         }
 
         private void ClearInfoFields()
@@ -168,23 +138,6 @@ namespace DDR4_TestingApp
         }
 
 
-        private void button4_Click(object sender, EventArgs e)
-        {
-            //Open file prompt to select workspace
-            String path = Tools.SelectFolder();
-
-            //Set as the new workspace path
-            FileManager.WorkspacePath = path;
-
-            //Load the workspace
-            FileManager.LoadWorkspace(path);
-
-        }
-
-        private void panel5_Paint(object sender, PaintEventArgs e)
-        {
-        }
-
         private async void button1_Click(object sender, EventArgs e)
         {
             if (TcpManager.Status == TcpManager.ConnectionStatus.Connected)
@@ -213,7 +166,7 @@ namespace DDR4_TestingApp
                 return;
             }
 
-            cmdName.Text = "WRITE";
+            Program.taskName = "WRITE";
 
             var cmd = new WriteCmd
             {
@@ -227,25 +180,24 @@ namespace DDR4_TestingApp
             // reports come from a background continuation. Safe to touch controls.
             var progress = new Progress<WriteRsp>(rsp =>
             {
-                progressBar.Value = (int)rsp.PercentComplete;
-                statusLabel.Text = $"{rsp.BytesWritten:N0} bytes  ({rsp.PercentComplete:F1}%)  {(rsp.TimeSpentMs / 1000):F0}s";
+                Program.taskProgress = rsp.PercentComplete;
+                Program.taskInfo  = $"{rsp.BytesWritten:N0} bytes  ({rsp.PercentComplete:F1}%)  {(rsp.TimeSpentMs / 1000):F0}s";
+                UpdateStatusBar();
             });
 
             using var cts = new CancellationTokenSource();
             EventHandler cancelHandler = (_, _) => cts.Cancel();
 
             writeButton.Enabled = false;
-            cancelButton.Enabled = true;
-            cancelButton.Click += cancelHandler;
 
             try
             {
                 WriteRsp final = await TcpManager.SendWriteAsync(cmd, progress, cts.Token);
-                statusLabel.Text = $"Done. {final.BytesWritten:N0} bytes in {(final.TimeSpentMs / 1000):F0} seconds";
+                taskInfo.Text = $"Done. {final.BytesWritten:N0} bytes in {(final.TimeSpentMs / 1000):F0} seconds";
             }
             catch (OperationCanceledException)
             {
-                statusLabel.Text = "Write cancelled.";
+                taskInfo.Text = "Write cancelled.";
             }
             catch (Exception ex)
             {
@@ -253,9 +205,7 @@ namespace DDR4_TestingApp
             }
             finally
             {
-                cancelButton.Click -= cancelHandler;   // <-- the important line
                 writeButton.Enabled = true;
-                cancelButton.Enabled = false;
             }
         }
 
@@ -266,91 +216,42 @@ namespace DDR4_TestingApp
 
         private void sel_dram0_Click(object sender, EventArgs e)
         {
-            selected_chip_index = 0;
+            Config.sys.ChipIndex = 0;
         }
 
         private void sel_dram1_Click(object sender, EventArgs e)
         {
-            selected_chip_index = 1;
+            Config.sys.ChipIndex = 1;
         }
 
         private void sel_dram2_Click(object sender, EventArgs e)
         {
-            selected_chip_index = 2;
+            Config.sys.ChipIndex = 2;
         }
 
         private void sel_dram3_Click(object sender, EventArgs e)
         {
-            selected_chip_index = 3;
+            Config.sys.ChipIndex = 3;
         }
 
         private void sel_dram4_Click(object sender, EventArgs e)
         {
-            selected_chip_index = 4;
+            Config.sys.ChipIndex = 4;
         }
 
         private void sel_dram5_Click(object sender, EventArgs e)
         {
-            selected_chip_index = 5;
+            Config.sys.ChipIndex = 5;
         }
 
         private void sel_dram6_Click(object sender, EventArgs e)
         {
-            selected_chip_index = 6;
+            Config.sys.ChipIndex = 6;
         }
 
         private void sel_dram7_Click(object sender, EventArgs e)
         {
-            selected_chip_index = 7;
-        }
-
-        private async void applyConfiguration_Click(object sender, EventArgs e)
-        {
-            if (TcpManager.Status != TcpManager.ConnectionStatus.Connected)
-            {
-                MessageBox.Show("Not connected.");
-                return;
-            }
-
-            if (_lastInfo is InfoRsp info)
-            {
-
-
-                var cmd = new ConfigCmd
-                {
-                    ChipIndex = (byte)selected_chip_index,      // 0..7
-                    BusBytesPerChip = (byte)(info.RamOrganization / 8),  // x8 -> 1, x16 -> 2
-                    BusSizeInBytes = 8,                                     // x64 bus -> 8 bytes
-                    ChipSizeBytes = uint.Parse(chipSizeBox.Text) * 1024 * 1024,    // MiB -> bytes
-                    enableChipSelect = Convert.ToByte(enableChipSelection.Checked),
-                };
-
-                cmdName.Text = "CONFIG";
-
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                try
-                {
-                    await TcpManager.SendConfigAsync(cmd, cts.Token);
-                    statusLabel.Text = $"Config applied: chip {cmd.ChipIndex}, " +
-                                       $"x{cmd.BusBytesPerChip * 8}, " +
-                                       $"{cmd.ChipSizeBytes / 1024 / 1024} MiB";
-                }
-                catch (OperationCanceledException)
-                {
-                    statusLabel.Text = "Config timed out.";
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Config failed: {ex.Message}");
-
-                }
-            }
-
-        }
-
-        private void writeMode_SelectedIndexChanged(object sender, EventArgs e)
-        {
-
+            Config.sys.ChipIndex = 7;
         }
 
         private async void verifyButton_Click(object sender, EventArgs e)
@@ -361,7 +262,7 @@ namespace DDR4_TestingApp
                 return;
             }
 
-            cmdName.Text = "VERIFY";
+            Program.taskName = "VERIFY";
 
             var cmd = new VerifyCmd
             {
@@ -372,16 +273,15 @@ namespace DDR4_TestingApp
 
             var progress = new Progress<VerifyRsp>(rsp =>
             {
-                progressBar.Value = (int)rsp.PercentComplete;
-                statusLabel.Text = $"{rsp.BytesVerified:N0} bytes  ({rsp.PercentComplete:F1}%)  {(rsp.TimeSpentMs / 1000):F0}s";
+                Program.taskProgress = (int)rsp.PercentComplete;
+                Program.taskInfo = $"{rsp.BytesVerified:N0} bytes  ({rsp.PercentComplete:F1}%)  {(rsp.TimeSpentMs / 1000):F0}s";
+                UpdateStatusBar();
             });
 
             using var cts = new CancellationTokenSource();
             EventHandler cancelHandler = (_, _) => cts.Cancel();
 
             verifyButton.Enabled = false;
-            cancelButton.Enabled = true;
-            cancelButton.Click += cancelHandler;
 
             try
             {
@@ -398,11 +298,11 @@ namespace DDR4_TestingApp
                     $"Incorrect bytes: {final.NumErrors:N0}\n\n" +
                     $"{corruptedPercent:F2}% of the bytes were corrupted.";
 
-                statusLabel.Text = $"Verify complete in {seconds:F1}s";
+                Program.taskInfo = $"Verify complete in {seconds:F1}s";
             }
             catch (OperationCanceledException)
             {
-                statusLabel.Text = "Verify cancelled.";
+                Program.taskInfo = "Verify cancelled.";
             }
             catch (Exception ex)
             {
@@ -410,11 +310,117 @@ namespace DDR4_TestingApp
             }
             finally
             {
-                cancelButton.Click -= cancelHandler;
                 verifyButton.Enabled = true;
-                cancelButton.Enabled = false;
             }
         }
 
+        private void selectSaveLocation_Click(object sender, EventArgs e)
+        {
+            dumpPath.Text = Tools.SelectFolder(dumpPath.Text);
+        }
+
+        private async void dumpButton_Click(object sender, EventArgs e)
+        {
+            if (TcpManager.Status != TcpManager.ConnectionStatus.Connected || !Info.sys.HasValue)
+            {
+                MessageBox.Show("Not connected.");
+                return;
+            }
+
+            // Parse inputs — offset accepts "0x..." hex or decimal, num pages is decimal.
+            uint offset, numPages;
+            try
+            {
+                offset = 0;
+                numPages = Config.sys.ChipSizeBytes / TcpManager.PAGE_SIZE;
+            }
+            catch (Exception)
+            {
+                MessageBox.Show("Offset must be hex (0x...) or decimal; pages must be a positive integer.");
+                return;
+            }
+
+            if (numPages == 0)
+            {
+                MessageBox.Show("Page count must be at least 1.");
+                return;
+            }
+
+            Program.taskName = "DUMP";
+
+            var cmd = new DumpCmd { OffsetStart = offset, NumPages = numPages };
+
+            int pagesReceived = 0;
+            var progress = new Progress<DumpPage>(page =>
+            {
+                pagesReceived++;
+                Program.taskProgress = Math.Clamp((int)(pagesReceived * 100L / numPages), 0, 100);
+                Program.taskInfo = $"Page {pagesReceived}/{numPages} @ 0x{page.Address:X8}";
+                UpdateStatusBar();
+            });
+
+            using var cts = new CancellationTokenSource();
+            EventHandler cancelHandler = (_, _) => cts.Cancel();
+
+            dumpButton.Enabled = false;
+
+            try
+            {
+                var pages = await TcpManager.SendDumpAsync(cmd, progress, cts.Token);
+
+                // Write the raw bytes to disk in the workspace.
+                string filename = dumpFileName.Text + ".bin";
+                string path = Path.Combine(dumpPath.Text, filename);
+
+                using (var fs = File.Create(path))
+                {
+                    foreach (var page in pages)
+                        fs.Write(page.Data, 0, page.Data.Length);
+                }
+
+                // Summary + small hex preview of the first page.
+                uint totalErrors = (uint)pages.Sum(p => (long)p.NumErrors);
+                long totalBytes = pages.Sum(p => (long)p.Data.Length);
+
+                if (pages.Count > 0)
+                {
+                    int previewLen = Math.Min(256, pages[0].Data.Length);
+                }
+
+                Program.taskInfo = $"Dumped {totalBytes:N0} bytes ({pages.Count} pages)";
+            }
+            catch (OperationCanceledException)
+            {
+                Program.taskInfo = "Dump cancelled.";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Dump failed: {ex.Message}");
+            }
+            finally
+            {
+                dumpButton.Enabled = true;
+            }
+        }
+
+        private void enableChipSelection_CheckedChanged(object sender, EventArgs e)
+        {
+            Config.sys.enableChipSelect = Convert.ToByte(enableChipSelection.Checked);
+        }
+
+        private void chipSizeBox_TextChanged(object sender, EventArgs e)
+        {
+           
+        }
+
+        private void applyConfiguration_Click(object sender, EventArgs e)
+        {
+            Config.apply();
+        }
+
+        private void chipSizeBox_ValueChanged(object sender, EventArgs e)
+        {
+            Config.sys.ChipSizeBytes = (uint)chipSizeBox.Value * 1024 * 1024;
+        }
     }
 }

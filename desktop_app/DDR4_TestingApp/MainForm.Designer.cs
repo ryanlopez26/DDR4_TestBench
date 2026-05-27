@@ -1,6 +1,6 @@
 ﻿namespace DDR4_TestingApp
 {
-    partial class Form1
+    partial class MainForm
     {
         /// <summary>
         ///  Required designer variable.
@@ -31,15 +31,15 @@
             components = new System.ComponentModel.Container();
             captureInfoBindingSource = new BindingSource(components);
             statusStrip1 = new StatusStrip();
-            cmdName = new ToolStripStatusLabel();
-            progressBar = new ToolStripProgressBar();
-            statusLabel = new ToolStripStatusLabel();
+            taskName = new ToolStripStatusLabel();
+            taskProgress = new ToolStripProgressBar();
+            taskInfo = new ToolStripStatusLabel();
             connectionState = new ToolStripStatusLabel();
             ConnectAndConfigure = new TabControl();
             tabPage1 = new TabPage();
             groupBox7 = new GroupBox();
             groupBox4 = new GroupBox();
-            chipSizeBox = new TextBox();
+            chipSizeBox = new NumericUpDown();
             label21 = new Label();
             applyConfiguration = new Button();
             sideB = new GroupBox();
@@ -103,11 +103,15 @@
             ip_address = new TextBox();
             label1 = new Label();
             tabPage2 = new TabPage();
-            groupBox6 = new GroupBox();
+            groupBox21 = new GroupBox();
+            groupBox23 = new GroupBox();
+            dumpFileName = new TextBox();
+            dumpButton = new Button();
+            groupBox22 = new GroupBox();
+            selectSaveLocation = new Button();
+            dumpPath = new TextBox();
             groupBox5 = new GroupBox();
             panel1 = new Panel();
-            groupBox13 = new GroupBox();
-            cancelButton = new Button();
             groupBox11 = new GroupBox();
             prngSeed = new TextBox();
             genSeed = new Button();
@@ -121,11 +125,31 @@
             writeButton = new Button();
             writeModeLabel = new GroupBox();
             writeMode = new ComboBox();
+            tabPage3 = new TabPage();
+            groupBox20 = new GroupBox();
+            comboBox1 = new ComboBox();
+            groupBox18 = new GroupBox();
+            groupBox19 = new GroupBox();
+            button2 = new Button();
+            textBox2 = new TextBox();
+            groupBox17 = new GroupBox();
+            button4 = new Button();
+            button3 = new Button();
+            numericUpDown1 = new NumericUpDown();
+            richTextBox1 = new RichTextBox();
+            groupBox6 = new GroupBox();
+            button1 = new Button();
+            groupBox16 = new GroupBox();
+            textBox3 = new TextBox();
+            groupBox13 = new GroupBox();
+            textBox1 = new TextBox();
+            contextMenuStrip1 = new ContextMenuStrip(components);
             ((System.ComponentModel.ISupportInitialize)captureInfoBindingSource).BeginInit();
             statusStrip1.SuspendLayout();
             ConnectAndConfigure.SuspendLayout();
             tabPage1.SuspendLayout();
             groupBox4.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)chipSizeBox).BeginInit();
             sideB.SuspendLayout();
             sideA.SuspendLayout();
             groupBox2.SuspendLayout();
@@ -134,46 +158,53 @@
             groupBox15.SuspendLayout();
             groupBox1.SuspendLayout();
             tabPage2.SuspendLayout();
+            groupBox21.SuspendLayout();
+            groupBox23.SuspendLayout();
+            groupBox22.SuspendLayout();
             groupBox5.SuspendLayout();
-            groupBox13.SuspendLayout();
             groupBox11.SuspendLayout();
             groupBox9.SuspendLayout();
             groupBox12.SuspendLayout();
             groupBox10.SuspendLayout();
             groupBox8.SuspendLayout();
             writeModeLabel.SuspendLayout();
+            tabPage3.SuspendLayout();
+            groupBox20.SuspendLayout();
+            groupBox18.SuspendLayout();
+            groupBox19.SuspendLayout();
+            groupBox17.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)numericUpDown1).BeginInit();
+            groupBox6.SuspendLayout();
+            groupBox16.SuspendLayout();
+            groupBox13.SuspendLayout();
             SuspendLayout();
-            // 
-            // captureInfoBindingSource
-            // 
-            captureInfoBindingSource.DataSource = typeof(CaptureInfo);
             // 
             // statusStrip1
             // 
-            statusStrip1.Items.AddRange(new ToolStripItem[] { cmdName, progressBar, statusLabel, connectionState });
+            statusStrip1.Items.AddRange(new ToolStripItem[] { taskName, taskProgress, taskInfo, connectionState });
             statusStrip1.Location = new Point(0, 739);
             statusStrip1.Name = "statusStrip1";
             statusStrip1.Size = new Size(1184, 22);
             statusStrip1.TabIndex = 1;
             statusStrip1.Text = "statusStrip1";
             // 
-            // cmdName
+            // taskName
             // 
-            cmdName.Name = "cmdName";
-            cmdName.Size = new Size(118, 17);
-            cmdName.Text = "toolStripStatusLabel1";
+            taskName.Name = "taskName";
+            taskName.Size = new Size(118, 17);
+            taskName.Text = "toolStripStatusLabel1";
             // 
-            // progressBar
+            // taskProgress
             // 
-            progressBar.AutoSize = false;
-            progressBar.Name = "progressBar";
-            progressBar.Size = new Size(800, 16);
+            taskProgress.AutoSize = false;
+            taskProgress.Name = "taskProgress";
+            taskProgress.Size = new Size(800, 16);
             // 
-            // statusLabel
+            // taskInfo
             // 
-            statusLabel.Name = "statusLabel";
-            statusLabel.Size = new Size(118, 17);
-            statusLabel.Text = "toolStripStatusLabel2";
+            taskInfo.Name = "taskInfo";
+            taskInfo.Size = new Size(118, 17);
+            taskInfo.Text = "toolStripStatusLabel2";
             // 
             // connectionState
             // 
@@ -187,6 +218,7 @@
             ConnectAndConfigure.AccessibleName = "";
             ConnectAndConfigure.Controls.Add(tabPage1);
             ConnectAndConfigure.Controls.Add(tabPage2);
+            ConnectAndConfigure.Controls.Add(tabPage3);
             ConnectAndConfigure.Location = new Point(0, 0);
             ConnectAndConfigure.Name = "ConnectAndConfigure";
             ConnectAndConfigure.SelectedIndex = 0;
@@ -211,7 +243,7 @@
             // 
             groupBox7.Location = new Point(480, 162);
             groupBox7.Name = "groupBox7";
-            groupBox7.Size = new Size(688, 502);
+            groupBox7.Size = new Size(688, 540);
             groupBox7.TabIndex = 4;
             groupBox7.TabStop = false;
             groupBox7.Text = "Status Log";
@@ -226,18 +258,18 @@
             groupBox4.Controls.Add(sideA);
             groupBox4.Location = new Point(8, 162);
             groupBox4.Name = "groupBox4";
-            groupBox4.Size = new Size(466, 502);
+            groupBox4.Size = new Size(466, 540);
             groupBox4.TabIndex = 4;
             groupBox4.TabStop = false;
             groupBox4.Text = "SODIMM Configuration";
             // 
             // chipSizeBox
             // 
-            chipSizeBox.Location = new Point(372, 20);
+            chipSizeBox.Location = new Point(372, 19);
             chipSizeBox.Name = "chipSizeBox";
-            chipSizeBox.Size = new Size(71, 23);
-            chipSizeBox.TabIndex = 4;
-            chipSizeBox.Text = "1";
+            chipSizeBox.Size = new Size(62, 23);
+            chipSizeBox.TabIndex = 13;
+            chipSizeBox.ValueChanged += chipSizeBox_ValueChanged;
             // 
             // label21
             // 
@@ -252,7 +284,7 @@
             // 
             applyConfiguration.Location = new Point(6, 468);
             applyConfiguration.Name = "applyConfiguration";
-            applyConfiguration.Size = new Size(451, 23);
+            applyConfiguration.Size = new Size(451, 66);
             applyConfiguration.TabIndex = 12;
             applyConfiguration.Text = "Apply Configuration";
             applyConfiguration.UseVisualStyleBackColor = true;
@@ -405,6 +437,7 @@
             enableChipSelection.TabIndex = 1;
             enableChipSelection.Text = "Enable Chip Isolation";
             enableChipSelection.UseVisualStyleBackColor = true;
+            enableChipSelection.CheckedChanged += enableChipSelection_CheckedChanged;
             // 
             // sideA
             // 
@@ -605,7 +638,7 @@
             groupBox14.Size = new Size(262, 129);
             groupBox14.TabIndex = 1;
             groupBox14.TabStop = false;
-            groupBox14.Text = "SODIMM Info";
+            groupBox14.Text = "System Information";
             // 
             // downlinkBox
             // 
@@ -870,9 +903,8 @@
             // 
             // tabPage2
             // 
-            tabPage2.Controls.Add(groupBox6);
+            tabPage2.Controls.Add(groupBox21);
             tabPage2.Controls.Add(groupBox5);
-            tabPage2.Controls.Add(groupBox13);
             tabPage2.Controls.Add(groupBox11);
             tabPage2.Controls.Add(groupBox9);
             tabPage2.Controls.Add(groupBox8);
@@ -881,17 +913,81 @@
             tabPage2.Padding = new Padding(3);
             tabPage2.Size = new Size(1176, 708);
             tabPage2.TabIndex = 1;
-            tabPage2.Text = "Passive Testing Interface";
+            tabPage2.Text = "Manual Control";
             tabPage2.UseVisualStyleBackColor = true;
             // 
-            // groupBox6
+            // groupBox21
             // 
-            groupBox6.Location = new Point(389, 516);
-            groupBox6.Name = "groupBox6";
-            groupBox6.Size = new Size(779, 186);
-            groupBox6.TabIndex = 5;
-            groupBox6.TabStop = false;
-            groupBox6.Text = "groupBox6";
+            groupBox21.Controls.Add(groupBox23);
+            groupBox21.Controls.Add(dumpButton);
+            groupBox21.Controls.Add(groupBox22);
+            groupBox21.Location = new Point(8, 458);
+            groupBox21.Name = "groupBox21";
+            groupBox21.Size = new Size(375, 226);
+            groupBox21.TabIndex = 5;
+            groupBox21.TabStop = false;
+            groupBox21.Text = "Dump Tool";
+            // 
+            // groupBox23
+            // 
+            groupBox23.Controls.Add(dumpFileName);
+            groupBox23.Font = new Font("Segoe UI", 9F);
+            groupBox23.Location = new Point(4, 92);
+            groupBox23.Name = "groupBox23";
+            groupBox23.Size = new Size(363, 64);
+            groupBox23.TabIndex = 7;
+            groupBox23.TabStop = false;
+            groupBox23.Text = "File Name";
+            // 
+            // dumpFileName
+            // 
+            dumpFileName.Location = new Point(6, 22);
+            dumpFileName.Name = "dumpFileName";
+            dumpFileName.Size = new Size(351, 23);
+            dumpFileName.TabIndex = 5;
+            dumpFileName.Text = "Example Capture";
+            // 
+            // dumpButton
+            // 
+            dumpButton.Font = new Font("Segoe UI", 9F);
+            dumpButton.Location = new Point(4, 162);
+            dumpButton.Name = "dumpButton";
+            dumpButton.Size = new Size(365, 53);
+            dumpButton.TabIndex = 4;
+            dumpButton.Text = "Download";
+            dumpButton.UseVisualStyleBackColor = true;
+            dumpButton.Click += dumpButton_Click;
+            // 
+            // groupBox22
+            // 
+            groupBox22.Controls.Add(selectSaveLocation);
+            groupBox22.Controls.Add(dumpPath);
+            groupBox22.Font = new Font("Segoe UI", 9F);
+            groupBox22.Location = new Point(6, 22);
+            groupBox22.Name = "groupBox22";
+            groupBox22.Size = new Size(363, 64);
+            groupBox22.TabIndex = 2;
+            groupBox22.TabStop = false;
+            groupBox22.Text = "Save Location";
+            // 
+            // selectSaveLocation
+            // 
+            selectSaveLocation.Font = new Font("Segoe UI", 9F);
+            selectSaveLocation.Location = new Point(244, 22);
+            selectSaveLocation.Name = "selectSaveLocation";
+            selectSaveLocation.Size = new Size(113, 23);
+            selectSaveLocation.TabIndex = 6;
+            selectSaveLocation.Text = "Select";
+            selectSaveLocation.UseVisualStyleBackColor = true;
+            selectSaveLocation.Click += selectSaveLocation_Click;
+            // 
+            // dumpPath
+            // 
+            dumpPath.Location = new Point(6, 22);
+            dumpPath.Name = "dumpPath";
+            dumpPath.Size = new Size(232, 23);
+            dumpPath.TabIndex = 5;
+            dumpPath.Text = "C:\\";
             // 
             // groupBox5
             // 
@@ -912,27 +1008,6 @@
             panel1.Name = "panel1";
             panel1.Size = new Size(339, 464);
             panel1.TabIndex = 0;
-            // 
-            // groupBox13
-            // 
-            groupBox13.Controls.Add(cancelButton);
-            groupBox13.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            groupBox13.Location = new Point(6, 615);
-            groupBox13.Name = "groupBox13";
-            groupBox13.Size = new Size(377, 87);
-            groupBox13.TabIndex = 4;
-            groupBox13.TabStop = false;
-            groupBox13.Text = "Overrides";
-            // 
-            // cancelButton
-            // 
-            cancelButton.Font = new Font("Segoe UI", 9F);
-            cancelButton.Location = new Point(195, 22);
-            cancelButton.Name = "cancelButton";
-            cancelButton.Size = new Size(176, 53);
-            cancelButton.TabIndex = 2;
-            cancelButton.Text = "Cancel Operation";
-            cancelButton.UseVisualStyleBackColor = true;
             // 
             // groupBox11
             // 
@@ -973,7 +1048,7 @@
             groupBox9.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             groupBox9.Location = new Point(6, 164);
             groupBox9.Name = "groupBox9";
-            groupBox9.Size = new Size(377, 346);
+            groupBox9.Size = new Size(377, 288);
             groupBox9.TabIndex = 3;
             groupBox9.TabStop = false;
             groupBox9.Text = "Verify Tool";
@@ -984,7 +1059,7 @@
             groupBox12.Font = new Font("Segoe UI", 9F);
             groupBox12.Location = new Point(6, 81);
             groupBox12.Name = "groupBox12";
-            groupBox12.Size = new Size(365, 247);
+            groupBox12.Size = new Size(365, 200);
             groupBox12.TabIndex = 3;
             groupBox12.TabStop = false;
             groupBox12.Text = "Verification Results";
@@ -994,7 +1069,7 @@
             verificationResults.Font = new Font("Consolas", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
             verificationResults.Location = new Point(6, 22);
             verificationResults.Name = "verificationResults";
-            verificationResults.Size = new Size(353, 219);
+            verificationResults.Size = new Size(353, 169);
             verificationResults.TabIndex = 0;
             verificationResults.Text = "";
             // 
@@ -1071,16 +1146,190 @@
             writeMode.Name = "writeMode";
             writeMode.Size = new Size(142, 23);
             writeMode.TabIndex = 0;
-            writeMode.SelectedIndexChanged += writeMode_SelectedIndexChanged;
             // 
-            // Form1
+            // tabPage3
+            // 
+            tabPage3.Controls.Add(groupBox20);
+            tabPage3.Controls.Add(groupBox18);
+            tabPage3.Controls.Add(groupBox17);
+            tabPage3.Controls.Add(groupBox6);
+            tabPage3.Location = new Point(4, 24);
+            tabPage3.Name = "tabPage3";
+            tabPage3.Padding = new Padding(3);
+            tabPage3.Size = new Size(1176, 708);
+            tabPage3.TabIndex = 2;
+            tabPage3.Text = "Passive Testing";
+            tabPage3.UseVisualStyleBackColor = true;
+            // 
+            // groupBox20
+            // 
+            groupBox20.Controls.Add(comboBox1);
+            groupBox20.Location = new Point(347, 6);
+            groupBox20.Name = "groupBox20";
+            groupBox20.Size = new Size(300, 67);
+            groupBox20.TabIndex = 7;
+            groupBox20.TabStop = false;
+            groupBox20.Text = "Test Selector";
+            // 
+            // comboBox1
+            // 
+            comboBox1.FormattingEnabled = true;
+            comboBox1.Location = new Point(6, 29);
+            comboBox1.Name = "comboBox1";
+            comboBox1.Size = new Size(288, 23);
+            comboBox1.TabIndex = 0;
+            // 
+            // groupBox18
+            // 
+            groupBox18.Controls.Add(groupBox19);
+            groupBox18.Location = new Point(8, 532);
+            groupBox18.Name = "groupBox18";
+            groupBox18.Size = new Size(333, 170);
+            groupBox18.TabIndex = 8;
+            groupBox18.TabStop = false;
+            groupBox18.Text = "Exports";
+            // 
+            // groupBox19
+            // 
+            groupBox19.Controls.Add(button2);
+            groupBox19.Controls.Add(textBox2);
+            groupBox19.Location = new Point(6, 22);
+            groupBox19.Name = "groupBox19";
+            groupBox19.Size = new Size(321, 55);
+            groupBox19.TabIndex = 5;
+            groupBox19.TabStop = false;
+            groupBox19.Text = "Workspace Directory";
+            // 
+            // button2
+            // 
+            button2.Location = new Point(222, 21);
+            button2.Name = "button2";
+            button2.Size = new Size(87, 23);
+            button2.TabIndex = 2;
+            button2.Text = "button2";
+            button2.UseVisualStyleBackColor = true;
+            // 
+            // textBox2
+            // 
+            textBox2.Location = new Point(6, 21);
+            textBox2.Name = "textBox2";
+            textBox2.Size = new Size(210, 23);
+            textBox2.TabIndex = 1;
+            // 
+            // groupBox17
+            // 
+            groupBox17.Controls.Add(button4);
+            groupBox17.Controls.Add(button3);
+            groupBox17.Controls.Add(numericUpDown1);
+            groupBox17.Controls.Add(richTextBox1);
+            groupBox17.Location = new Point(8, 220);
+            groupBox17.Name = "groupBox17";
+            groupBox17.Size = new Size(333, 312);
+            groupBox17.TabIndex = 7;
+            groupBox17.TabStop = false;
+            groupBox17.Text = "Test Trials";
+            // 
+            // button4
+            // 
+            button4.Location = new Point(228, 275);
+            button4.Name = "button4";
+            button4.Size = new Size(99, 23);
+            button4.TabIndex = 3;
+            button4.Text = "Inspect";
+            button4.UseVisualStyleBackColor = true;
+            // 
+            // button3
+            // 
+            button3.Location = new Point(115, 275);
+            button3.Name = "button3";
+            button3.Size = new Size(107, 23);
+            button3.TabIndex = 2;
+            button3.Text = "Delete Trial";
+            button3.UseVisualStyleBackColor = true;
+            // 
+            // numericUpDown1
+            // 
+            numericUpDown1.Location = new Point(6, 275);
+            numericUpDown1.Name = "numericUpDown1";
+            numericUpDown1.Size = new Size(103, 23);
+            numericUpDown1.TabIndex = 1;
+            // 
+            // richTextBox1
+            // 
+            richTextBox1.Location = new Point(6, 22);
+            richTextBox1.Name = "richTextBox1";
+            richTextBox1.Size = new Size(315, 247);
+            richTextBox1.TabIndex = 0;
+            richTextBox1.Text = "";
+            // 
+            // groupBox6
+            // 
+            groupBox6.Controls.Add(button1);
+            groupBox6.Controls.Add(groupBox16);
+            groupBox6.Controls.Add(groupBox13);
+            groupBox6.Location = new Point(8, 6);
+            groupBox6.Name = "groupBox6";
+            groupBox6.Size = new Size(333, 208);
+            groupBox6.TabIndex = 0;
+            groupBox6.TabStop = false;
+            groupBox6.Text = "Configuration";
+            // 
+            // button1
+            // 
+            button1.Location = new Point(6, 144);
+            button1.Name = "button1";
+            button1.Size = new Size(315, 47);
+            button1.TabIndex = 6;
+            button1.Text = "Perform Trial";
+            button1.UseVisualStyleBackColor = true;
+            // 
+            // groupBox16
+            // 
+            groupBox16.Controls.Add(textBox3);
+            groupBox16.Location = new Point(6, 83);
+            groupBox16.Name = "groupBox16";
+            groupBox16.Size = new Size(113, 55);
+            groupBox16.TabIndex = 5;
+            groupBox16.TabStop = false;
+            groupBox16.Text = "LET";
+            // 
+            // textBox3
+            // 
+            textBox3.Location = new Point(6, 22);
+            textBox3.Name = "textBox3";
+            textBox3.Size = new Size(97, 23);
+            textBox3.TabIndex = 1;
+            // 
+            // groupBox13
+            // 
+            groupBox13.Controls.Add(textBox1);
+            groupBox13.Location = new Point(6, 22);
+            groupBox13.Name = "groupBox13";
+            groupBox13.Size = new Size(321, 55);
+            groupBox13.TabIndex = 4;
+            groupBox13.TabStop = false;
+            groupBox13.Text = "Test Name";
+            // 
+            // textBox1
+            // 
+            textBox1.Location = new Point(6, 22);
+            textBox1.Name = "textBox1";
+            textBox1.Size = new Size(309, 23);
+            textBox1.TabIndex = 1;
+            // 
+            // contextMenuStrip1
+            // 
+            contextMenuStrip1.Name = "contextMenuStrip1";
+            contextMenuStrip1.Size = new Size(61, 4);
+            // 
+            // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1184, 761);
             Controls.Add(ConnectAndConfigure);
             Controls.Add(statusStrip1);
-            Name = "Form1";
+            Name = "MainForm";
             Text = "DDR4 Tester";
             ((System.ComponentModel.ISupportInitialize)captureInfoBindingSource).EndInit();
             statusStrip1.ResumeLayout(false);
@@ -1089,6 +1338,7 @@
             tabPage1.ResumeLayout(false);
             groupBox4.ResumeLayout(false);
             groupBox4.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)chipSizeBox).EndInit();
             sideB.ResumeLayout(false);
             sideB.PerformLayout();
             sideA.ResumeLayout(false);
@@ -1104,8 +1354,12 @@
             groupBox1.ResumeLayout(false);
             groupBox1.PerformLayout();
             tabPage2.ResumeLayout(false);
+            groupBox21.ResumeLayout(false);
+            groupBox23.ResumeLayout(false);
+            groupBox23.PerformLayout();
+            groupBox22.ResumeLayout(false);
+            groupBox22.PerformLayout();
             groupBox5.ResumeLayout(false);
-            groupBox13.ResumeLayout(false);
             groupBox11.ResumeLayout(false);
             groupBox11.PerformLayout();
             groupBox9.ResumeLayout(false);
@@ -1113,6 +1367,18 @@
             groupBox10.ResumeLayout(false);
             groupBox8.ResumeLayout(false);
             writeModeLabel.ResumeLayout(false);
+            tabPage3.ResumeLayout(false);
+            groupBox20.ResumeLayout(false);
+            groupBox18.ResumeLayout(false);
+            groupBox19.ResumeLayout(false);
+            groupBox19.PerformLayout();
+            groupBox17.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)numericUpDown1).EndInit();
+            groupBox6.ResumeLayout(false);
+            groupBox16.ResumeLayout(false);
+            groupBox16.PerformLayout();
+            groupBox13.ResumeLayout(false);
+            groupBox13.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -1120,9 +1386,9 @@
         #endregion
         private BindingSource captureInfoBindingSource;
         private StatusStrip statusStrip1;
-        private ToolStripStatusLabel cmdName;
-        private ToolStripProgressBar progressBar;
-        private ToolStripStatusLabel statusLabel;
+        private ToolStripStatusLabel taskName;
+        private ToolStripProgressBar taskProgress;
+        private ToolStripStatusLabel taskInfo;
         private ToolStripStatusLabel connectionState;
         private TabControl ConnectAndConfigure;
         private TabPage tabPage1;
@@ -1178,8 +1444,6 @@
         private ComboBox verifyMode;
         private TextBox prngSeed;
         private GroupBox groupBox12;
-        private GroupBox groupBox13;
-        private Button cancelButton;
         private Label label13;
         private Label label12;
         private TextBox modelBox;
@@ -1204,11 +1468,36 @@
         private Label label20;
         private TextBox endAddrBox;
         private TextBox startAddrBox;
-        private TextBox chipSizeBox;
         private Label label21;
         private GroupBox groupBox5;
         private Panel panel1;
-        private GroupBox groupBox6;
         private RichTextBox verificationResults;
+        private TabPage tabPage3;
+        private GroupBox groupBox6;
+        private GroupBox groupBox16;
+        private TextBox textBox3;
+        private GroupBox groupBox13;
+        private TextBox textBox1;
+        private GroupBox groupBox18;
+        private GroupBox groupBox19;
+        private Button button2;
+        private TextBox textBox2;
+        private GroupBox groupBox17;
+        private RichTextBox richTextBox1;
+        private Button button1;
+        private GroupBox groupBox20;
+        private ComboBox comboBox1;
+        private Button button4;
+        private Button button3;
+        private NumericUpDown numericUpDown1;
+        private GroupBox groupBox21;
+        private Button dumpButton;
+        private GroupBox groupBox22;
+        private Button selectSaveLocation;
+        private TextBox dumpPath;
+        private ContextMenuStrip contextMenuStrip1;
+        private GroupBox groupBox23;
+        private TextBox dumpFileName;
+        private NumericUpDown chipSizeBox;
     }
 }
