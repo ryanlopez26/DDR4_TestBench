@@ -24,20 +24,20 @@ do_configure[noexec] = "1"
 # Without it, ${DEPLOYDIR} expands empty and `install -d` fails with no operand.
 inherit deploy
 
-# xilinx-bootbin reads BIF_PARTITION_IMAGE[bitstream] which (in meta-xilinx-core
-# 1.0) resolves through the sysroot at /usr/share/sdt/${MACHINE}/<name>.bit.
-# Install our file there with the name the rest of the recipe chain expects.
+# xilinx-bootbin reads BIF_PARTITION_IMAGE[bitstream], which (in meta-xilinx-core
+# 1.0) resolves to ${RECIPE_SYSROOT}/boot/bitstream/download-${MACHINE}.bit.
+# Install our manually-supplied bitstream at exactly that path so the upstream
+# recipe finds it during its do_configure.
 do_install() {
-    install -d ${D}/usr/share/sdt/${MACHINE}
+    install -d ${D}/boot/bitstream
     install -m 0644 ${WORKDIR}/System_wrapper.bit \
-                    ${D}/usr/share/sdt/${MACHINE}/System_wrapper.bit
+                    ${D}/boot/bitstream/download-${MACHINE}.bit
 }
 
-FILES:${PN} = "/usr/share/sdt/${MACHINE}/System_wrapper.bit"
+FILES:${PN} = "/boot/bitstream/download-${MACHINE}.bit"
 
-# Make the file available in dependent recipes' sysroots (this is the step
-# that was missing — the upstream recipe wasn't populating into the sysroot).
-SYSROOT_DIRS += "/usr/share/sdt"
+# Make the file visible in dependent recipes' sysroots.
+SYSROOT_DIRS += "/boot/bitstream"
 
 # Also deploy a copy for inspection / SD-image fallback paths.
 do_deploy() {
