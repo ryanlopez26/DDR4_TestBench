@@ -6,6 +6,11 @@ LICENSE = "CLOSED"
 
 PROVIDES = "virtual/bitstream"
 
+# Bitstream is machine-specific (built against a specific FPGA design). Without
+# this, the recipe gets built once for the tune (cortexa72-cortexa53) and shared
+# across machines, which puts it in the wrong sysroot for xilinx-bootbin to find.
+PACKAGE_ARCH = "${MACHINE_ARCH}"
+
 SRC_URI = "file://System_wrapper.bit"
 S = "${WORKDIR}"
 
@@ -14,6 +19,10 @@ INHIBIT_DEFAULT_DEPS = "1"
 DEPENDS = ""
 do_compile[noexec] = "1"
 do_configure[noexec] = "1"
+
+# `inherit deploy` is what defines DEPLOYDIR and registers do_deploy properly.
+# Without it, ${DEPLOYDIR} expands empty and `install -d` fails with no operand.
+inherit deploy
 
 # xilinx-bootbin reads BIF_PARTITION_IMAGE[bitstream] which (in meta-xilinx-core
 # 1.0) resolves through the sysroot at /usr/share/sdt/${MACHINE}/<name>.bit.
