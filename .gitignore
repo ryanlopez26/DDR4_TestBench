@@ -85,6 +85,74 @@ __pycache__/
 zcu_app/target/
 zcu_app/Cargo.lock
 
+# ── C# / .NET / Visual Studio ────────────────────────────────
+# Build outputs (case-insensitive: bin/Bin/BIN, obj/Obj/OBJ, etc.)
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+
+# Visual Studio cache / user-specific files
+.vs/
+*.suo
+*.user
+*.userprefs
+*.userosscache
+*.sln.docstates
+*.sln.iml
+
+# Roslyn / build server
+.builds/
+*.[Cc]ache
+!?*.[Cc]ache/
+
+# NuGet (keep .config and lock files; ignore restored packages)
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+
+# Test / publish / coverage output
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+[Pp]ublish/
+PublishScripts/
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+
+# Visual Studio profiler / diagnostics
+*.psess
+*.vsp
+*.vspx
+*.sap
+
+# ReSharper / Rider (.idea/ already ignored above)
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# Misc dev tooling artifacts
+*.pidb
+*.svclog
+*.scc
+*.tmp
+*.tlog
+
 # ============================================================
 # What IS tracked:
 #
@@ -104,4 +172,9 @@ zcu_app/Cargo.lock
 #   *.srcs/                  (source files)
 #   System_wrapper.xsa       (hardware export)
 #   sdt_output/              (SDT from sdtgen)
+#
+# C# app/
+#   *.sln, *.csproj          (project / solution files)
+#   *.cs, *.xaml, *.resx     (source / UI / resources)
+#   App.config, *.json       (app configuration)
 # ============================================================

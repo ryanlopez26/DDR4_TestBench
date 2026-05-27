@@ -39,6 +39,7 @@ pub struct ConfigCmd {
     pub bus_bytes_per_chip: u8,
     pub bus_size_in_bytes: u32,
     pub chip_size_bytes: u32,
+    pub enable_chip_select: bool,
 }
 
 // --- Response structures (unchanged; not deserialized from the wire) -------
@@ -70,5 +71,23 @@ pub struct DumpRsp {
     pub address: u32,
     //Raw bytes are appended to this (1024 byte pages)
 }
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct InfoRsp {
+    pub manufacturer: String,
+    pub model: String,
+    pub uptime: f32,
+    pub cpu_usage: f32,
+    pub ram_usage: f32,
+    pub uplink: f32,
+    pub downlink: f32,
+    pub ram_organization: u8,
+    pub selected_chip: u8,
+    pub start_addr: u32,
+    pub end_addr: u32,
+    pub sim_enabled: bool,
+}
+
 
 

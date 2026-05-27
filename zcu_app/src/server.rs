@@ -60,7 +60,7 @@ fn read_u8(stream: &mut TcpStream) -> io::Result<u8> {
 
 /// Bincode options matching our wire format: fixed-width integers, big-endian,
 /// reject any leftover bytes (so a payload that's too long is treated as an error).
-fn codec() -> impl Options {
+pub(crate) fn codec() -> impl Options {
     bincode::DefaultOptions::new()
         .with_big_endian()
         .with_fixint_encoding()
@@ -201,6 +201,18 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
                 }
                 Err(e) => eprintln!("[!] {}: invalid Config payload: {}", peer, e),
             },
+
+            CMD_INFO => {
+                    println!(
+                        "[{}] Info cmd",
+                        peer
+                    );
+
+                    //Execute command
+                    crate::commands::info_command(&mut stream);
+   
+            },
+
 
             other => eprintln!("[!] {}: unknown CMD 0x{:02X}", peer, other),
         }

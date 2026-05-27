@@ -83,7 +83,11 @@ fn map_offset(config: &ConfigCmd, offset: u32) -> Result<u32, ChipError> {
 
 /// Write a byte to the virtual address space of the configured chip.
 pub fn write(config: &ConfigCmd, offset: u32, value: u8) -> Result<(), ChipError> {
-    let true_offset = map_offset(config, offset)?;
+
+    let mut true_offset = offset;
+
+    //Check if chip select is enabled
+    if config.enable_chip_select {true_offset = map_offset(config, offset)?;}
     
     //Check if simulated mode is enabled
     if(crate::config::SIMULATION_MODE) {
@@ -97,7 +101,13 @@ pub fn write(config: &ConfigCmd, offset: u32, value: u8) -> Result<(), ChipError
 
 /// Read a byte from the virtual address space of the configured chip.
 pub fn read(config: &ConfigCmd, offset: u32) -> Result<u8, ChipError> {
-    let true_offset = map_offset(config, offset)?;
+
+
+    let mut true_offset = offset;
+
+    //Check if chip select is enabled
+    if config.enable_chip_select {true_offset = map_offset(config, offset)?;}
+    
     Ok(    
         //Check if simulated mode is enabled
         if(crate::config::SIMULATION_MODE) {
