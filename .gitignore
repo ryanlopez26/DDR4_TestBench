@@ -79,6 +79,7 @@ __pycache__/
 *.o
 *.a
 *.so
+*.log
 *.elf
 
 # Rust
