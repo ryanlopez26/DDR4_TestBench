@@ -6,7 +6,6 @@
 #include "pcw.dtsi"
 / {
 	board = "zcu104";
-	compatible = "xlnx,zcu104";
 	device_id = "xczu7ev";
 	slrcount = <1>;
 	family = "ZynqMP";
@@ -502,3 +501,4 @@
 		#ranges-size-cells = <0x1>;
 	};
 };
+#include "zcu104-revc.dtsi"
