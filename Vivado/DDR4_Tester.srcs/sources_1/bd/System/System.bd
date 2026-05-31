@@ -1,7 +1,7 @@
 {
   "design": {
     "design_info": {
-      "boundary_crc": "0x205EC827561E5FE1",
+      "boundary_crc": "0x1E04E7A034D74D87",
       "device": "xczu7ev-ffvc1156-2-e",
       "gen_directory": "../../../../DDR4_Tester.gen/sources_1/bd/System",
       "name": "System",
@@ -17,7 +17,8 @@
       "rst_ps8_0_100M": "",
       "debug_leds_0": "",
       "util_vector_logic_1": "",
-      "ddr4_0": ""
+      "ddr4_0": "",
+      "clk_wiz_0": ""
     },
     "interface_ports": {
       "ddr4_sdram_0": {
@@ -38,11 +39,11 @@
             "value_src": "default"
           },
           "CAS_LATENCY": {
-            "value": "15",
+            "value": "11",
             "value_src": "user_prop"
           },
           "CAS_WRITE_LATENCY": {
-            "value": "14",
+            "value": "11",
             "value_src": "user_prop"
           },
           "CS_ENABLED": {
@@ -62,7 +63,7 @@
             "value_src": "user_prop"
           },
           "MEMORY_PART": {
-            "value": "MTA8ATF51264HZ-2G1",
+            "value": "MTA4ATF51264HZ-2G6",
             "value_src": "user_prop"
           },
           "MEMORY_TYPE": {
@@ -78,7 +79,7 @@
             "value_src": "user_prop"
           },
           "TIMEPERIOD_PS": {
-            "value": "938",
+            "value": "1250",
             "value_src": "user_prop"
           }
         },
@@ -102,7 +103,7 @@
           "BG": {
             "physical_name": "ddr4_sdram_0_bg",
             "direction": "O",
-            "left": "1",
+            "left": "0",
             "right": "0"
           },
           "CK_C": {
@@ -162,50 +163,6 @@
           "RESET_N": {
             "physical_name": "ddr4_sdram_0_reset_n",
             "direction": "O"
-          }
-        }
-      },
-      "clk_300mhz_0": {
-        "mode": "Slave",
-        "vlnv_bus_definition": "xilinx.com:interface:diff_clock:1.0",
-        "vlnv": "xilinx.com:interface:diff_clock_rtl:1.0",
-        "parameters": {
-          "CAN_DEBUG": {
-            "value": "false",
-            "value_src": "default"
-          },
-          "FREQ_HZ": {
-            "value": "300000000"
-          }
-        }
-      },
-      "clk_300mhz": {
-        "mode": "Slave",
-        "vlnv_bus_definition": "xilinx.com:interface:diff_clock:1.0",
-        "vlnv": "xilinx.com:interface:diff_clock_rtl:1.0",
-        "parameters": {
-          "CAN_DEBUG": {
-            "value": "false",
-            "value_src": "default"
-          },
-          "FREQ_HZ": {
-            "value": "300000000"
-          }
-        },
-        "hdl_attributes": {
-          "LOCKED": {
-            "value": "FALSE",
-            "value_src": "default"
-          }
-        },
-        "port_maps": {
-          "CLK_N": {
-            "physical_name": "clk_300mhz_clk_n",
-            "direction": "I"
-          },
-          "CLK_P": {
-            "physical_name": "clk_300mhz_clk_p",
-            "direction": "I"
           }
         }
       }
@@ -1668,7 +1625,13 @@
             "value": "IOPLL"
           },
           "PSU__CRL_APB__PL1_REF_CTRL__ACT_FREQMHZ": {
-            "value": "100"
+            "value": "300.000000"
+          },
+          "PSU__CRL_APB__PL1_REF_CTRL__FREQMHZ": {
+            "value": "300"
+          },
+          "PSU__CRL_APB__PL1_REF_CTRL__SRCSEL": {
+            "value": "IOPLL"
           },
           "PSU__CRL_APB__PL2_REF_CTRL__ACT_FREQMHZ": {
             "value": "100"
@@ -2091,7 +2054,7 @@
             "value": "1"
           },
           "PSU__FPGA_PL1_ENABLE": {
-            "value": "0"
+            "value": "1"
           },
           "PSU__FPGA_PL2_ENABLE": {
             "value": "0"
@@ -2598,6 +2561,9 @@
             "value": "0"
           },
           "PSU__PL_CLK0_BUF": {
+            "value": "TRUE"
+          },
+          "PSU__PL_CLK1_BUF": {
             "value": "TRUE"
           },
           "PSU__PL__POWER__ON": {
@@ -3384,7 +3350,7 @@
             "direction": "I",
             "parameters": {
               "FREQ_HZ": {
-                "value": "266500000",
+                "value": "200000000",
                 "value_src": "user_prop"
               },
               "PHASE": {
@@ -3459,16 +3425,34 @@
         "has_run_ip_tcl": "true",
         "parameters": {
           "ADDN_UI_CLKOUT1_FREQ_HZ": {
-            "value": "100"
+            "value": "None"
+          },
+          "C0.DDR4_InputClockPeriod": {
+            "value": "3334"
+          },
+          "C0.DDR4_MemoryPart": {
+            "value": "MTA4ATF51264HZ-2G6"
+          },
+          "C0.DDR4_Specify_MandD": {
+            "value": "false"
+          },
+          "C0.DDR4_TimePeriod": {
+            "value": "1250"
           },
           "C0_CLOCK_BOARD_INTERFACE": {
-            "value": "clk_300mhz"
+            "value": "Custom"
           },
           "C0_DDR4_BOARD_INTERFACE": {
-            "value": "ddr4_sdram"
+            "value": "Custom"
           },
           "RESET_BOARD_INTERFACE": {
             "value": "reset"
+          },
+          "Reference_Clock": {
+            "value": "No_Buffer"
+          },
+          "System_Clock": {
+            "value": "No_Buffer"
           }
         },
         "interface_ports": {
@@ -3494,15 +3478,49 @@
             }
           }
         }
+      },
+      "clk_wiz_0": {
+        "vlnv": "xilinx.com:ip:clk_wiz:6.0",
+        "ip_revision": "17",
+        "xci_name": "System_clk_wiz_0_0",
+        "xci_path": "ip/System_clk_wiz_0_0/System_clk_wiz_0_0.xci",
+        "inst_hier_path": "clk_wiz_0",
+        "has_run_ip_tcl": "true",
+        "parameters": {
+          "CLKIN1_JITTER_PS": {
+            "value": "33.330000000000005"
+          },
+          "CLKOUT1_JITTER": {
+            "value": "101.475"
+          },
+          "CLKOUT1_PHASE_ERROR": {
+            "value": "77.836"
+          },
+          "CLK_IN1_BOARD_INTERFACE": {
+            "value": "Custom"
+          },
+          "MMCM_CLKFBOUT_MULT_F": {
+            "value": "4.000"
+          },
+          "MMCM_CLKIN1_PERIOD": {
+            "value": "3.333"
+          },
+          "MMCM_CLKIN2_PERIOD": {
+            "value": "10.0"
+          },
+          "PRIM_SOURCE": {
+            "value": "Single_ended_clock_capable_pin"
+          },
+          "RESET_BOARD_INTERFACE": {
+            "value": "Custom"
+          },
+          "USE_BOARD_FLOW": {
+            "value": "true"
+          }
+        }
       }
     },
     "interface_nets": {
-      "clk_300mhz_1": {
-        "interface_ports": [
-          "clk_300mhz",
-          "ddr4_0/C0_SYS_CLK"
-        ]
-      },
       "ddr4_0_C0_DDR4": {
         "interface_ports": [
           "ddr4_sdram_0",
@@ -3529,12 +3547,24 @@
       }
     },
     "nets": {
+      "clk_wiz_0_clk_out1": {
+        "ports": [
+          "clk_wiz_0/clk_out1",
+          "ddr4_0/c0_sys_clk_i"
+        ]
+      },
       "ddr4_0_c0_ddr4_ui_clk": {
         "ports": [
           "ddr4_0/c0_ddr4_ui_clk",
           "rst_ddr4_0_266M/slowest_sync_clk",
           "smartconnect_0/aclk",
           "debug_leds_0/clk_ui"
+        ]
+      },
+      "ddr4_0_c0_ddr4_ui_clk_sync_rst": {
+        "ports": [
+          "ddr4_0/c0_ddr4_ui_clk_sync_rst",
+          "clk_wiz_0/reset"
         ]
       },
       "ddr4_0_c0_init_calib_complete": {
@@ -3575,6 +3605,12 @@
           "zynq_ultra_ps_e_0/maxihpm0_fpd_aclk",
           "zynq_ultra_ps_e_0/maxihpm1_fpd_aclk",
           "debug_leds_0/clk_pl"
+        ]
+      },
+      "zynq_ultra_ps_e_0_pl_clk1": {
+        "ports": [
+          "zynq_ultra_ps_e_0/pl_clk1",
+          "clk_wiz_0/clk_in1"
         ]
       },
       "zynq_ultra_ps_e_0_pl_resetn0": {

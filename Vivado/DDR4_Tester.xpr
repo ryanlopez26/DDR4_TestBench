@@ -67,12 +67,12 @@
     <Option Name="WTVcsLaunchSim" Val="0"/>
     <Option Name="WTRivieraLaunchSim" Val="0"/>
     <Option Name="WTActivehdlLaunchSim" Val="0"/>
-    <Option Name="WTXSimExportSim" Val="1"/>
-    <Option Name="WTModelSimExportSim" Val="1"/>
-    <Option Name="WTQuestaExportSim" Val="1"/>
+    <Option Name="WTXSimExportSim" Val="3"/>
+    <Option Name="WTModelSimExportSim" Val="3"/>
+    <Option Name="WTQuestaExportSim" Val="3"/>
     <Option Name="WTIesExportSim" Val="0"/>
-    <Option Name="WTVcsExportSim" Val="1"/>
-    <Option Name="WTRivieraExportSim" Val="1"/>
+    <Option Name="WTVcsExportSim" Val="3"/>
+    <Option Name="WTRivieraExportSim" Val="3"/>
     <Option Name="WTActivehdlExportSim" Val="0"/>
     <Option Name="GenerateIPUpgradeLog" Val="TRUE"/>
     <Option Name="XSimRadix" Val="hex"/>
@@ -103,8 +103,20 @@
           <Attr Name="UsedIn" Val="implementation"/>
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
+        <CompFileExtendedInfo CompFileName="System.bd" FileRelPathName="ip/System_clk_wiz_0_0/System_clk_wiz_0_0.xci">
+          <Proxy FileSetName="System_clk_wiz_0_0"/>
+        </CompFileExtendedInfo>
+        <CompFileExtendedInfo CompFileName="System.bd" FileRelPathName="ip/System_ddr4_0_1_1/System_ddr4_0_1.xci">
+          <Proxy FileSetName="System_ddr4_0_1"/>
+        </CompFileExtendedInfo>
         <CompFileExtendedInfo CompFileName="System.bd" FileRelPathName="ip/System_debug_leds_0_0/System_debug_leds_0_0.xci">
           <Proxy FileSetName="System_debug_leds_0_0"/>
+        </CompFileExtendedInfo>
+        <CompFileExtendedInfo CompFileName="System.bd" FileRelPathName="ip/System_rst_ddr4_0_266M_0/System_rst_ddr4_0_266M_0.xci">
+          <Proxy FileSetName="System_rst_ddr4_0_266M_0"/>
+        </CompFileExtendedInfo>
+        <CompFileExtendedInfo CompFileName="System.bd" FileRelPathName="ip/System_zynq_ultra_ps_e_0_0/System_zynq_ultra_ps_e_0_0.xci">
+          <Proxy FileSetName="System_zynq_ultra_ps_e_0_0"/>
         </CompFileExtendedInfo>
       </File>
       <File Path="$PGENDIR/sources_1/bd/System/hdl/System_wrapper.vhd">
@@ -180,6 +192,30 @@
         <Option Name="UseBlackboxStub" Val="1"/>
       </Config>
     </FileSet>
+    <FileSet Name="System_ddr4_0_1" Type="BlockSrcs" RelSrcDir="$PSRCDIR/System_ddr4_0_1" RelGenDir="$PGENDIR/System_ddr4_0_1">
+      <Config>
+        <Option Name="TopModule" Val="System_ddr4_0_1"/>
+        <Option Name="UseBlackboxStub" Val="1"/>
+      </Config>
+    </FileSet>
+    <FileSet Name="System_zynq_ultra_ps_e_0_0" Type="BlockSrcs" RelSrcDir="$PSRCDIR/System_zynq_ultra_ps_e_0_0" RelGenDir="$PGENDIR/System_zynq_ultra_ps_e_0_0">
+      <Config>
+        <Option Name="TopModule" Val="System_zynq_ultra_ps_e_0_0"/>
+        <Option Name="UseBlackboxStub" Val="1"/>
+      </Config>
+    </FileSet>
+    <FileSet Name="System_rst_ddr4_0_266M_0" Type="BlockSrcs" RelSrcDir="$PSRCDIR/System_rst_ddr4_0_266M_0" RelGenDir="$PGENDIR/System_rst_ddr4_0_266M_0">
+      <Config>
+        <Option Name="TopModule" Val="System_rst_ddr4_0_266M_0"/>
+        <Option Name="UseBlackboxStub" Val="1"/>
+      </Config>
+    </FileSet>
+    <FileSet Name="System_clk_wiz_0_0" Type="BlockSrcs" RelSrcDir="$PSRCDIR/System_clk_wiz_0_0" RelGenDir="$PGENDIR/System_clk_wiz_0_0">
+      <Config>
+        <Option Name="TopModule" Val="System_clk_wiz_0_0"/>
+        <Option Name="UseBlackboxStub" Val="1"/>
+      </Config>
+    </FileSet>
   </FileSets>
   <Simulators>
     <Simulator Name="XSim">
@@ -214,6 +250,54 @@
       <RQSFiles/>
     </Run>
     <Run Id="System_debug_leds_0_0_synth_1" Type="Ft3:Synth" SrcSet="System_debug_leds_0_0" Part="xczu7ev-ffvc1156-2-e" ConstrsSet="System_debug_leds_0_0" Description="Vivado Synthesis Defaults" AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" Dir="$PRUNDIR/System_debug_leds_0_0_synth_1" IncludeInArchive="true" IsChild="false" AutoIncrementalDir="$PSRCDIR/utils_1/imports/System_debug_leds_0_0_synth_1" AutoRQSDir="$PSRCDIR/utils_1/imports/System_debug_leds_0_0_synth_1" ParallelReportGen="true">
+      <Strategy Version="1" Minor="2">
+        <StratHandle Name="Vivado Synthesis Defaults" Flow="Vivado Synthesis 2025">
+          <Desc>Vivado Synthesis Defaults</Desc>
+        </StratHandle>
+        <Step Id="synth_design"/>
+      </Strategy>
+      <GeneratedRun Dir="$PRUNDIR" File="gen_run.xml"/>
+      <ReportStrategy Name="Vivado Synthesis Default Reports" Flow="Vivado Synthesis 2025"/>
+      <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
+      <RQSFiles/>
+    </Run>
+    <Run Id="System_ddr4_0_1_synth_1" Type="Ft3:Synth" SrcSet="System_ddr4_0_1" Part="xczu7ev-ffvc1156-2-e" ConstrsSet="System_ddr4_0_1" Description="Vivado Synthesis Defaults" AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" Dir="$PRUNDIR/System_ddr4_0_1_synth_1" IncludeInArchive="true" IsChild="false" AutoIncrementalDir="$PSRCDIR/utils_1/imports/System_ddr4_0_1_synth_1" AutoRQSDir="$PSRCDIR/utils_1/imports/System_ddr4_0_1_synth_1" ParallelReportGen="true">
+      <Strategy Version="1" Minor="2">
+        <StratHandle Name="Vivado Synthesis Defaults" Flow="Vivado Synthesis 2025">
+          <Desc>Vivado Synthesis Defaults</Desc>
+        </StratHandle>
+        <Step Id="synth_design"/>
+      </Strategy>
+      <GeneratedRun Dir="$PRUNDIR" File="gen_run.xml"/>
+      <ReportStrategy Name="Vivado Synthesis Default Reports" Flow="Vivado Synthesis 2025"/>
+      <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
+      <RQSFiles/>
+    </Run>
+    <Run Id="System_zynq_ultra_ps_e_0_0_synth_1" Type="Ft3:Synth" SrcSet="System_zynq_ultra_ps_e_0_0" Part="xczu7ev-ffvc1156-2-e" ConstrsSet="System_zynq_ultra_ps_e_0_0" Description="Vivado Synthesis Defaults" AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" Dir="$PRUNDIR/System_zynq_ultra_ps_e_0_0_synth_1" IncludeInArchive="true" IsChild="false" AutoIncrementalDir="$PSRCDIR/utils_1/imports/System_zynq_ultra_ps_e_0_0_synth_1" AutoRQSDir="$PSRCDIR/utils_1/imports/System_zynq_ultra_ps_e_0_0_synth_1" ParallelReportGen="true">
+      <Strategy Version="1" Minor="2">
+        <StratHandle Name="Vivado Synthesis Defaults" Flow="Vivado Synthesis 2025">
+          <Desc>Vivado Synthesis Defaults</Desc>
+        </StratHandle>
+        <Step Id="synth_design"/>
+      </Strategy>
+      <GeneratedRun Dir="$PRUNDIR" File="gen_run.xml"/>
+      <ReportStrategy Name="Vivado Synthesis Default Reports" Flow="Vivado Synthesis 2025"/>
+      <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
+      <RQSFiles/>
+    </Run>
+    <Run Id="System_rst_ddr4_0_266M_0_synth_1" Type="Ft3:Synth" SrcSet="System_rst_ddr4_0_266M_0" Part="xczu7ev-ffvc1156-2-e" ConstrsSet="System_rst_ddr4_0_266M_0" Description="Vivado Synthesis Defaults" AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" Dir="$PRUNDIR/System_rst_ddr4_0_266M_0_synth_1" IncludeInArchive="true" IsChild="false" AutoIncrementalDir="$PSRCDIR/utils_1/imports/System_rst_ddr4_0_266M_0_synth_1" AutoRQSDir="$PSRCDIR/utils_1/imports/System_rst_ddr4_0_266M_0_synth_1" ParallelReportGen="true">
+      <Strategy Version="1" Minor="2">
+        <StratHandle Name="Vivado Synthesis Defaults" Flow="Vivado Synthesis 2025">
+          <Desc>Vivado Synthesis Defaults</Desc>
+        </StratHandle>
+        <Step Id="synth_design"/>
+      </Strategy>
+      <GeneratedRun Dir="$PRUNDIR" File="gen_run.xml"/>
+      <ReportStrategy Name="Vivado Synthesis Default Reports" Flow="Vivado Synthesis 2025"/>
+      <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
+      <RQSFiles/>
+    </Run>
+    <Run Id="System_clk_wiz_0_0_synth_1" Type="Ft3:Synth" SrcSet="System_clk_wiz_0_0" Part="xczu7ev-ffvc1156-2-e" ConstrsSet="System_clk_wiz_0_0" Description="Vivado Synthesis Defaults" AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" Dir="$PRUNDIR/System_clk_wiz_0_0_synth_1" IncludeInArchive="true" IsChild="false" AutoIncrementalDir="$PSRCDIR/utils_1/imports/System_clk_wiz_0_0_synth_1" AutoRQSDir="$PSRCDIR/utils_1/imports/System_clk_wiz_0_0_synth_1" ParallelReportGen="true">
       <Strategy Version="1" Minor="2">
         <StratHandle Name="Vivado Synthesis Defaults" Flow="Vivado Synthesis 2025">
           <Desc>Vivado Synthesis Defaults</Desc>
@@ -262,6 +346,82 @@
       <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
       <RQSFiles/>
     </Run>
+    <Run Id="System_ddr4_0_1_impl_1" Type="Ft2:EntireDesign" Part="xczu7ev-ffvc1156-2-e" ConstrsSet="System_ddr4_0_1" Description="Default settings for Implementation." AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" SynthRun="System_ddr4_0_1_synth_1" IncludeInArchive="false" IsChild="false" GenFullBitstream="true" AutoIncrementalDir="$PSRCDIR/utils_1/imports/System_ddr4_0_1_impl_1" AutoRQSDir="$PSRCDIR/utils_1/imports/System_ddr4_0_1_impl_1" ParallelReportGen="true">
+      <Strategy Version="1" Minor="2">
+        <StratHandle Name="Vivado Implementation Defaults" Flow="Vivado Implementation 2025">
+          <Desc>Default settings for Implementation.</Desc>
+        </StratHandle>
+        <Step Id="init_design"/>
+        <Step Id="opt_design"/>
+        <Step Id="power_opt_design"/>
+        <Step Id="place_design"/>
+        <Step Id="post_place_power_opt_design"/>
+        <Step Id="phys_opt_design"/>
+        <Step Id="route_design"/>
+        <Step Id="post_route_phys_opt_design"/>
+        <Step Id="write_bitstream"/>
+      </Strategy>
+      <ReportStrategy Name="Vivado Implementation Default Reports" Flow="Vivado Implementation 2025"/>
+      <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
+      <RQSFiles/>
+    </Run>
+    <Run Id="System_zynq_ultra_ps_e_0_0_impl_1" Type="Ft2:EntireDesign" Part="xczu7ev-ffvc1156-2-e" ConstrsSet="System_zynq_ultra_ps_e_0_0" Description="Default settings for Implementation." AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" SynthRun="System_zynq_ultra_ps_e_0_0_synth_1" IncludeInArchive="false" IsChild="false" GenFullBitstream="true" AutoIncrementalDir="$PSRCDIR/utils_1/imports/System_zynq_ultra_ps_e_0_0_impl_1" AutoRQSDir="$PSRCDIR/utils_1/imports/System_zynq_ultra_ps_e_0_0_impl_1" ParallelReportGen="true">
+      <Strategy Version="1" Minor="2">
+        <StratHandle Name="Vivado Implementation Defaults" Flow="Vivado Implementation 2025">
+          <Desc>Default settings for Implementation.</Desc>
+        </StratHandle>
+        <Step Id="init_design"/>
+        <Step Id="opt_design"/>
+        <Step Id="power_opt_design"/>
+        <Step Id="place_design"/>
+        <Step Id="post_place_power_opt_design"/>
+        <Step Id="phys_opt_design"/>
+        <Step Id="route_design"/>
+        <Step Id="post_route_phys_opt_design"/>
+        <Step Id="write_bitstream"/>
+      </Strategy>
+      <ReportStrategy Name="Vivado Implementation Default Reports" Flow="Vivado Implementation 2025"/>
+      <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
+      <RQSFiles/>
+    </Run>
+    <Run Id="System_rst_ddr4_0_266M_0_impl_1" Type="Ft2:EntireDesign" Part="xczu7ev-ffvc1156-2-e" ConstrsSet="System_rst_ddr4_0_266M_0" Description="Default settings for Implementation." AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" SynthRun="System_rst_ddr4_0_266M_0_synth_1" IncludeInArchive="false" IsChild="false" GenFullBitstream="true" AutoIncrementalDir="$PSRCDIR/utils_1/imports/System_rst_ddr4_0_266M_0_impl_1" AutoRQSDir="$PSRCDIR/utils_1/imports/System_rst_ddr4_0_266M_0_impl_1" ParallelReportGen="true">
+      <Strategy Version="1" Minor="2">
+        <StratHandle Name="Vivado Implementation Defaults" Flow="Vivado Implementation 2025">
+          <Desc>Default settings for Implementation.</Desc>
+        </StratHandle>
+        <Step Id="init_design"/>
+        <Step Id="opt_design"/>
+        <Step Id="power_opt_design"/>
+        <Step Id="place_design"/>
+        <Step Id="post_place_power_opt_design"/>
+        <Step Id="phys_opt_design"/>
+        <Step Id="route_design"/>
+        <Step Id="post_route_phys_opt_design"/>
+        <Step Id="write_bitstream"/>
+      </Strategy>
+      <ReportStrategy Name="Vivado Implementation Default Reports" Flow="Vivado Implementation 2025"/>
+      <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
+      <RQSFiles/>
+    </Run>
+    <Run Id="System_clk_wiz_0_0_impl_1" Type="Ft2:EntireDesign" Part="xczu7ev-ffvc1156-2-e" ConstrsSet="System_clk_wiz_0_0" Description="Default settings for Implementation." AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" SynthRun="System_clk_wiz_0_0_synth_1" IncludeInArchive="false" IsChild="false" GenFullBitstream="true" AutoIncrementalDir="$PSRCDIR/utils_1/imports/System_clk_wiz_0_0_impl_1" AutoRQSDir="$PSRCDIR/utils_1/imports/System_clk_wiz_0_0_impl_1" ParallelReportGen="true">
+      <Strategy Version="1" Minor="2">
+        <StratHandle Name="Vivado Implementation Defaults" Flow="Vivado Implementation 2025">
+          <Desc>Default settings for Implementation.</Desc>
+        </StratHandle>
+        <Step Id="init_design"/>
+        <Step Id="opt_design"/>
+        <Step Id="power_opt_design"/>
+        <Step Id="place_design"/>
+        <Step Id="post_place_power_opt_design"/>
+        <Step Id="phys_opt_design"/>
+        <Step Id="route_design"/>
+        <Step Id="post_route_phys_opt_design"/>
+        <Step Id="write_bitstream"/>
+      </Strategy>
+      <ReportStrategy Name="Vivado Implementation Default Reports" Flow="Vivado Implementation 2025"/>
+      <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
+      <RQSFiles/>
+    </Run>
   </Runs>
   <MsgRule>
     <MsgAttr Name="RuleType" Val="0"/>
@@ -272,7 +432,7 @@
     <MsgAttr Name="ShowRule" Val="1"/>
     <MsgAttr Name="RuleSource" Val="2"/>
     <MsgAttr Name="StringIsRegExp" Val="0"/>
-    <MsgAttr Name="RuleId" Val="1"/>
+    <MsgAttr Name="RuleId" Val="59"/>
     <MsgAttr Name="Note" Val=""/>
     <MsgAttr Name="Author" Val=""/>
     <MsgAttr Name="CreatedTimestamp" Val=""/>
@@ -286,7 +446,7 @@
     <MsgAttr Name="ShowRule" Val="1"/>
     <MsgAttr Name="RuleSource" Val="2"/>
     <MsgAttr Name="StringIsRegExp" Val="0"/>
-    <MsgAttr Name="RuleId" Val="2"/>
+    <MsgAttr Name="RuleId" Val="60"/>
     <MsgAttr Name="Note" Val=""/>
     <MsgAttr Name="Author" Val=""/>
     <MsgAttr Name="CreatedTimestamp" Val=""/>
@@ -300,7 +460,7 @@
     <MsgAttr Name="ShowRule" Val="1"/>
     <MsgAttr Name="RuleSource" Val="2"/>
     <MsgAttr Name="StringIsRegExp" Val="0"/>
-    <MsgAttr Name="RuleId" Val="3"/>
+    <MsgAttr Name="RuleId" Val="61"/>
     <MsgAttr Name="Note" Val=""/>
     <MsgAttr Name="Author" Val=""/>
     <MsgAttr Name="CreatedTimestamp" Val=""/>
