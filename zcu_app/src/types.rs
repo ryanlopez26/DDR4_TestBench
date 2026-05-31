@@ -13,14 +13,16 @@ pub struct WriteCmd {
     pub pattern: u8,
     pub seed: u64,
     pub delay: u32,
+    pub beam_triggered: bool,
 }
 
 #[repr(C)]
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct VerifyCmd {
     pub pattern: u8,
     pub seed: u64,
     pub delay: u32,
+    pub beam_triggered: bool,
 }
 
 #[repr(C)]
@@ -28,6 +30,7 @@ pub struct VerifyCmd {
 pub struct DumpCmd {
     pub offset_start: u32,
     pub num_pages: u32,
+    pub comparison_mode: bool
 }
 
 // Configuration Structure
@@ -50,6 +53,7 @@ pub struct WriteRsp {
     pub bytes_written: u32,
     pub time_spent_ms: f32,
     pub percent_complete: f32,
+    pub beam_active: bool,
 }
 
 #[repr(C)]
@@ -61,6 +65,7 @@ pub struct VerifyRsp {
     // Verify specific statistics
     pub num_errors: u32,
     pub num_correct: u32,
+    pub beam_active: bool,
 }
 
 #[repr(C)]
@@ -82,11 +87,20 @@ pub struct InfoRsp {
     pub ram_usage: f32,
     pub uplink: f32,
     pub downlink: f32,
-    pub ram_organization: u8,
     pub selected_chip: u8,
-    pub start_addr: u32,
-    pub end_addr: u32,
     pub sim_enabled: bool,
+    pub beam_active: bool,
+
+    //RAM Typology
+    pub pl_organization: u8,
+    pub pl_row: u8,
+    pub pl_col: u8,
+    pub pl_bank: u8,
+    pub pl_ranks: u8,
+    pub pl_stack_height: u8,
+    pub pl_bg: u8,
+    pub pl_cas: u8,
+    pub pl_capacity: u8,
 }
 
 

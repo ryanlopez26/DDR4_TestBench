@@ -13,11 +13,12 @@
 // prefixes or padding.
 //
 // Commands:
-//   0x01 Write   -> WriteCmd  { u8 pattern, u64 seed, u32 delay }      13 bytes
-//   0x02 Verify  -> VerifyCmd { u8 pattern, u64 seed, u32 delay }      13 bytes
-//   0x03 Dump    -> DumpCmd   { u32 offset_start, u32 num_pages }       8 bytes
+//   0x01 Write   -> WriteCmd  { u8 pattern, u64 seed, u32 delay, bool beam }  14 bytes
+//   0x02 Verify  -> VerifyCmd { u8 pattern, u64 seed, u32 delay, bool beam }  14 bytes
+//   0x03 Dump    -> DumpCmd   { u32 offset_start, u32 num_pages, bool cmp }     9 bytes
 //   0x04 Config  -> ConfigCmd { u8 chip_index, u8 bus_bytes_per_chip,
-//                               u32 bus_size_in_bytes, u32 chip_size_bytes } 10 bytes
+//                               u32 bus_size_in_bytes, u32 chip_size_bytes,
+//                               bool enable_chip_select }                      11 bytes
 //   0x05 Info    -> (empty payload) — server replies with InfoRsp
 //
 // Strings in InfoRsp are bincode-encoded as [u64 BE length][UTF-8 bytes]
@@ -54,6 +55,7 @@ namespace DDR4_TestingApp
         public byte Pattern;   // 0 = zeros, 1 = ones, 2 = pseudorandom
         public ulong Seed;
         public uint Delay;     // per-byte delay in ms
+        public bool BeamTriggered;
     }
 
     public struct VerifyCmd
@@ -61,12 +63,14 @@ namespace DDR4_TestingApp
         public byte Pattern;
         public ulong Seed;
         public uint Delay;
+        public bool BeamTriggered;
     }
 
     public struct DumpCmd
     {
         public uint OffsetStart;
         public uint NumPages;
+        public bool ComparisonMode;
     }
 
     public struct WriteRsp
@@ -74,6 +78,7 @@ namespace DDR4_TestingApp
         public uint BytesWritten;
         public float TimeSpentMs;
         public float PercentComplete;
+        public bool BeamActive;
     }
 
     public struct VerifyRsp
@@ -83,6 +88,7 @@ namespace DDR4_TestingApp
         public float PercentComplete;
         public uint NumErrors;
         public uint NumCorrect;
+        public bool BeamActive;
     }
 
     public struct DumpPage
@@ -102,11 +108,20 @@ namespace DDR4_TestingApp
         public float RamUsage;          // megabytes used (PS-side Linux RAM)
         public float Uplink;            // Mbps
         public float Downlink;          // Mbps
-        public byte RamOrganization;   // chip bit-width (e.g. 16 = x16)
         public byte SelectedChip;
-        public uint StartAddr;
-        public uint EndAddr;
         public bool SimEnabled;
+        public bool BeamActive;
+
+        // RAM topology
+        public byte PlOrganization;     // chip bit-width (e.g. 16 = x16)
+        public byte PlRow;
+        public byte PlCol;
+        public byte PlBank;
+        public byte PlRanks;
+        public byte PlStackHeight;
+        public byte PlBg;
+        public byte PlCas;
+        public byte PlCapacity;
     }
 
     // ============================== TcpManager ==============================
@@ -386,33 +401,36 @@ namespace DDR4_TestingApp
             b[1] = c.BusBytesPerChip;
             BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(2, 4), c.BusSizeInBytes);
             BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(6, 4), c.ChipSizeBytes);
-            b[10] =  Convert.ToByte(c.enableChipSelect);
+            b[10] = Convert.ToByte(c.enableChipSelect);
             return b;
         }
 
         private static byte[] EncodeWrite(WriteCmd c)
         {
-            var b = new byte[13];
+            var b = new byte[14];
             b[0] = c.Pattern;
             BinaryPrimitives.WriteUInt64BigEndian(b.AsSpan(1, 8), c.Seed);
             BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(9, 4), c.Delay);
+            b[13] = Convert.ToByte(c.BeamTriggered);
             return b;
         }
 
         private static byte[] EncodeVerify(VerifyCmd c)
         {
-            var b = new byte[13];
+            var b = new byte[14];
             b[0] = c.Pattern;
             BinaryPrimitives.WriteUInt64BigEndian(b.AsSpan(1, 8), c.Seed);
             BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(9, 4), c.Delay);
+            b[13] = Convert.ToByte(c.BeamTriggered);
             return b;
         }
 
         private static byte[] EncodeDump(DumpCmd c)
         {
-            var b = new byte[8];
+            var b = new byte[9];
             BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(0, 4), c.OffsetStart);
             BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(4, 4), c.NumPages);
+            b[8] = Convert.ToByte(c.ComparisonMode);
             return b;
         }
 
@@ -420,22 +438,23 @@ namespace DDR4_TestingApp
 
         private static WriteRsp DecodeWriteRsp(byte[] p)
         {
-            if (p.Length < 12)
+            if (p.Length < 13)
                 throw new InvalidDataException(
-                    $"short WriteRsp: {p.Length} bytes (need 12)");
+                    $"short WriteRsp: {p.Length} bytes (need 13)");
             return new WriteRsp
             {
                 BytesWritten = BinaryPrimitives.ReadUInt32BigEndian(p.AsSpan(0, 4)),
                 TimeSpentMs = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(4, 4)),
                 PercentComplete = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(8, 4)),
+                BeamActive = p[12] != 0,
             };
         }
 
         private static VerifyRsp DecodeVerifyRsp(byte[] p)
         {
-            if (p.Length < 20)
+            if (p.Length < 21)
                 throw new InvalidDataException(
-                    $"short VerifyRsp: {p.Length} bytes (need 20)");
+                    $"short VerifyRsp: {p.Length} bytes (need 21)");
             return new VerifyRsp
             {
                 BytesVerified = BinaryPrimitives.ReadUInt32BigEndian(p.AsSpan(0, 4)),
@@ -443,6 +462,7 @@ namespace DDR4_TestingApp
                 PercentComplete = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(8, 4)),
                 NumErrors = BinaryPrimitives.ReadUInt32BigEndian(p.AsSpan(12, 4)),
                 NumCorrect = BinaryPrimitives.ReadUInt32BigEndian(p.AsSpan(16, 4)),
+                BeamActive = p[20] != 0,
             };
         }
 
@@ -476,12 +496,20 @@ namespace DDR4_TestingApp
             float uplink = ReadF32BE(p, ref pos);
             float downlink = ReadF32BE(p, ref pos);
 
-            byte ramOrg = ReadU8(p, ref pos);
-
             byte chip = ReadU8(p, ref pos);
-            uint startAddr = ReadU32BE(p, ref pos);
-            uint endAddr = ReadU32BE(p, ref pos);
             bool sim = ReadU8(p, ref pos) != 0;
+            bool beam = ReadU8(p, ref pos) != 0;
+
+            // RAM topology block
+            byte plOrg = ReadU8(p, ref pos);
+            byte plRow = ReadU8(p, ref pos);
+            byte plCol = ReadU8(p, ref pos);
+            byte plBank = ReadU8(p, ref pos);
+            byte plRanks = ReadU8(p, ref pos);
+            byte plStackHeight = ReadU8(p, ref pos);
+            byte plBg = ReadU8(p, ref pos);
+            byte plCas = ReadU8(p, ref pos);
+            byte plCapacity = ReadU8(p, ref pos);
 
             return new InfoRsp
             {
@@ -492,11 +520,18 @@ namespace DDR4_TestingApp
                 RamUsage = ram,
                 Uplink = uplink,
                 Downlink = downlink,
-                RamOrganization = ramOrg,
                 SelectedChip = chip,
-                StartAddr = startAddr,
-                EndAddr = endAddr,
                 SimEnabled = sim,
+                BeamActive = beam,
+                PlOrganization = plOrg,
+                PlRow = plRow,
+                PlCol = plCol,
+                PlBank = plBank,
+                PlRanks = plRanks,
+                PlStackHeight = plStackHeight,
+                PlBg = plBg,
+                PlCas = plCas,
+                PlCapacity = plCapacity,
             };
         }
 
@@ -520,14 +555,6 @@ namespace DDR4_TestingApp
         {
             if (p.Length - pos < 4) throw new InvalidDataException("truncated f32");
             float v = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(pos, 4));
-            pos += 4;
-            return v;
-        }
-
-        private static uint ReadU32BE(byte[] p, ref int pos)
-        {
-            if (p.Length - pos < 4) throw new InvalidDataException("truncated u32");
-            uint v = BinaryPrimitives.ReadUInt32BigEndian(p.AsSpan(pos, 4));
             pos += 4;
             return v;
         }

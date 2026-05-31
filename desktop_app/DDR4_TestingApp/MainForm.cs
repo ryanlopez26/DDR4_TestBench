@@ -90,10 +90,16 @@ namespace DDR4_TestingApp
             ramUsageBar.Text = "";
             uplinkBox.Text = "";
             downlinkBox.Text = "";
-            chipOrgBox.Text = "";
-            selectedChipBox.Text = "";
-            startAddrBox.Text = "";
-            endAddrBox.Text = "";
+            
+            fpga_bank.Text = "";
+            fpga_rank.Text = "";
+            fpga_bg.Text = "";
+            fpga_capacity.Text = "";
+            fpga_cas.Text = "";
+            fpga_col.Text = "";
+            fpga_row.Text = "";
+            fpga_organization.Text = "";
+            fpga_stack_height.Text = "";
         }
 
         private void UpdateInfoFields(InfoRsp? maybeInfo)
@@ -129,12 +135,17 @@ namespace DDR4_TestingApp
             downlinkBox.Text = $"{info.Downlink:F2} Mbps";
 
             // SODIMM info
-            chipOrgBox.Text = $"X{info.RamOrganization.ToString()}";
-            selectedChipBox.Text = info.SelectedChip.ToString();
-            startAddrBox.Text = $"0x{info.StartAddr:X8}";
-            endAddrBox.Text = $"0x{info.EndAddr:X8}";
+            fpga_bank.Text = info.PlBank.ToString();
+            fpga_rank.Text = info.PlRanks.ToString();
+            fpga_bg.Text = info.PlBg.ToString();
+            fpga_capacity.Text = $"{info.PlCapacity.ToString()} GB";
+            fpga_cas.Text = $"{info.PlCas.ToString()} CL";
+            fpga_col.Text = info.PlCol.ToString();
+            fpga_row.Text = info.PlRow.ToString();
+            fpga_organization.Text = $"X{info.PlOrganization.ToString()}";
+            fpga_stack_height.Text = info.PlStackHeight.ToString();
 
-            UpdateDramPanels(info.RamOrganization, info.SelectedChip);
+            UpdateDramPanels(info.PlOrganization, info.SelectedChip);
         }
 
 
@@ -181,7 +192,7 @@ namespace DDR4_TestingApp
             var progress = new Progress<WriteRsp>(rsp =>
             {
                 Program.taskProgress = rsp.PercentComplete;
-                Program.taskInfo  = $"{rsp.BytesWritten:N0} bytes  ({rsp.PercentComplete:F1}%)  {(rsp.TimeSpentMs / 1000):F0}s";
+                Program.taskInfo = $"{rsp.BytesWritten:N0} bytes  ({rsp.PercentComplete:F1}%)  {(rsp.TimeSpentMs / 1000):F0}s";
                 UpdateStatusBar();
             });
 
@@ -348,7 +359,7 @@ namespace DDR4_TestingApp
 
             Program.taskName = "DUMP";
 
-            var cmd = new DumpCmd { OffsetStart = offset, NumPages = numPages };
+            var cmd = new DumpCmd { OffsetStart = offset, NumPages = numPages, ComparisonMode = false };
 
             int pagesReceived = 0;
             var progress = new Progress<DumpPage>(page =>
@@ -410,7 +421,7 @@ namespace DDR4_TestingApp
 
         private void chipSizeBox_TextChanged(object sender, EventArgs e)
         {
-           
+
         }
 
         private void applyConfiguration_Click(object sender, EventArgs e)
@@ -418,9 +429,15 @@ namespace DDR4_TestingApp
             Config.apply();
         }
 
-        private void chipSizeBox_ValueChanged(object sender, EventArgs e)
+
+        private void label3_Click(object sender, EventArgs e)
         {
-            Config.sys.ChipSizeBytes = (uint)chipSizeBox.Value * 1024 * 1024;
+
+        }
+
+        private void tabPage2_Click(object sender, EventArgs e)
+        {
+
         }
     }
 }

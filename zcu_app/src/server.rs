@@ -117,6 +117,9 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
     let peer = stream.peer_addr()?;
     println!("[+] Client connected: {}", peer);
 
+    // The settings used in the last verify operation (needed for differential dump)
+    let mut last_verify_parameters: VerifyCmd = VerifyCmd { pattern: 0, seed: 0, delay: 0, beam_triggered: false};
+
     loop {
         // --- SYNC ---
         let sync = read_u32_be(&mut stream)?;
@@ -169,6 +172,9 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
                         "[{}] Verify {{ pattern: 0x{:02X}, seed: 0x{:016X}, delay: {} }}",
                         peer, v.pattern, v.seed, v.delay
                     );
+
+                    //Save parameters
+                    last_verify_parameters = v.clone();
                     
                     //Execute command
                     crate::commands::verify_command(&mut stream, v);
@@ -179,12 +185,12 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
             CMD_DUMP => match parse_payload::<DumpCmd>(&payload) {
                 Ok(d) => {
                     println!(
-                        "[{}] Dump {{ offset: 0x{:08X}, num_pages: {} }}",
-                        peer, d.offset_start, d.num_pages
+                        "[{}] Dump {{ offset: 0x{:08X}, num_pages: {}, comparison_mode: {} }}",
+                        peer, d.offset_start, d.num_pages, d.comparison_mode
                     );
 
                     //Execute command
-                    crate::commands::dump_command(&mut stream, d);
+                    crate::commands::dump_command(&mut stream, d, &last_verify_parameters);
                 }
                 Err(e) => eprintln!("[!] {}: invalid Dump payload: {}", peer, e),
             },

@@ -6,6 +6,11 @@ namespace DDR4_TestingApp
 {
     static public class Config
     {
+        public struct RAM_Card {
+            public String name;
+
+
+        }
 
         static public ConfigCmd sys = new ConfigCmd
         {
@@ -27,7 +32,7 @@ namespace DDR4_TestingApp
             if (Info.sys is InfoRsp info)
             {
 
-                sys.BusBytesPerChip  = (byte)(info.RamOrganization / 8);
+                sys.BusBytesPerChip  = (byte)(info.PlOrganization / 8);
 
                 Program.taskName = "CONFIG";
 

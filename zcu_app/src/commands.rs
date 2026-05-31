@@ -7,7 +7,7 @@ use std::time::SystemTime;
 
 use bincode::Options;
 
-use crate::{chip, types::*};
+use crate::{chip, gpio, types::*};
 
 use crate::server::send_response;
 use crate::config::*;
@@ -145,11 +145,19 @@ pub fn info_command(stream: &mut TcpStream) {
         ram_usage:        read_ram_used_mb(),
         uplink,
         downlink,
-        ram_organization: crate::config::RAM_ORGANIZATION,
         selected_chip:    config.chip_index,
-        start_addr:       0,
-        end_addr:         0,
         sim_enabled:      crate::config::SIMULATION_MODE,
+        pl_organization: crate::config::PL_RAM_ORGANIZATION,
+        pl_row:  crate::config::PL_ROW,
+        pl_col:  crate::config::PL_COL,
+        pl_bank:  crate::config::PL_BANK,
+        pl_ranks:  crate::config::PL_RANKS,
+        pl_bg:  crate::config::PL_BANK_GROUPS,
+        pl_stack_height:  crate::config::PL_STACK_HEIGHT,
+        beam_active: gpio::getBeamStatus(),
+        pl_cas: crate::config::PL_CAS,
+        pl_capacity: crate::config::PL_CAPACITY,
+        
     };
 
     send_response(stream, CMD_INFO, crate::server::codec().serialize(&rsp).unwrap()).unwrap();
@@ -161,12 +169,52 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
     let config = CONFIG.read().unwrap();
 
     //Setup timers
-    let start_time = SystemTime::now();
+    let mut start_time = SystemTime::now();
     let mut time_since_last_update = SystemTime::now();
 
     //Init the pseudo-random generator with the provided seed
     crate::rand::set_seed(cmd.seed);
     crate::rand::set_index(0);
+
+    //Check to see if we need to wait for beam (armed)
+    if(cmd.beam_triggered){
+
+        //Only continue if beam is present
+        while(!gpio::getBeamStatus()){
+
+            //Beam is not present, wait
+
+            //Check if progress update is needed
+            if time_since_last_update.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS {
+
+                //Calculate status
+                let elapsed = start_time.elapsed().unwrap().as_millis() as f32;
+
+                //Send status update
+                let rsp = WriteRsp {
+                    bytes_written: 0,
+                    time_spent_ms: elapsed,
+                    percent_complete: 0.0,
+                    beam_active: false
+                };
+
+                let payload = crate::server::codec().serialize(&rsp).unwrap();
+
+                if let Err(e) = send_response(stream, CMD_WRITE, payload) {
+                    eprintln!("[!] Failed to send progress update: {}", e);
+                    return;
+                }
+                
+                //Reset timer for next update
+                time_since_last_update = SystemTime::now();
+            }
+            
+        }
+
+        //Reset start time
+        start_time = SystemTime::now();
+
+    }
 
     // Iterate over chip 
     for i in 0..config.chip_size_bytes {
@@ -210,6 +258,7 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
                 bytes_written: i,
                 time_spent_ms: elapsed,
                 percent_complete,
+                beam_active: gpio::getBeamStatus()
             };
 
             let payload = crate::server::codec().serialize(&rsp).unwrap();
@@ -233,6 +282,7 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
         bytes_written: config.chip_size_bytes,
         time_spent_ms: start_time.elapsed().unwrap().as_millis() as f32,
         percent_complete: 100.0,
+        beam_active: gpio::getBeamStatus()
     };
 
     let payload = crate::server::codec().serialize(&rsp).unwrap();
@@ -252,7 +302,7 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
     let config = CONFIG.read().unwrap();
 
     //Setup timers
-    let start_time = SystemTime::now();
+    let mut start_time = SystemTime::now();
     let mut time_since_last_update = SystemTime::now();
 
     //Init the pseudo-random generator with the provided seed
@@ -266,8 +316,45 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
         percent_complete: 0.0,
         num_errors: 0,
         num_correct: 0,
+        beam_active: false
      };
 
+    //Check if we need to wait for beam to start
+    if(cmd.beam_triggered){
+
+        //Wait for beam
+        while(!gpio::getBeamStatus()){
+
+            //Check if progress update is needed
+            if time_since_last_update.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS {
+
+                //Calculate status
+                let elapsed = start_time.elapsed().unwrap().as_millis() as f32;
+
+                //Update bytes verified and percent complete in response structure
+                rsp.bytes_verified = 0;
+                rsp.time_spent_ms = elapsed;
+                rsp.percent_complete = 0.0;
+
+                let payload = crate::server::codec().serialize(&rsp).unwrap();
+
+                if let Err(e) = send_response(stream, CMD_VERIFY, payload) {
+                    eprintln!("[!] Failed to send progress update: {}", e);
+                    return;
+                }
+                
+                //Reset timer for next update
+                time_since_last_update = SystemTime::now();
+            }            
+
+        }
+
+        //We can now start, reset time elapsed
+        start_time = SystemTime::now();
+
+    }
+
+    
     // Iterate over chip 
     for i in 0..config.chip_size_bytes {
 
@@ -283,23 +370,18 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
         };
 
         //Determine the expected contents to verify against
-        match crate::chip::read(&config, i){
+        match crate::chip::read(&config, i) {
             Ok(actual) => {
                 if actual != expected {
-                    //eprintln!("[!] Verify error at offset {}: expected 0x{:02X}, got 0x{:02X}", i, expected, actual);
-
-                    //Increment error count
-                    rsp.num_errors += 1;
-
+                    let differing_bits = (actual ^ expected).count_ones();
+                    rsp.num_errors += differing_bits;
+                    rsp.num_correct += 8 - differing_bits;
                 } else {
-                    //Increment correct count
-                    rsp.num_correct += 1;
+                    rsp.num_correct += 8;
                 }
-
             },
             Err(e) => {
-                //Increment error count
-                rsp.num_errors += 1;
+                rsp.num_errors += 8;
                 eprintln!("[!] Error reading from chip at offset {}: {:?}", i, e);
             }
         };
@@ -341,7 +423,7 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
     
 }
 
-pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd){
+pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd, v_cmd: &VerifyCmd){
 
     //Load configuration
     let config = CONFIG.read().unwrap();
@@ -350,8 +432,14 @@ pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd){
     let start_time = SystemTime::now();
     let mut time_since_last_update = SystemTime::now();
 
+
     //Get base page address
     let base_address = cmd.offset_start - (cmd.offset_start % PAGE_SIZE as u32); // Align down to page boundary
+
+    //Init the pseudo-random generator with the provided seed
+    crate::rand::set_seed(v_cmd.seed);
+    crate::rand::set_index(base_address as u64);
+
 
     // Iterate over requested pages
     for page_num in 0..cmd.num_pages {
@@ -363,15 +451,55 @@ pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd){
 
         let mut num_errors = 0;
 
-        for offset in 0..PAGE_SIZE as u32 {
-            match crate::chip::read(&config, page_address + offset) {
-                Ok(byte) => page_data.push(byte),
-                Err(e) => {
-                    eprintln!("[!] Error reading from chip at offset {}: {:?}", page_address + offset, e);
-                    page_data.push(0xFE); // Push a placeholder byte on error
-                    num_errors += 1;
+        //Check which mode we are in 
+
+        if cmd.comparison_mode {
+
+            //Comparison dump
+
+            for offset in 0..PAGE_SIZE as u32 {
+                match crate::chip::read(&config, page_address + offset) {
+                    Ok(byte) => {
+
+                        //Generate the expected byte
+                        let expected = match v_cmd.pattern {
+                            0 => 0, // All zeros
+                            1 => 0xFF, // All ones
+                            2 => crate::rand::rand(), // Pseudorandom pattern based on seed
+                            _ => {
+                                eprintln!("[!] Invalid pattern in VerifyCmd: {}", v_cmd.pattern);
+                                return;
+                            }
+                        };
+                        
+                        //Write the XOR (1 if different) of the expected and actual
+                        page_data.push(expected ^ byte);
+
+
+                    },
+                    Err(e) => {
+                        eprintln!("[!] Error reading from chip at offset {}: {:?}", page_address + offset, e);
+                        page_data.push(0xFE); // Push a placeholder byte on error
+                        num_errors += 1;
+                    }
                 }
             }
+
+        } else {
+
+            //Standard direct dump
+
+            for offset in 0..PAGE_SIZE as u32 {
+                match crate::chip::read(&config, page_address + offset) {
+                    Ok(byte) => page_data.push(byte),
+                    Err(e) => {
+                        eprintln!("[!] Error reading from chip at offset {}: {:?}", page_address + offset, e);
+                        page_data.push(0xFE); // Push a placeholder byte on error
+                        num_errors += 1;
+                    }
+                }
+            }
+
         }
 
         //Send page data in response

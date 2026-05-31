@@ -8,6 +8,7 @@ namespace DDR4_TestingApp
         public static String taskName = "===";
         public static String taskInfo = "Welcome";
         public static float  taskProgress = 1.0f;
+        public static bool   beamStatus = false;
 
 
 

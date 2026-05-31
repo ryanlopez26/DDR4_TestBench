@@ -1,11 +1,26 @@
 use std::sync::{LazyLock, RwLock};
 use crate::types::ConfigCmd;
 
-//Constants
+// ================= Generic System Info =======================================
 
 pub const MANUFACTURER_NAME: &'static str = "AMD Xilinx";
 pub const MODEL_NAME: &'static str = "ZCU104";
-pub const RAM_ORGANIZATION: u8 = 16;
+
+// ================ RAM Configuration (tied to FPGA bitstream) =================================================
+
+pub const PL_RAM_ORGANIZATION: u8 = 16;
+pub const PL_ROW:   u8 = 15;
+pub const PL_COL:   u8 = 10;
+pub const PL_BANK:  u8 = 2;
+pub const PL_BG:    u8 = 2;
+pub const PL_RANKS: u8 = 1;
+pub const PL_STACK_HEIGHT: u8 = 1;
+pub const PL_CAPACITY: u8 = 4; //GB
+pub const PL_CAS: u8 = 11;
+pub const PL_BANK_GROUPS: u8 = 2;
+
+// =============================================================================================================
+
 
 pub const SIMULATION_MODE: bool = true; // If true, the app will simulate read/write operations instead of performing real hardware access. Useful for testing and development without hardware.
 
