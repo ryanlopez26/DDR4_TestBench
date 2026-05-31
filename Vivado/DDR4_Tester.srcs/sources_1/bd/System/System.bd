@@ -1,7 +1,7 @@
 {
   "design": {
     "design_info": {
-      "boundary_crc": "0x1E04E7A034D74D87",
+      "boundary_crc": "0x3D030663F71E7304",
       "device": "xczu7ev-ffvc1156-2-e",
       "gen_directory": "../../../../DDR4_Tester.gen/sources_1/bd/System",
       "name": "System",
@@ -17,8 +17,7 @@
       "rst_ps8_0_100M": "",
       "debug_leds_0": "",
       "util_vector_logic_1": "",
-      "ddr4_0": "",
-      "clk_wiz_0": ""
+      "ddr4_0": ""
     },
     "interface_ports": {
       "ddr4_sdram_0": {
@@ -163,6 +162,36 @@
           "RESET_N": {
             "physical_name": "ddr4_sdram_0_reset_n",
             "direction": "O"
+          }
+        }
+      },
+      "clk_300mhz": {
+        "mode": "Slave",
+        "vlnv_bus_definition": "xilinx.com:interface:diff_clock:1.0",
+        "vlnv": "xilinx.com:interface:diff_clock_rtl:1.0",
+        "parameters": {
+          "CAN_DEBUG": {
+            "value": "false",
+            "value_src": "default"
+          },
+          "FREQ_HZ": {
+            "value": "300000000"
+          }
+        },
+        "hdl_attributes": {
+          "LOCKED": {
+            "value": "FALSE",
+            "value_src": "default"
+          }
+        },
+        "port_maps": {
+          "CLK_N": {
+            "physical_name": "clk_300mhz_clk_n",
+            "direction": "I"
+          },
+          "CLK_P": {
+            "physical_name": "clk_300mhz_clk_p",
+            "direction": "I"
           }
         }
       }
@@ -1627,12 +1656,6 @@
           "PSU__CRL_APB__PL1_REF_CTRL__ACT_FREQMHZ": {
             "value": "300.000000"
           },
-          "PSU__CRL_APB__PL1_REF_CTRL__FREQMHZ": {
-            "value": "300"
-          },
-          "PSU__CRL_APB__PL1_REF_CTRL__SRCSEL": {
-            "value": "IOPLL"
-          },
           "PSU__CRL_APB__PL2_REF_CTRL__ACT_FREQMHZ": {
             "value": "100"
           },
@@ -2054,7 +2077,7 @@
             "value": "1"
           },
           "PSU__FPGA_PL1_ENABLE": {
-            "value": "1"
+            "value": "0"
           },
           "PSU__FPGA_PL2_ENABLE": {
             "value": "0"
@@ -2561,9 +2584,6 @@
             "value": "0"
           },
           "PSU__PL_CLK0_BUF": {
-            "value": "TRUE"
-          },
-          "PSU__PL_CLK1_BUF": {
             "value": "TRUE"
           },
           "PSU__PL__POWER__ON": {
@@ -3358,7 +3378,7 @@
                 "value_src": "const_prop"
               },
               "CLK_DOMAIN": {
-                "value": "System_ddr4_0_1_c0_ddr4_ui_clk",
+                "value": "System_ddr4_0_2_c0_ddr4_ui_clk",
                 "value_src": "default_prop"
               }
             }
@@ -3419,13 +3439,22 @@
       "ddr4_0": {
         "vlnv": "xilinx.com:ip:ddr4:2.2",
         "ip_revision": "28",
-        "xci_name": "System_ddr4_0_1",
-        "xci_path": "ip/System_ddr4_0_1_1/System_ddr4_0_1.xci",
+        "xci_name": "System_ddr4_0_2",
+        "xci_path": "ip/System_ddr4_0_2/System_ddr4_0_2.xci",
         "inst_hier_path": "ddr4_0",
         "has_run_ip_tcl": "true",
         "parameters": {
-          "ADDN_UI_CLKOUT1_FREQ_HZ": {
-            "value": "None"
+          "C0.DDR4_AxiAddressWidth": {
+            "value": "32"
+          },
+          "C0.DDR4_AxiDataWidth": {
+            "value": "512"
+          },
+          "C0.DDR4_AxiIDWidth": {
+            "value": "1"
+          },
+          "C0.DDR4_DataWidth": {
+            "value": "64"
           },
           "C0.DDR4_InputClockPeriod": {
             "value": "3334"
@@ -3433,8 +3462,8 @@
           "C0.DDR4_MemoryPart": {
             "value": "MTA4ATF51264HZ-2G6"
           },
-          "C0.DDR4_Specify_MandD": {
-            "value": "false"
+          "C0.DDR4_MemoryType": {
+            "value": "SODIMMs"
           },
           "C0.DDR4_TimePeriod": {
             "value": "1250"
@@ -3452,7 +3481,7 @@
             "value": "No_Buffer"
           },
           "System_Clock": {
-            "value": "No_Buffer"
+            "value": "Differential"
           }
         },
         "interface_ports": {
@@ -3478,49 +3507,15 @@
             }
           }
         }
-      },
-      "clk_wiz_0": {
-        "vlnv": "xilinx.com:ip:clk_wiz:6.0",
-        "ip_revision": "17",
-        "xci_name": "System_clk_wiz_0_0",
-        "xci_path": "ip/System_clk_wiz_0_0/System_clk_wiz_0_0.xci",
-        "inst_hier_path": "clk_wiz_0",
-        "has_run_ip_tcl": "true",
-        "parameters": {
-          "CLKIN1_JITTER_PS": {
-            "value": "33.330000000000005"
-          },
-          "CLKOUT1_JITTER": {
-            "value": "101.475"
-          },
-          "CLKOUT1_PHASE_ERROR": {
-            "value": "77.836"
-          },
-          "CLK_IN1_BOARD_INTERFACE": {
-            "value": "Custom"
-          },
-          "MMCM_CLKFBOUT_MULT_F": {
-            "value": "4.000"
-          },
-          "MMCM_CLKIN1_PERIOD": {
-            "value": "3.333"
-          },
-          "MMCM_CLKIN2_PERIOD": {
-            "value": "10.0"
-          },
-          "PRIM_SOURCE": {
-            "value": "Single_ended_clock_capable_pin"
-          },
-          "RESET_BOARD_INTERFACE": {
-            "value": "Custom"
-          },
-          "USE_BOARD_FLOW": {
-            "value": "true"
-          }
-        }
       }
     },
     "interface_nets": {
+      "clk_300mhz_1": {
+        "interface_ports": [
+          "clk_300mhz",
+          "ddr4_0/C0_SYS_CLK"
+        ]
+      },
       "ddr4_0_C0_DDR4": {
         "interface_ports": [
           "ddr4_sdram_0",
@@ -3547,24 +3542,12 @@
       }
     },
     "nets": {
-      "clk_wiz_0_clk_out1": {
-        "ports": [
-          "clk_wiz_0/clk_out1",
-          "ddr4_0/c0_sys_clk_i"
-        ]
-      },
       "ddr4_0_c0_ddr4_ui_clk": {
         "ports": [
           "ddr4_0/c0_ddr4_ui_clk",
           "rst_ddr4_0_266M/slowest_sync_clk",
           "smartconnect_0/aclk",
           "debug_leds_0/clk_ui"
-        ]
-      },
-      "ddr4_0_c0_ddr4_ui_clk_sync_rst": {
-        "ports": [
-          "ddr4_0/c0_ddr4_ui_clk_sync_rst",
-          "clk_wiz_0/reset"
         ]
       },
       "ddr4_0_c0_init_calib_complete": {
@@ -3605,12 +3588,6 @@
           "zynq_ultra_ps_e_0/maxihpm0_fpd_aclk",
           "zynq_ultra_ps_e_0/maxihpm1_fpd_aclk",
           "debug_leds_0/clk_pl"
-        ]
-      },
-      "zynq_ultra_ps_e_0_pl_clk1": {
-        "ports": [
-          "zynq_ultra_ps_e_0/pl_clk1",
-          "clk_wiz_0/clk_in1"
         ]
       },
       "zynq_ultra_ps_e_0_pl_resetn0": {
