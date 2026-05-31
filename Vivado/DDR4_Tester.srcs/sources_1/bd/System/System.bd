@@ -27,11 +27,11 @@
         "parameters": {
           "AXI_ARBITRATION_SCHEME": {
             "value": "RD_PRI_REG",
-            "value_src": "default_prop"
+            "value_src": "user_prop"
           },
           "BURST_LENGTH": {
             "value": "8",
-            "value_src": "default_prop"
+            "value_src": "user_prop"
           },
           "CAN_DEBUG": {
             "value": "false",
@@ -39,15 +39,15 @@
           },
           "CAS_LATENCY": {
             "value": "15",
-            "value_src": "default_prop"
+            "value_src": "user_prop"
           },
           "CAS_WRITE_LATENCY": {
             "value": "14",
-            "value_src": "default_prop"
+            "value_src": "user_prop"
           },
           "CS_ENABLED": {
             "value": "true",
-            "value_src": "default_prop"
+            "value_src": "user_prop"
           },
           "CUSTOM_PARTS": {
             "value": "no_file_loaded",
@@ -55,11 +55,11 @@
           },
           "DATA_MASK_ENABLED": {
             "value": "DM_NO_DBI",
-            "value_src": "default_prop"
+            "value_src": "user_prop"
           },
           "DATA_WIDTH": {
             "value": "64",
-            "value_src": "default_prop"
+            "value_src": "user_prop"
           },
           "MEMORY_PART": {
             "value": "MTA8ATF51264HZ-2G1",
@@ -67,19 +67,19 @@
           },
           "MEMORY_TYPE": {
             "value": "SODIMMs",
-            "value_src": "default_prop"
+            "value_src": "user_prop"
           },
           "MEM_ADDR_MAP": {
             "value": "ROW_COLUMN_BANK",
-            "value_src": "default_prop"
+            "value_src": "user_prop"
           },
           "SLOT": {
             "value": "Single",
-            "value_src": "default_prop"
+            "value_src": "user_prop"
           },
           "TIMEPERIOD_PS": {
             "value": "938",
-            "value_src": "default_prop"
+            "value_src": "user_prop"
           }
         },
         "port_maps": {

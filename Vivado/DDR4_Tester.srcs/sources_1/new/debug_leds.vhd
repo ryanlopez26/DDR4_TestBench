@@ -25,9 +25,13 @@ entity debug_leds is
 end entity;
 
 architecture rtl of debug_leds is
-    -- Two-FF synchronizer for calib_complete (it lives in ui_clk domain,
-    -- LED drives off pl_clk0 - keeps the LED toggle clean and metastability-safe).
     signal calib_q1, calib_q2 : std_logic := '0';
+
+    -- Mark these as async CDC FFs so Vivado packs them adjacent for
+    -- minimum MTBF and exempts them from synchronous timing checks.
+    attribute ASYNC_REG : string;
+    attribute ASYNC_REG of calib_q1 : signal is "TRUE";
+    attribute ASYNC_REG of calib_q2 : signal is "TRUE";
 
     signal cnt_ui : unsigned(HB_BIT_UI downto 0) := (others => '0');
     signal cnt_pl : unsigned(HB_BIT_PL downto 0) := (others => '0');
