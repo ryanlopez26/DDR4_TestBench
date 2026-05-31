@@ -1172,7 +1172,7 @@
         "PSU__SATA__LANE1__IO": [ { "value": "GT Lane3", "value_src": "user", "resolve_type": "user", "usage": "all" } ],
         "PSU__CRF_APB__PCIE_REF_CTRL__DIVISOR0": [ { "value": "6", "resolve_type": "user", "format": "long", "enabled": false, "usage": "all" } ],
         "PSU__CRL_APB__PL0_REF_CTRL__DIVISOR0": [ { "value": "15", "resolve_type": "user", "format": "long", "enabled": false, "usage": "all" } ],
-        "PSU__CRL_APB__PL1_REF_CTRL__DIVISOR0": [ { "value": "4", "resolve_type": "user", "format": "long", "enabled": false, "usage": "all" } ],
+        "PSU__CRL_APB__PL1_REF_CTRL__DIVISOR0": [ { "value": "5", "resolve_type": "user", "format": "long", "enabled": false, "usage": "all" } ],
         "PSU__CRL_APB__PL2_REF_CTRL__DIVISOR0": [ { "value": "4", "resolve_type": "user", "format": "long", "enabled": false, "usage": "all" } ],
         "PSU__CRL_APB__PL3_REF_CTRL__DIVISOR0": [ { "value": "4", "resolve_type": "user", "format": "long", "enabled": false, "usage": "all" } ],
         "PSU__CRL_APB__PL0_REF_CTRL__DIVISOR1": [ { "value": "1", "resolve_type": "user", "format": "long", "enabled": false, "usage": "all" } ],
@@ -1365,7 +1365,7 @@
         "PSU__CRF_APB__SATA_REF_CTRL__ACT_FREQMHZ": [ { "value": "250.000000", "value_src": "user", "resolve_type": "user", "format": "float", "usage": "all" } ],
         "PSU__CRF_APB__PCIE_REF_CTRL__ACT_FREQMHZ": [ { "value": "250", "value_src": "user", "resolve_type": "user", "format": "float", "usage": "all" } ],
         "PSU__CRL_APB__PL0_REF_CTRL__ACT_FREQMHZ": [ { "value": "100.000000", "value_src": "user", "resolve_type": "user", "format": "float", "usage": "all" } ],
-        "PSU__CRL_APB__PL1_REF_CTRL__ACT_FREQMHZ": [ { "value": "100", "value_src": "user", "resolve_type": "user", "format": "float", "usage": "all" } ],
+        "PSU__CRL_APB__PL1_REF_CTRL__ACT_FREQMHZ": [ { "value": "300.000000", "value_src": "user", "resolve_type": "user", "format": "float", "usage": "all" } ],
         "PSU__CRL_APB__PL2_REF_CTRL__ACT_FREQMHZ": [ { "value": "100", "value_src": "user", "resolve_type": "user", "format": "float", "usage": "all" } ],
         "PSU__CRL_APB__PL3_REF_CTRL__ACT_FREQMHZ": [ { "value": "100", "value_src": "user", "resolve_type": "user", "format": "float", "usage": "all" } ],
         "PSU__CRF_APB__GDMA_REF_CTRL__ACT_FREQMHZ": [ { "value": "600.000000", "value_src": "user", "resolve_type": "user", "format": "float", "usage": "all" } ],
@@ -2229,5 +2229,5 @@
       }
     }
   },
-  "checksum": "f78818b4"
+  "checksum": "72387d6f"
 }
