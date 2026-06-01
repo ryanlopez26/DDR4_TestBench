@@ -384,6 +384,10 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
         match crate::chip::read(&config, i) {
             Ok(actual) => {
                 if actual != expected {
+                    eprintln!(
+                        "[!] Error at address (expected: {:#x}, actual: {:#x}): {:#x}",
+                        expected, actual, i
+                    );
                     let differing_bits = (actual ^ expected).count_ones();
                     rsp.num_errors += differing_bits;
                     rsp.num_correct += 8 - differing_bits;

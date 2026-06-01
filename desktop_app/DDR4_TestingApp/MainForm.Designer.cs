@@ -1046,7 +1046,7 @@
             ip_address.Name = "ip_address";
             ip_address.Size = new Size(148, 23);
             ip_address.TabIndex = 1;
-            ip_address.Text = "172.22.189.158";
+            ip_address.Text = "10.168.90.18";
             // 
             // label1
             // 

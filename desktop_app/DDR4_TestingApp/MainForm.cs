@@ -468,6 +468,18 @@ namespace DDR4_TestingApp
 
                 updateTaskInfo();
 
+                // Compose summary
+                uint total = rsp.NumCorrect + rsp.NumErrors;
+                double corruptedPercent = total > 0 ? (rsp.NumErrors * 100.0 / total) : 0.0;
+                double seconds = rsp.TimeSpentMs / 1000.0;
+
+                verificationResults.Text =
+                    $"Finished verification in {seconds:F2} seconds!\n\n" +
+                    $"Correct bits:   {rsp.NumCorrect:N0}\n" +
+                    $"Incorrect bits: {rsp.NumErrors:N0}\n\n" +
+                    $"{corruptedPercent:F2}% of the bits were corrupted.";
+
+
                 Program.taskProgress = (int)rsp.PercentComplete;
                 Program.taskInfo = $"{rsp.BytesVerified:N0} bytes  ({rsp.PercentComplete:F1}%)  {(rsp.TimeSpentMs / 1000):F0}s";
                 UpdateStatusBar();
@@ -552,7 +564,7 @@ namespace DDR4_TestingApp
 
             Program.taskName = "DUMP";
 
-            var cmd = new DumpCmd { OffsetStart = offset, NumPages = numPages, ComparisonMode = false };
+            var cmd = new DumpCmd { OffsetStart = offset, NumPages = numPages, ComparisonMode = captureDiff };
 
             int pagesReceived = 0;
             var progress = new Progress<DumpPage>(page =>
@@ -694,7 +706,7 @@ namespace DDR4_TestingApp
                     break;
             }
 
-            Config.sys.ChipSizeBytes = (uint)(factor * 1024 * 1024 * 1024);
+            Config.sys.ChipSizeBytes = (uint)((float)factor * (float)1024 * 1024.0 * 1024.0);
         }
     }
 }

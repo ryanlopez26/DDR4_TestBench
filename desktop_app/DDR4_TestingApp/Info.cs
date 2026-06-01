@@ -42,7 +42,7 @@ namespace DDR4_TestingApp
                 }
                 finally
                 {
-                    _infoFetchInProgress = false;
+                   // _infoFetchInProgress = false;
                 }
             }
         }
