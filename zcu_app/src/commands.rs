@@ -216,6 +216,8 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
 
     }
 
+    let mut cntr = 0;
+
     // Iterate over chip 
     for i in 0..config.chip_size_bytes {
 
@@ -272,8 +274,15 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
             time_since_last_update = SystemTime::now();
         }
         
-        //Wait the required amount of delay in ms
-        std::thread::sleep(std::time::Duration::from_millis(cmd.delay as u64));
+        if(cntr > config.chip_size_bytes / 100){
+
+            //Wait the required amount of delay in ms
+            std::thread::sleep(std::time::Duration::from_millis(cmd.delay as u64));
+
+            cntr = 0;
+
+        } else {cntr += 1;}
+
     }
 
     //Send final status response
@@ -354,6 +363,8 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
 
     }
 
+    //Pause counter
+    let mut cntr = 0;
     
     // Iterate over chip 
     for i in 0..config.chip_size_bytes {
@@ -409,9 +420,16 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
             time_since_last_update = SystemTime::now();
         }
         
-        
-        //Wait the required amount of delay in ms
-        std::thread::sleep(std::time::Duration::from_millis(cmd.delay as u64));
+        if(cntr > config.chip_size_bytes / 100){
+
+            //Wait the required amount of delay in ms
+            std::thread::sleep(std::time::Duration::from_millis(cmd.delay as u64));
+
+            cntr = 0;
+
+        } else {cntr += 1;}
+
+    
     }
 
 

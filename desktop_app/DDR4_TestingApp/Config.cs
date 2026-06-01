@@ -17,7 +17,7 @@ namespace DDR4_TestingApp
             ChipIndex = 0,      // 0..7
             BusBytesPerChip = 2,  // x8 -> 1, x16 -> 2
             BusSizeInBytes = 8,                                     // x64 bus -> 8 bytes
-            ChipSizeBytes = 1 * 1024 * 1024,    // MiB -> bytes
+            ChipSizeBytes = 1 * 1024 * 1024 * 1024,    // MiB -> bytes
             enableChipSelect = 0,
         };
 

@@ -36,7 +36,7 @@
             taskProgress = new ToolStripProgressBar();
             taskInfo = new ToolStripStatusLabel();
             connectionState = new ToolStripStatusLabel();
-            toolStripStatusLabel1 = new ToolStripStatusLabel();
+            beamIndicator = new ToolStripStatusLabel();
             ConnectAndConfigure = new TabControl();
             tabPage1 = new TabPage();
             groupBox24 = new GroupBox();
@@ -109,16 +109,33 @@
             manufacturerBox = new TextBox();
             label13 = new Label();
             label12 = new Label();
-            groupBox3 = new GroupBox();
-            label19 = new Label();
-            label3 = new Label();
             groupBox1 = new GroupBox();
             connect_btn = new Button();
             port = new TextBox();
             label2 = new Label();
             ip_address = new TextBox();
             label1 = new Label();
+            groupBox3 = new GroupBox();
+            pictureBox3 = new PictureBox();
+            pictureBox2 = new PictureBox();
+            pictureBox1 = new PictureBox();
+            label19 = new Label();
+            label3 = new Label();
             tabPage2 = new TabPage();
+            groupBox5 = new GroupBox();
+            setSEFIOff = new Button();
+            SetSEFIArm = new Button();
+            groupBox18 = new GroupBox();
+            taskStart = new TextBox();
+            taskEnd = new TextBox();
+            duration = new Label();
+            label33 = new Label();
+            label32 = new Label();
+            label31 = new Label();
+            groupBox13 = new GroupBox();
+            bitErrorRates = new ScottPlot.WinForms.FormsPlot();
+            groupBox7 = new GroupBox();
+            formsPlot2 = new ScottPlot.WinForms.FormsPlot();
             groupBox6 = new GroupBox();
             label20 = new Label();
             delayAmount = new NumericUpDown();
@@ -139,13 +156,6 @@
             groupBox22 = new GroupBox();
             selectSaveLocation = new Button();
             dumpPath = new TextBox();
-            groupBox5 = new GroupBox();
-            label34 = new Label();
-            label33 = new Label();
-            textBox2 = new TextBox();
-            textBox1 = new TextBox();
-            label32 = new Label();
-            label31 = new Label();
             groupBox11 = new GroupBox();
             prngSeed = new TextBox();
             genSeed = new Button();
@@ -161,9 +171,6 @@
             writeMode = new ComboBox();
             contextMenuStrip1 = new ContextMenuStrip(components);
             contextMenuStrip2 = new ContextMenuStrip(components);
-            pictureBox1 = new PictureBox();
-            pictureBox2 = new PictureBox();
-            pictureBox3 = new PictureBox();
             ((System.ComponentModel.ISupportInitialize)captureInfoBindingSource).BeginInit();
             statusStrip1.SuspendLayout();
             ConnectAndConfigure.SuspendLayout();
@@ -176,9 +183,16 @@
             sideA.SuspendLayout();
             groupBox2.SuspendLayout();
             groupBox14.SuspendLayout();
-            groupBox3.SuspendLayout();
             groupBox1.SuspendLayout();
+            groupBox3.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)pictureBox3).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)pictureBox2).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
             tabPage2.SuspendLayout();
+            groupBox5.SuspendLayout();
+            groupBox18.SuspendLayout();
+            groupBox13.SuspendLayout();
+            groupBox7.SuspendLayout();
             groupBox6.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)delayAmount).BeginInit();
             groupBox15.SuspendLayout();
@@ -187,24 +201,20 @@
             groupBox17.SuspendLayout();
             groupBox23.SuspendLayout();
             groupBox22.SuspendLayout();
-            groupBox5.SuspendLayout();
             groupBox11.SuspendLayout();
             groupBox9.SuspendLayout();
             groupBox12.SuspendLayout();
             groupBox10.SuspendLayout();
             groupBox8.SuspendLayout();
             writeModeLabel.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)pictureBox2).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)pictureBox3).BeginInit();
             SuspendLayout();
             // 
             // statusStrip1
             // 
-            statusStrip1.Items.AddRange(new ToolStripItem[] { taskName, taskProgress, taskInfo, connectionState, toolStripStatusLabel1 });
+            statusStrip1.Items.AddRange(new ToolStripItem[] { taskName, taskProgress, taskInfo, connectionState, beamIndicator });
             statusStrip1.Location = new Point(0, 739);
             statusStrip1.Name = "statusStrip1";
-            statusStrip1.Size = new Size(855, 22);
+            statusStrip1.Size = new Size(808, 22);
             statusStrip1.TabIndex = 1;
             statusStrip1.Text = "statusStrip1";
             // 
@@ -231,17 +241,22 @@
             // connectionState
             // 
             connectionState.AutoSize = false;
-            connectionState.ForeColor = SystemColors.ControlLightLight;
+            connectionState.BackColor = Color.Red;
+            connectionState.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            connectionState.ForeColor = Color.White;
             connectionState.Name = "connectionState";
-            connectionState.Size = new Size(100, 17);
-            connectionState.Text = "toolStripStatusLabel3";
+            connectionState.Size = new Size(50, 17);
+            connectionState.Text = "ONLINE";
             // 
-            // toolStripStatusLabel1
+            // beamIndicator
             // 
-            toolStripStatusLabel1.AutoSize = false;
-            toolStripStatusLabel1.Name = "toolStripStatusLabel1";
-            toolStripStatusLabel1.Size = new Size(100, 17);
-            toolStripStatusLabel1.Text = "BEAM";
+            beamIndicator.AutoSize = false;
+            beamIndicator.BackColor = Color.Red;
+            beamIndicator.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            beamIndicator.ForeColor = Color.White;
+            beamIndicator.Name = "beamIndicator";
+            beamIndicator.Size = new Size(100, 17);
+            beamIndicator.Text = "BEAM";
             // 
             // ConnectAndConfigure
             // 
@@ -251,7 +266,7 @@
             ConnectAndConfigure.Location = new Point(0, 0);
             ConnectAndConfigure.Name = "ConnectAndConfigure";
             ConnectAndConfigure.SelectedIndex = 0;
-            ConnectAndConfigure.Size = new Size(853, 736);
+            ConnectAndConfigure.Size = new Size(809, 736);
             ConnectAndConfigure.TabIndex = 2;
             // 
             // tabPage1
@@ -264,7 +279,7 @@
             tabPage1.Location = new Point(4, 24);
             tabPage1.Name = "tabPage1";
             tabPage1.Padding = new Padding(3);
-            tabPage1.Size = new Size(845, 708);
+            tabPage1.Size = new Size(801, 708);
             tabPage1.TabIndex = 0;
             tabPage1.Text = "Connection and Configuration";
             tabPage1.UseVisualStyleBackColor = true;
@@ -275,7 +290,7 @@
             groupBox24.Controls.Add(groupBox29);
             groupBox24.Location = new Point(480, 162);
             groupBox24.Name = "groupBox24";
-            groupBox24.Size = new Size(359, 320);
+            groupBox24.Size = new Size(323, 320);
             groupBox24.TabIndex = 5;
             groupBox24.TabStop = false;
             groupBox24.Text = "FPGA Configuration";
@@ -296,7 +311,7 @@
             groupBox30.Controls.Add(fpga_row);
             groupBox30.Location = new Point(6, 22);
             groupBox30.Name = "groupBox30";
-            groupBox30.Size = new Size(335, 149);
+            groupBox30.Size = new Size(310, 149);
             groupBox30.TabIndex = 15;
             groupBox30.TabStop = false;
             groupBox30.Text = "Addressing Parameters";
@@ -324,7 +339,7 @@
             fpga_stack_height.Enabled = false;
             fpga_stack_height.Location = new Point(234, 98);
             fpga_stack_height.Name = "fpga_stack_height";
-            fpga_stack_height.Size = new Size(76, 23);
+            fpga_stack_height.Size = new Size(67, 23);
             fpga_stack_height.TabIndex = 28;
             fpga_stack_height.Text = "===================";
             // 
@@ -351,7 +366,7 @@
             fpga_bg.Enabled = false;
             fpga_bg.Location = new Point(234, 59);
             fpga_bg.Name = "fpga_bg";
-            fpga_bg.Size = new Size(76, 23);
+            fpga_bg.Size = new Size(67, 23);
             fpga_bg.TabIndex = 30;
             fpga_bg.Text = "===================";
             // 
@@ -369,7 +384,7 @@
             fpga_bank.Enabled = false;
             fpga_bank.Location = new Point(234, 22);
             fpga_bank.Name = "fpga_bank";
-            fpga_bank.Size = new Size(76, 23);
+            fpga_bank.Size = new Size(67, 23);
             fpga_bank.TabIndex = 28;
             fpga_bank.Text = "===================";
             // 
@@ -419,7 +434,7 @@
             groupBox29.Controls.Add(fpga_organization);
             groupBox29.Location = new Point(6, 177);
             groupBox29.Name = "groupBox29";
-            groupBox29.Size = new Size(335, 137);
+            groupBox29.Size = new Size(310, 137);
             groupBox29.TabIndex = 17;
             groupBox29.TabStop = false;
             groupBox29.Text = "Card Information";
@@ -429,7 +444,7 @@
             fpga_cas.Enabled = false;
             fpga_cas.Location = new Point(154, 96);
             fpga_cas.Name = "fpga_cas";
-            fpga_cas.Size = new Size(175, 23);
+            fpga_cas.Size = new Size(147, 23);
             fpga_cas.TabIndex = 20;
             fpga_cas.Text = "===================";
             // 
@@ -447,7 +462,7 @@
             fpga_capacity.Enabled = false;
             fpga_capacity.Location = new Point(154, 60);
             fpga_capacity.Name = "fpga_capacity";
-            fpga_capacity.Size = new Size(175, 23);
+            fpga_capacity.Size = new Size(147, 23);
             fpga_capacity.TabIndex = 18;
             fpga_capacity.Text = "===================";
             // 
@@ -474,7 +489,7 @@
             fpga_organization.Enabled = false;
             fpga_organization.Location = new Point(154, 21);
             fpga_organization.Name = "fpga_organization";
-            fpga_organization.Size = new Size(175, 23);
+            fpga_organization.Size = new Size(147, 23);
             fpga_organization.TabIndex = 16;
             fpga_organization.Text = "===================";
             // 
@@ -496,10 +511,12 @@
             // chip_capacity
             // 
             chip_capacity.FormattingEnabled = true;
+            chip_capacity.Items.AddRange(new object[] { "10 MB", "100 MB", "200 MB", "250 MB", "500 MB", "1 GB", "1.5 GB" });
             chip_capacity.Location = new Point(308, 19);
             chip_capacity.Name = "chip_capacity";
             chip_capacity.Size = new Size(121, 23);
             chip_capacity.TabIndex = 23;
+            chip_capacity.SelectedIndexChanged += chip_capacity_SelectedIndexChanged;
             // 
             // label24
             // 
@@ -818,7 +835,7 @@
             groupBox2.Controls.Add(label12);
             groupBox2.Location = new Point(250, 6);
             groupBox2.Name = "groupBox2";
-            groupBox2.Size = new Size(589, 150);
+            groupBox2.Size = new Size(553, 150);
             groupBox2.TabIndex = 4;
             groupBox2.TabStop = false;
             groupBox2.Text = "Board Properties";
@@ -828,7 +845,7 @@
             uptimeBox.Enabled = false;
             uptimeBox.Location = new Point(130, 92);
             uptimeBox.Name = "uptimeBox";
-            uptimeBox.Size = new Size(173, 23);
+            uptimeBox.Size = new Size(132, 23);
             uptimeBox.TabIndex = 7;
             uptimeBox.Text = "===================";
             // 
@@ -846,7 +863,7 @@
             modelBox.Enabled = false;
             modelBox.Location = new Point(130, 61);
             modelBox.Name = "modelBox";
-            modelBox.Size = new Size(173, 23);
+            modelBox.Size = new Size(132, 23);
             modelBox.TabIndex = 5;
             modelBox.Text = "===================";
             // 
@@ -862,7 +879,7 @@
             groupBox14.Controls.Add(label17);
             groupBox14.Controls.Add(label16);
             groupBox14.Controls.Add(label14);
-            groupBox14.Location = new Point(309, 13);
+            groupBox14.Location = new Point(284, 13);
             groupBox14.Name = "groupBox14";
             groupBox14.Size = new Size(262, 129);
             groupBox14.TabIndex = 1;
@@ -960,7 +977,7 @@
             manufacturerBox.Enabled = false;
             manufacturerBox.Location = new Point(130, 29);
             manufacturerBox.Name = "manufacturerBox";
-            manufacturerBox.Size = new Size(173, 23);
+            manufacturerBox.Size = new Size(132, 23);
             manufacturerBox.TabIndex = 4;
             manufacturerBox.Text = "===================";
             // 
@@ -981,40 +998,6 @@
             label12.Size = new Size(79, 15);
             label12.TabIndex = 1;
             label12.Text = "Manufacturer";
-            // 
-            // groupBox3
-            // 
-            groupBox3.Controls.Add(pictureBox3);
-            groupBox3.Controls.Add(pictureBox2);
-            groupBox3.Controls.Add(pictureBox1);
-            groupBox3.Controls.Add(label19);
-            groupBox3.Controls.Add(label3);
-            groupBox3.Location = new Point(480, 488);
-            groupBox3.Name = "groupBox3";
-            groupBox3.Size = new Size(359, 214);
-            groupBox3.TabIndex = 0;
-            groupBox3.TabStop = false;
-            groupBox3.Text = "About";
-            // 
-            // label19
-            // 
-            label19.AutoSize = true;
-            label19.Location = new Point(79, 72);
-            label19.Name = "label19";
-            label19.Size = new Size(125, 15);
-            label19.TabIndex = 9;
-            label19.Text = "Written by Ryan Lopez";
-            // 
-            // label3
-            // 
-            label3.AutoSize = true;
-            label3.Font = new Font("Segoe UI", 14F);
-            label3.Location = new Point(27, 34);
-            label3.Name = "label3";
-            label3.Size = new Size(232, 25);
-            label3.TabIndex = 8;
-            label3.Text = "DDR4 Test Bench Software";
-            label3.Click += label3_Click;
             // 
             // groupBox1
             // 
@@ -1074,23 +1057,228 @@
             label1.TabIndex = 0;
             label1.Text = "IP Address:";
             // 
+            // groupBox3
+            // 
+            groupBox3.Controls.Add(pictureBox3);
+            groupBox3.Controls.Add(pictureBox2);
+            groupBox3.Controls.Add(pictureBox1);
+            groupBox3.Controls.Add(label19);
+            groupBox3.Controls.Add(label3);
+            groupBox3.Location = new Point(480, 488);
+            groupBox3.Name = "groupBox3";
+            groupBox3.Size = new Size(315, 214);
+            groupBox3.TabIndex = 0;
+            groupBox3.TabStop = false;
+            groupBox3.Text = "About";
+            // 
+            // pictureBox3
+            // 
+            pictureBox3.Image = (Image)resources.GetObject("pictureBox3.Image");
+            pictureBox3.Location = new Point(234, 106);
+            pictureBox3.Name = "pictureBox3";
+            pictureBox3.Size = new Size(73, 76);
+            pictureBox3.SizeMode = PictureBoxSizeMode.StretchImage;
+            pictureBox3.TabIndex = 11;
+            pictureBox3.TabStop = false;
+            // 
+            // pictureBox2
+            // 
+            pictureBox2.Image = (Image)resources.GetObject("pictureBox2.Image");
+            pictureBox2.Location = new Point(234, 22);
+            pictureBox2.Name = "pictureBox2";
+            pictureBox2.Size = new Size(73, 70);
+            pictureBox2.SizeMode = PictureBoxSizeMode.StretchImage;
+            pictureBox2.TabIndex = 10;
+            pictureBox2.TabStop = false;
+            // 
+            // pictureBox1
+            // 
+            pictureBox1.Image = (Image)resources.GetObject("pictureBox1.Image");
+            pictureBox1.Location = new Point(6, 119);
+            pictureBox1.Name = "pictureBox1";
+            pictureBox1.Size = new Size(222, 63);
+            pictureBox1.SizeMode = PictureBoxSizeMode.StretchImage;
+            pictureBox1.TabIndex = 10;
+            pictureBox1.TabStop = false;
+            // 
+            // label19
+            // 
+            label19.AutoSize = true;
+            label19.Location = new Point(58, 65);
+            label19.Name = "label19";
+            label19.Size = new Size(125, 15);
+            label19.TabIndex = 9;
+            label19.Text = "Written by Ryan Lopez";
+            // 
+            // label3
+            // 
+            label3.AutoSize = true;
+            label3.Font = new Font("Segoe UI", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            label3.Location = new Point(27, 34);
+            label3.Name = "label3";
+            label3.Size = new Size(193, 21);
+            label3.TabIndex = 8;
+            label3.Text = "DDR4 Test Bench Software";
+            label3.Click += label3_Click;
+            // 
             // tabPage2
             // 
+            tabPage2.Controls.Add(groupBox5);
+            tabPage2.Controls.Add(groupBox18);
+            tabPage2.Controls.Add(groupBox13);
+            tabPage2.Controls.Add(groupBox7);
             tabPage2.Controls.Add(groupBox6);
             tabPage2.Controls.Add(groupBox15);
             tabPage2.Controls.Add(groupBox21);
-            tabPage2.Controls.Add(groupBox5);
             tabPage2.Controls.Add(groupBox11);
             tabPage2.Controls.Add(groupBox9);
             tabPage2.Controls.Add(groupBox8);
             tabPage2.Location = new Point(4, 24);
             tabPage2.Name = "tabPage2";
             tabPage2.Padding = new Padding(3);
-            tabPage2.Size = new Size(845, 708);
+            tabPage2.Size = new Size(801, 708);
             tabPage2.TabIndex = 1;
             tabPage2.Text = "Utilities";
             tabPage2.UseVisualStyleBackColor = true;
             tabPage2.Click += tabPage2_Click;
+            // 
+            // groupBox5
+            // 
+            groupBox5.Controls.Add(setSEFIOff);
+            groupBox5.Controls.Add(SetSEFIArm);
+            groupBox5.Location = new Point(236, 465);
+            groupBox5.Name = "groupBox5";
+            groupBox5.Size = new Size(140, 127);
+            groupBox5.TabIndex = 7;
+            groupBox5.TabStop = false;
+            groupBox5.Text = "SEFI Detector";
+            // 
+            // setSEFIOff
+            // 
+            setSEFIOff.BackColor = Color.Black;
+            setSEFIOff.Font = new Font("Segoe UI", 9F);
+            setSEFIOff.ForeColor = SystemColors.ButtonHighlight;
+            setSEFIOff.Location = new Point(6, 71);
+            setSEFIOff.Name = "setSEFIOff";
+            setSEFIOff.Size = new Size(127, 45);
+            setSEFIOff.TabIndex = 7;
+            setSEFIOff.Text = "OFF";
+            setSEFIOff.UseVisualStyleBackColor = false;
+            setSEFIOff.Click += setSEFIOff_Click;
+            // 
+            // SetSEFIArm
+            // 
+            SetSEFIArm.BackColor = Color.Black;
+            SetSEFIArm.Font = new Font("Segoe UI", 9F);
+            SetSEFIArm.ForeColor = SystemColors.ButtonHighlight;
+            SetSEFIArm.Location = new Point(6, 23);
+            SetSEFIArm.Name = "SetSEFIArm";
+            SetSEFIArm.Size = new Size(127, 42);
+            SetSEFIArm.TabIndex = 7;
+            SetSEFIArm.Text = "ARM";
+            SetSEFIArm.UseVisualStyleBackColor = false;
+            SetSEFIArm.Click += SetSEFIArm_Click;
+            // 
+            // groupBox18
+            // 
+            groupBox18.Controls.Add(taskStart);
+            groupBox18.Controls.Add(taskEnd);
+            groupBox18.Controls.Add(duration);
+            groupBox18.Controls.Add(label33);
+            groupBox18.Controls.Add(label32);
+            groupBox18.Controls.Add(label31);
+            groupBox18.Location = new Point(169, 592);
+            groupBox18.Name = "groupBox18";
+            groupBox18.Size = new Size(209, 110);
+            groupBox18.TabIndex = 6;
+            groupBox18.TabStop = false;
+            groupBox18.Text = "Time Statistics";
+            // 
+            // taskStart
+            // 
+            taskStart.Location = new Point(70, 23);
+            taskStart.Name = "taskStart";
+            taskStart.Size = new Size(133, 23);
+            taskStart.TabIndex = 3;
+            // 
+            // taskEnd
+            // 
+            taskEnd.Location = new Point(70, 53);
+            taskEnd.Name = "taskEnd";
+            taskEnd.Size = new Size(133, 23);
+            taskEnd.TabIndex = 4;
+            // 
+            // duration
+            // 
+            duration.AutoSize = true;
+            duration.Location = new Point(94, 79);
+            duration.Name = "duration";
+            duration.Size = new Size(59, 15);
+            duration.TabIndex = 7;
+            duration.Text = "0 seconds";
+            // 
+            // label33
+            // 
+            label33.AutoSize = true;
+            label33.Location = new Point(6, 79);
+            label33.Name = "label33";
+            label33.Size = new Size(56, 15);
+            label33.TabIndex = 8;
+            label33.Text = "Duration:";
+            // 
+            // label32
+            // 
+            label32.AutoSize = true;
+            label32.Location = new Point(4, 53);
+            label32.Name = "label32";
+            label32.Size = new Size(56, 15);
+            label32.TabIndex = 8;
+            label32.Text = "Task End:";
+            // 
+            // label31
+            // 
+            label31.AutoSize = true;
+            label31.Location = new Point(4, 26);
+            label31.Name = "label31";
+            label31.Size = new Size(60, 15);
+            label31.TabIndex = 8;
+            label31.Text = "Task Start:";
+            // 
+            // groupBox13
+            // 
+            groupBox13.Controls.Add(bitErrorRates);
+            groupBox13.Font = new Font("Segoe UI", 9F);
+            groupBox13.Location = new Point(384, 502);
+            groupBox13.Name = "groupBox13";
+            groupBox13.Size = new Size(408, 200);
+            groupBox13.TabIndex = 5;
+            groupBox13.TabStop = false;
+            groupBox13.Text = "Bit Error Rates";
+            // 
+            // bitErrorRates
+            // 
+            bitErrorRates.Location = new Point(8, 22);
+            bitErrorRates.Name = "bitErrorRates";
+            bitErrorRates.Size = new Size(393, 172);
+            bitErrorRates.TabIndex = 0;
+            // 
+            // groupBox7
+            // 
+            groupBox7.Controls.Add(formsPlot2);
+            groupBox7.Font = new Font("Segoe UI", 9F);
+            groupBox7.Location = new Point(382, 303);
+            groupBox7.Name = "groupBox7";
+            groupBox7.Size = new Size(411, 193);
+            groupBox7.TabIndex = 4;
+            groupBox7.TabStop = false;
+            groupBox7.Text = "Operation Status";
+            // 
+            // formsPlot2
+            // 
+            formsPlot2.Location = new Point(6, 15);
+            formsPlot2.Name = "formsPlot2";
+            formsPlot2.Size = new Size(393, 172);
+            formsPlot2.TabIndex = 1;
             // 
             // groupBox6
             // 
@@ -1098,9 +1286,9 @@
             groupBox6.Controls.Add(delayAmount);
             groupBox6.Controls.Add(enableDelay);
             groupBox6.Font = new Font("Segoe UI", 9F);
-            groupBox6.Location = new Point(623, 303);
+            groupBox6.Location = new Point(6, 592);
             groupBox6.Name = "groupBox6";
-            groupBox6.Size = new Size(156, 127);
+            groupBox6.Size = new Size(156, 110);
             groupBox6.TabIndex = 2;
             groupBox6.TabStop = false;
             groupBox6.Text = "Target Duration";
@@ -1108,7 +1296,7 @@
             // label20
             // 
             label20.AutoSize = true;
-            label20.Location = new Point(6, 50);
+            label20.Location = new Point(12, 53);
             label20.Name = "label20";
             label20.Size = new Size(101, 15);
             label20.TabIndex = 3;
@@ -1116,15 +1304,15 @@
             // 
             // delayAmount
             // 
-            delayAmount.Location = new Point(8, 68);
+            delayAmount.Location = new Point(12, 71);
             delayAmount.Name = "delayAmount";
-            delayAmount.Size = new Size(140, 23);
+            delayAmount.Size = new Size(127, 23);
             delayAmount.TabIndex = 1;
             // 
             // enableDelay
             // 
             enableDelay.AutoSize = true;
-            enableDelay.Location = new Point(8, 23);
+            enableDelay.Location = new Point(12, 22);
             enableDelay.Name = "enableDelay";
             enableDelay.Size = new Size(93, 19);
             enableDelay.TabIndex = 0;
@@ -1137,7 +1325,7 @@
             groupBox15.Controls.Add(setBeamOff);
             groupBox15.Controls.Add(setBeamArm);
             groupBox15.Font = new Font("Segoe UI", 9F);
-            groupBox15.Location = new Point(380, 303);
+            groupBox15.Location = new Point(8, 465);
             groupBox15.Name = "groupBox15";
             groupBox15.Size = new Size(222, 127);
             groupBox15.TabIndex = 4;
@@ -1181,6 +1369,7 @@
             setBeamOff.TabIndex = 6;
             setBeamOff.Text = "OFF";
             setBeamOff.UseVisualStyleBackColor = false;
+            setBeamOff.Click += setBeamOff_Click;
             // 
             // setBeamArm
             // 
@@ -1193,6 +1382,7 @@
             setBeamArm.TabIndex = 5;
             setBeamArm.Text = "ARM";
             setBeamArm.UseVisualStyleBackColor = false;
+            setBeamArm.Click += setBeamArm_Click;
             // 
             // groupBox21
             // 
@@ -1202,7 +1392,7 @@
             groupBox21.Controls.Add(groupBox22);
             groupBox21.Location = new Point(380, 6);
             groupBox21.Name = "groupBox21";
-            groupBox21.Size = new Size(405, 291);
+            groupBox21.Size = new Size(412, 291);
             groupBox21.TabIndex = 5;
             groupBox21.TabStop = false;
             groupBox21.Text = "Dump Tool";
@@ -1214,7 +1404,7 @@
             groupBox17.Font = new Font("Segoe UI", 9F);
             groupBox17.Location = new Point(6, 162);
             groupBox17.Name = "groupBox17";
-            groupBox17.Size = new Size(393, 64);
+            groupBox17.Size = new Size(399, 64);
             groupBox17.TabIndex = 8;
             groupBox17.TabStop = false;
             groupBox17.Text = "Capture Mode";
@@ -1230,6 +1420,7 @@
             captureModeDiff.TabIndex = 10;
             captureModeDiff.Text = "DIFFERENTIAL";
             captureModeDiff.UseVisualStyleBackColor = false;
+            captureModeDiff.Click += captureModeDiff_Click;
             // 
             // captureModeRaw
             // 
@@ -1242,6 +1433,7 @@
             captureModeRaw.TabIndex = 9;
             captureModeRaw.Text = "RAW";
             captureModeRaw.UseVisualStyleBackColor = false;
+            captureModeRaw.Click += captureModeRaw_Click;
             // 
             // groupBox23
             // 
@@ -1249,7 +1441,7 @@
             groupBox23.Font = new Font("Segoe UI", 9F);
             groupBox23.Location = new Point(6, 92);
             groupBox23.Name = "groupBox23";
-            groupBox23.Size = new Size(393, 64);
+            groupBox23.Size = new Size(400, 64);
             groupBox23.TabIndex = 7;
             groupBox23.TabStop = false;
             groupBox23.Text = "File Name";
@@ -1267,7 +1459,7 @@
             dumpButton.Font = new Font("Segoe UI", 9F);
             dumpButton.Location = new Point(6, 232);
             dumpButton.Name = "dumpButton";
-            dumpButton.Size = new Size(393, 49);
+            dumpButton.Size = new Size(400, 49);
             dumpButton.TabIndex = 4;
             dumpButton.Text = "Download";
             dumpButton.UseVisualStyleBackColor = true;
@@ -1280,7 +1472,7 @@
             groupBox22.Font = new Font("Segoe UI", 9F);
             groupBox22.Location = new Point(6, 22);
             groupBox22.Name = "groupBox22";
-            groupBox22.Size = new Size(393, 64);
+            groupBox22.Size = new Size(399, 64);
             groupBox22.TabIndex = 2;
             groupBox22.TabStop = false;
             groupBox22.Text = "Save Location";
@@ -1303,72 +1495,6 @@
             dumpPath.Size = new Size(232, 23);
             dumpPath.TabIndex = 5;
             dumpPath.Text = "C:\\";
-            // 
-            // groupBox5
-            // 
-            groupBox5.Controls.Add(label34);
-            groupBox5.Controls.Add(label33);
-            groupBox5.Controls.Add(textBox2);
-            groupBox5.Controls.Add(textBox1);
-            groupBox5.Controls.Add(label32);
-            groupBox5.Controls.Add(label31);
-            groupBox5.Font = new Font("Segoe UI", 9F);
-            groupBox5.Location = new Point(536, 463);
-            groupBox5.Name = "groupBox5";
-            groupBox5.Size = new Size(249, 127);
-            groupBox5.TabIndex = 2;
-            groupBox5.TabStop = false;
-            groupBox5.Text = "Time Statistics";
-            // 
-            // label34
-            // 
-            label34.AutoSize = true;
-            label34.Location = new Point(134, 93);
-            label34.Name = "label34";
-            label34.Size = new Size(59, 15);
-            label34.TabIndex = 7;
-            label34.Text = "0 seconds";
-            // 
-            // label33
-            // 
-            label33.AutoSize = true;
-            label33.Location = new Point(21, 93);
-            label33.Name = "label33";
-            label33.Size = new Size(56, 15);
-            label33.TabIndex = 6;
-            label33.Text = "Duration:";
-            // 
-            // textBox2
-            // 
-            textBox2.Location = new Point(83, 51);
-            textBox2.Name = "textBox2";
-            textBox2.Size = new Size(160, 23);
-            textBox2.TabIndex = 4;
-            // 
-            // textBox1
-            // 
-            textBox1.Location = new Point(83, 22);
-            textBox1.Name = "textBox1";
-            textBox1.Size = new Size(160, 23);
-            textBox1.TabIndex = 3;
-            // 
-            // label32
-            // 
-            label32.AutoSize = true;
-            label32.Location = new Point(21, 59);
-            label32.Name = "label32";
-            label32.Size = new Size(56, 15);
-            label32.TabIndex = 1;
-            label32.Text = "Task End:";
-            // 
-            // label31
-            // 
-            label31.AutoSize = true;
-            label31.Location = new Point(17, 28);
-            label31.Name = "label31";
-            label31.Size = new Size(60, 15);
-            label31.TabIndex = 0;
-            label31.Text = "Task Start:";
             // 
             // groupBox11
             // 
@@ -1407,9 +1533,9 @@
             groupBox9.Controls.Add(verifyButton);
             groupBox9.Controls.Add(groupBox10);
             groupBox9.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            groupBox9.Location = new Point(123, 343);
+            groupBox9.Location = new Point(6, 168);
             groupBox9.Name = "groupBox9";
-            groupBox9.Size = new Size(377, 291);
+            groupBox9.Size = new Size(370, 291);
             groupBox9.TabIndex = 3;
             groupBox9.TabStop = false;
             groupBox9.Text = "Verify Tool";
@@ -1420,7 +1546,7 @@
             groupBox12.Font = new Font("Segoe UI", 9F);
             groupBox12.Location = new Point(6, 81);
             groupBox12.Name = "groupBox12";
-            groupBox12.Size = new Size(365, 200);
+            groupBox12.Size = new Size(357, 200);
             groupBox12.TabIndex = 3;
             groupBox12.TabStop = false;
             groupBox12.Text = "Verification Results";
@@ -1430,7 +1556,7 @@
             verificationResults.Font = new Font("Consolas", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
             verificationResults.Location = new Point(6, 22);
             verificationResults.Name = "verificationResults";
-            verificationResults.Size = new Size(353, 169);
+            verificationResults.Size = new Size(345, 169);
             verificationResults.TabIndex = 0;
             verificationResults.Text = "";
             // 
@@ -1439,7 +1565,7 @@
             verifyButton.Font = new Font("Segoe UI", 9F);
             verifyButton.Location = new Point(167, 28);
             verifyButton.Name = "verifyButton";
-            verifyButton.Size = new Size(204, 47);
+            verifyButton.Size = new Size(196, 47);
             verifyButton.TabIndex = 2;
             verifyButton.Text = "Verify";
             verifyButton.UseVisualStyleBackColor = true;
@@ -1518,41 +1644,11 @@
             contextMenuStrip2.Name = "contextMenuStrip2";
             contextMenuStrip2.Size = new Size(61, 4);
             // 
-            // pictureBox1
-            // 
-            pictureBox1.Image = (Image)resources.GetObject("pictureBox1.Image");
-            pictureBox1.Location = new Point(7, 106);
-            pictureBox1.Name = "pictureBox1";
-            pictureBox1.Size = new Size(262, 76);
-            pictureBox1.SizeMode = PictureBoxSizeMode.StretchImage;
-            pictureBox1.TabIndex = 10;
-            pictureBox1.TabStop = false;
-            // 
-            // pictureBox2
-            // 
-            pictureBox2.Image = (Image)resources.GetObject("pictureBox2.Image");
-            pictureBox2.Location = new Point(273, 20);
-            pictureBox2.Name = "pictureBox2";
-            pictureBox2.Size = new Size(73, 70);
-            pictureBox2.SizeMode = PictureBoxSizeMode.StretchImage;
-            pictureBox2.TabIndex = 10;
-            pictureBox2.TabStop = false;
-            // 
-            // pictureBox3
-            // 
-            pictureBox3.Image = (Image)resources.GetObject("pictureBox3.Image");
-            pictureBox3.Location = new Point(268, 106);
-            pictureBox3.Name = "pictureBox3";
-            pictureBox3.Size = new Size(85, 76);
-            pictureBox3.SizeMode = PictureBoxSizeMode.StretchImage;
-            pictureBox3.TabIndex = 11;
-            pictureBox3.TabStop = false;
-            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(855, 761);
+            ClientSize = new Size(808, 761);
             Controls.Add(ConnectAndConfigure);
             Controls.Add(statusStrip1);
             Name = "MainForm";
@@ -1577,11 +1673,19 @@
             groupBox2.PerformLayout();
             groupBox14.ResumeLayout(false);
             groupBox14.PerformLayout();
-            groupBox3.ResumeLayout(false);
-            groupBox3.PerformLayout();
             groupBox1.ResumeLayout(false);
             groupBox1.PerformLayout();
+            groupBox3.ResumeLayout(false);
+            groupBox3.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)pictureBox3).EndInit();
+            ((System.ComponentModel.ISupportInitialize)pictureBox2).EndInit();
+            ((System.ComponentModel.ISupportInitialize)pictureBox1).EndInit();
             tabPage2.ResumeLayout(false);
+            groupBox5.ResumeLayout(false);
+            groupBox18.ResumeLayout(false);
+            groupBox18.PerformLayout();
+            groupBox13.ResumeLayout(false);
+            groupBox7.ResumeLayout(false);
             groupBox6.ResumeLayout(false);
             groupBox6.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)delayAmount).EndInit();
@@ -1594,8 +1698,6 @@
             groupBox23.PerformLayout();
             groupBox22.ResumeLayout(false);
             groupBox22.PerformLayout();
-            groupBox5.ResumeLayout(false);
-            groupBox5.PerformLayout();
             groupBox11.ResumeLayout(false);
             groupBox11.PerformLayout();
             groupBox9.ResumeLayout(false);
@@ -1603,9 +1705,6 @@
             groupBox10.ResumeLayout(false);
             groupBox8.ResumeLayout(false);
             writeModeLabel.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)pictureBox1).EndInit();
-            ((System.ComponentModel.ISupportInitialize)pictureBox2).EndInit();
-            ((System.ComponentModel.ISupportInitialize)pictureBox3).EndInit();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -1719,19 +1818,12 @@
         private TextBox fpga_col;
         private Label label19;
         private Label label3;
-        private ToolStripStatusLabel toolStripStatusLabel1;
+        private ToolStripStatusLabel beamIndicator;
         private GroupBox groupBox6;
         private CheckBox enableDelay;
-        private GroupBox groupBox5;
-        private Label label33;
-        private TextBox textBox2;
-        private TextBox textBox1;
-        private Label label32;
-        private Label label31;
         private Label label20;
         private NumericUpDown delayAmount;
         private ContextMenuStrip contextMenuStrip2;
-        private Label label34;
         private GroupBox groupBox15;
         private Button setBeamOff;
         private Button setBeamArm;
@@ -1745,5 +1837,19 @@
         private PictureBox pictureBox1;
         private PictureBox pictureBox3;
         private PictureBox pictureBox2;
+        private GroupBox groupBox7;
+        private GroupBox groupBox18;
+        private TextBox taskStart;
+        private TextBox taskEnd;
+        private Label duration;
+        private Label label33;
+        private Label label32;
+        private Label label31;
+        private GroupBox groupBox13;
+        private GroupBox groupBox5;
+        private Button setSEFIOff;
+        private Button SetSEFIArm;
+        private ScottPlot.WinForms.FormsPlot bitErrorRates;
+        private ScottPlot.WinForms.FormsPlot formsPlot2;
     }
 }

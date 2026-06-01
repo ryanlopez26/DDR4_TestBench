@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
+using ScottPlot.WinForms;
 
 namespace DDR4_TestingApp
 {
@@ -11,6 +12,25 @@ namespace DDR4_TestingApp
 
         private readonly System.Windows.Forms.Timer _uiTimer = new();
 
+        // Parameters
+        private bool captureDiff = false;
+        private bool enableSEFI = false;
+        private bool enableBeamTrigger = false;
+
+        private DateTime startTime = DateTime.Now;
+        private DateTime endTime = DateTime.Now;
+
+        enum BeamState
+        {   
+            Manual,
+            Armed,
+            Waiting,
+            Triggered,
+            SEFI,
+            Finished
+        };
+
+        private BeamState bms = BeamState.Manual;
 
 
         public MainForm()
@@ -62,21 +82,96 @@ namespace DDR4_TestingApp
         {
             // --- Status indicator ---
             bool connected = TcpManager.Status == TcpManager.ConnectionStatus.Connected;
-            connectionState.Text = connected ? "CONNECTED" : "DISCONNECTED";
+           
             connectionState.BackColor = connected ? Color.Green : Color.Red;
 
             //Attempt to update information
             Info.update();
 
+            //Update dynamic buttons
+            if (captureDiff)
+            {
+                captureModeRaw.BackColor = Color.Black;
+                captureModeDiff.BackColor = Color.ForestGreen;
+            }
+            else
+            {
+                captureModeDiff.BackColor = Color.Black;
+                captureModeRaw.BackColor = Color.ForestGreen;
+            }
+
+            if (enableSEFI)
+            {
+                setSEFIOff.BackColor = Color.Black;
+                SetSEFIArm.BackColor = Color.ForestGreen;
+            }
+            else
+            {
+                setSEFIOff.BackColor = Color.ForestGreen;
+                SetSEFIArm.BackColor = Color.Black;
+            }
+
+            if (enableBeamTrigger)
+            {
+                setBeamOff.BackColor = Color.Black;
+                setBeamArm.BackColor = Color.ForestGreen;
+            }
+            else
+            {
+                setBeamOff.BackColor = Color.ForestGreen;
+                setBeamArm.BackColor = Color.Black;
+            }
+
+            updateTaskInfo();
+            UpdateStatusBar();
+
             UpdateInfoFields(Info.sys);
         }
 
+        private void updateTaskInfo()
+        {
+
+            //Update time difference calculation
+            taskStart.Text = startTime.ToString();
+            taskEnd.Text = endTime.ToString();
+            duration.Text = $"{(endTime - startTime).TotalSeconds:F2} seconds";
+
+            //Update arm status
+            switch (bms)
+            {
+                case BeamState.Manual:
+                    beamSyncStatus.Text = "Manual Control";
+                    break;
+                case BeamState.Armed:
+                    beamSyncStatus.Text = "Ready for Arming";
+                    break;
+                case BeamState.Waiting:
+                    beamSyncStatus.Text = "Waiting for beam...";
+                    break;
+                case BeamState.Triggered:
+                    beamSyncStatus.Text = "Beam triggered";
+                    break;
+                case BeamState.Finished:
+                    beamSyncStatus.Text = "Task finished";
+                    break;
+                case BeamState.SEFI:
+                    beamSyncStatus.Text = "SEFI Detected";
+                    break;
+            }
+        }
         public void UpdateStatusBar()
         {
             //Attempt to update task indicator
             taskProgress.Value = (int)Program.taskProgress;
             taskInfo.Text = Program.taskInfo;
             taskName.Text = Program.taskName;
+
+            if (Program.beamStatus)
+            {
+                beamIndicator.BackColor = Color.Green;
+            } else { 
+                beamIndicator.BackColor = Color.Red;
+            }
         }
 
         private void ClearInfoFields()
@@ -90,7 +185,7 @@ namespace DDR4_TestingApp
             ramUsageBar.Text = "";
             uplinkBox.Text = "";
             downlinkBox.Text = "";
-            
+
             fpga_bank.Text = "";
             fpga_rank.Text = "";
             fpga_bg.Text = "";
@@ -109,6 +204,9 @@ namespace DDR4_TestingApp
                 ClearInfoFields();
                 return;
             }
+
+            //Beam status
+            Program.beamStatus = info.BeamActive;
 
             // Board properties
             manufacturerBox.Text = info.Manufacturer;
@@ -179,18 +277,60 @@ namespace DDR4_TestingApp
 
             Program.taskName = "WRITE";
 
+            uint taskDelay = 0;
+
+            //Check if we need to add delay
+            if (enableDelay.Checked)
+            {
+                taskDelay = (uint)((delayAmount.Value * 1000) / 100);
+            }
+
             var cmd = new WriteCmd
             {
                 Pattern = (byte)writeMode.SelectedIndex,           // 0 = zeros, 1 = ones, 2 = pseudorandom
                 Seed = UInt32.Parse(prngSeed.Text),
-                Delay = 0,           // per-byte delay in ms
+                Delay = taskDelay,           // per-byte delay in ms
+                BeamTriggered = enableBeamTrigger
             };
+
+            bms = BeamState.Waiting;
+            if(!cmd.BeamTriggered) startTime = DateTime.Now;
+
+            // Prev beam value
+            bool prevBeam = false;
 
             // Progress<T> captures the current SynchronizationContext (the UI thread),
             // so the lambda runs on the UI thread even though ConnectAsync's progress
             // reports come from a background continuation. Safe to touch controls.
             var progress = new Progress<WriteRsp>(rsp =>
             {
+
+                //Check to see if beam is triggered
+                if (!prevBeam && rsp.BeamActive)
+                {
+                    //Begin time capture
+                    startTime = DateTime.Now;
+
+                    bms = BeamState.Triggered;
+                }
+
+                //Check to see if beam is inactive
+                if (prevBeam && !rsp.BeamActive)
+                {
+                    //End time capture
+                    endTime = DateTime.Now;
+                }
+
+                //Update end time
+                if (!cmd.BeamTriggered) endTime = DateTime.Now;
+
+                //Update beam value
+                prevBeam = rsp.BeamActive;
+                updateTaskInfo();
+
+                //Update beam status
+                Program.beamStatus = rsp.BeamActive;
+
                 Program.taskProgress = rsp.PercentComplete;
                 Program.taskInfo = $"{rsp.BytesWritten:N0} bytes  ({rsp.PercentComplete:F1}%)  {(rsp.TimeSpentMs / 1000):F0}s";
                 UpdateStatusBar();
@@ -216,7 +356,12 @@ namespace DDR4_TestingApp
             }
             finally
             {
+                //Update end time
+                if (!cmd.BeamTriggered) endTime = DateTime.Now;
+
+                if (prevBeam) { endTime = DateTime.Now; }
                 writeButton.Enabled = true;
+                bms = BeamState.Finished;
             }
         }
 
@@ -275,15 +420,54 @@ namespace DDR4_TestingApp
 
             Program.taskName = "VERIFY";
 
+
+            uint taskDelay = 0;
+
+            //Check if we need to add delay
+            if (enableDelay.Checked)
+            {
+                taskDelay = (uint)((delayAmount.Value * 1000) / 100);
+            }
+
             var cmd = new VerifyCmd
             {
                 Pattern = (byte)verifyMode.SelectedIndex,    // 0 = zeros, 1 = ones, 2 = pseudorandom
                 Seed = UInt32.Parse(prngSeed.Text),
-                Delay = 0,
+                Delay = taskDelay,
+                BeamTriggered = enableBeamTrigger
             };
+            bms = BeamState.Armed;
+            bool prevBeam = false;
+            if (!cmd.BeamTriggered) startTime = DateTime.Now;
 
             var progress = new Progress<VerifyRsp>(rsp =>
             {
+                //Check to see if beam is triggered
+                if (!prevBeam && rsp.BeamActive)
+                {
+                    //Begin time capture
+                    startTime = DateTime.Now;
+                    bms = BeamState.Waiting;
+                }
+
+                //Check to see if beam is inactive
+                if (prevBeam && !rsp.BeamActive)
+                {
+                    //End time capture
+                    endTime = DateTime.Now;
+                }
+
+                //Update beam value
+                prevBeam = rsp.BeamActive;
+
+                //Update beam status
+                Program.beamStatus = rsp.BeamActive;
+
+                //Update end time
+                if (!cmd.BeamTriggered) endTime = DateTime.Now;
+
+                updateTaskInfo();
+
                 Program.taskProgress = (int)rsp.PercentComplete;
                 Program.taskInfo = $"{rsp.BytesVerified:N0} bytes  ({rsp.PercentComplete:F1}%)  {(rsp.TimeSpentMs / 1000):F0}s";
                 UpdateStatusBar();
@@ -305,9 +489,9 @@ namespace DDR4_TestingApp
 
                 verificationResults.Text =
                     $"Finished verification in {seconds:F2} seconds!\n\n" +
-                    $"Correct bytes:   {final.NumCorrect:N0}\n" +
-                    $"Incorrect bytes: {final.NumErrors:N0}\n\n" +
-                    $"{corruptedPercent:F2}% of the bytes were corrupted.";
+                    $"Correct bits:   {final.NumCorrect:N0}\n" +
+                    $"Incorrect bits: {final.NumErrors:N0}\n\n" +
+                    $"{corruptedPercent:F2}% of the bits were corrupted.";
 
                 Program.taskInfo = $"Verify complete in {seconds:F1}s";
             }
@@ -321,6 +505,15 @@ namespace DDR4_TestingApp
             }
             finally
             {
+                if (!cmd.BeamTriggered) endTime = DateTime.Now;
+
+                //Mark beam inactive
+                if (prevBeam)
+                {
+                    //Test ended with active beam
+                    endTime = DateTime.Now;
+                }
+                bms = BeamState.Finished;
                 verifyButton.Enabled = true;
             }
         }
@@ -438,6 +631,70 @@ namespace DDR4_TestingApp
         private void tabPage2_Click(object sender, EventArgs e)
         {
 
+        }
+
+        private void captureModeRaw_Click(object sender, EventArgs e)
+        {
+            captureDiff = false;
+        }
+
+        private void captureModeDiff_Click(object sender, EventArgs e)
+        {
+            captureDiff = true;
+        }
+
+        private void setBeamArm_Click(object sender, EventArgs e)
+        {
+            enableBeamTrigger = true;
+            bms = BeamState.Armed;
+        }
+
+        private void setBeamOff_Click(object sender, EventArgs e)
+        {
+            enableBeamTrigger = false;
+            bms = BeamState.Manual;
+        }
+
+        private void SetSEFIArm_Click(object sender, EventArgs e)
+        {
+            enableSEFI = true;
+        }
+
+        private void setSEFIOff_Click(object sender, EventArgs e)
+        {
+            enableSEFI = false;
+        }
+
+        private void chip_capacity_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            var factor = 0.0;
+
+            switch (chip_capacity.SelectedIndex)
+            {
+                case 0:
+                    factor = 0.010;
+                    break;
+                case 1:
+                    factor = 0.100;
+                    break;
+                case 3:
+                    factor = 0.200;
+                    break;
+                case 4:
+                    factor = 0.250;
+                    break;
+                case 5:
+                    factor = 0.500;
+                    break;
+                case 6:
+                    factor = 1.00;
+                    break;
+                case 7:
+                    factor = 1.5;
+                    break;
+            }
+
+            Config.sys.ChipSizeBytes = (uint)(factor * 1024 * 1024 * 1024);
         }
     }
 }
