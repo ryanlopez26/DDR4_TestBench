@@ -1,10 +1,10 @@
 //! gpio.rs — Beam-status GPIO input for the ZCU104 DDR4 tester.
 //!
 //! Reads a single EMIO GPIO line wired to PMOD0_0 (package pin G8, LVCMOS33).
-//! On the ZynqMP PS GPIO controller the MIO lines occupy 0..=77 and the first
-//! EMIO bit lands at line 78, so that is the default offset here. Confirm on
-//! the target with `gpioinfo` — if the kernel assigns a different base, change
-//! `BEAM_LINE_OFFSET` (or set the BEAM_GPIO_LINE env var, see `init`).
+//! On the ZynqMP PS GPIO controller (gpiochip1, `zynqmp_gpio`) the MIO lines
+//! occupy 0..=77 and the first EMIO bit lands at line 78 — confirmed on this
+//! board with `gpioget -c gpiochip1 78`. If a kernel update shifts the base,
+//! change `BEAM_LINE_OFFSET` (or set the BEAM_GPIO_LINE env var, see `init`).
 //!
 //! Usage:
 //!     gpio::init()?;                  // once, at startup
@@ -23,7 +23,9 @@ use std::sync::OnceLock;
 use gpio_cdev::{Chip, LineHandle, LineRequestFlags};
 
 /// GPIO chip device exposing the ZynqMP PS GPIO controller.
-const GPIO_CHIP: &str = "/dev/gpiochip0";
+/// On this board gpiochip1 is `zynqmp_gpio` (174 lines = 78 MIO + 96 EMIO);
+/// gpiochip0 is the 4-line firmware GPIO and gpiochip2 is an I2C expander.
+const GPIO_CHIP: &str = "/dev/gpiochip1";
 
 /// Line offset within the chip for EMIO bit 0.
 /// MIO 0..=77, then EMIO begins at 78. Verify with `gpioinfo`.
@@ -42,6 +44,8 @@ static BEAM_LINE: OnceLock<LineHandle> = OnceLock::new();
 pub enum GpioError {
     /// init() was already called successfully; the line is already held.
     AlreadyInitialized,
+    /// A read/use was attempted before init() acquired the line.
+    NotInitialized,
     /// Underlying gpio-cdev failure (chip open, line request, etc.).
     Cdev(gpio_cdev::Error),
 }
@@ -50,6 +54,7 @@ impl std::fmt::Display for GpioError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             GpioError::AlreadyInitialized => write!(f, "GPIO already initialized"),
+            GpioError::NotInitialized => write!(f, "GPIO not initialized; call init() first"),
             GpioError::Cdev(e) => write!(f, "gpio-cdev error: {e}"),
         }
     }
@@ -126,6 +131,6 @@ pub fn getBeamStatus() -> bool {
 /// was never initialized or the read ioctl failed. Use this if the caller
 /// wants to distinguish "low" from "read failed".
 pub fn try_get_beam_status() -> Result<bool, GpioError> {
-    let handle = BEAM_LINE.get().ok_or(GpioError::AlreadyInitialized)?;
+    let handle = BEAM_LINE.get().ok_or(GpioError::NotInitialized)?;
     Ok(handle.get_value()? == 1)
 }
