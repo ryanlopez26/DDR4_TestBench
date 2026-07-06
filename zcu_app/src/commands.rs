@@ -3,7 +3,7 @@
 // ======================= Performs the commands ========================
 
 use std::net::TcpStream;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use bincode::Options;
 
@@ -32,175 +32,45 @@ pub fn config_command(stream: &mut TcpStream, cmd: ConfigCmd){
     
 }
 
-use std::fs;
-use std::thread;
-use std::time::{Duration, Instant};
-
-// ===================== /proc sampling helpers =====================
-
-struct Sample {
-    instant: Instant,
-    cpu_total: u64,
-    cpu_idle:  u64,
-    rx_bytes:  u64,
-    tx_bytes:  u64,
-}
-
-fn sample_now() -> Sample {
-    let (cpu_total, cpu_idle) = read_cpu_totals().unwrap_or((0, 0));
-    let (rx_bytes, tx_bytes)  = read_net_bytes().unwrap_or((0, 0));
-    Sample { instant: Instant::now(), cpu_total, cpu_idle, rx_bytes, tx_bytes }
-}
-
-/// `/proc/uptime` — first field is seconds since boot (as a float).
-fn read_uptime_secs() -> f32 {
-    fs::read_to_string("/proc/uptime")
-        .ok()
-        .and_then(|s| s.split_whitespace().next().and_then(|v| v.parse().ok()))
-        .unwrap_or(0.0)
-}
-
-/// `/proc/stat` first line — sum of jiffies and the idle column.
-/// Columns: user nice system idle iowait irq softirq steal guest guest_nice
-fn read_cpu_totals() -> Option<(u64, u64)> {
-    let s = fs::read_to_string("/proc/stat").ok()?;
-    let fields: Vec<u64> = s.lines().next()?
-        .split_whitespace()
-        .skip(1) // drop the "cpu" label
-        .filter_map(|x| x.parse().ok())
-        .collect();
-    if fields.len() < 4 { return None; }
-    Some((fields.iter().sum(), fields[3]))
-}
-
-/// `/proc/meminfo` — (MemTotal − MemAvailable) in MB. MemAvailable is the
-/// kernel's own estimate of memory free for new allocations *without*
-/// reclaiming, which is what you actually want as "used" — using MemFree
-/// counts page cache as used and gives misleadingly high numbers.
-fn read_ram_used_mb() -> f32 {
-    let Ok(s) = fs::read_to_string("/proc/meminfo") else { return 0.0; };
-    let parse_kb = |rest: &str| -> u64 {
-        rest.split_whitespace().next().and_then(|v| v.parse().ok()).unwrap_or(0)
-    };
-    let mut total_kb = 0u64;
-    let mut avail_kb = 0u64;
-    for line in s.lines() {
-        if let Some(rest) = line.strip_prefix("MemTotal:")     { total_kb = parse_kb(rest); }
-        else if let Some(rest) = line.strip_prefix("MemAvailable:") { avail_kb = parse_kb(rest); }
-    }
-    total_kb.saturating_sub(avail_kb) as f32 / 1024.0
-}
-
-/// `/proc/net/dev` — sum rx/tx bytes across every interface except loopback.
-fn read_net_bytes() -> Option<(u64, u64)> {
-    let s = fs::read_to_string("/proc/net/dev").ok()?;
-    let mut rx = 0u64;
-    let mut tx = 0u64;
-    for line in s.lines().skip(2) { // first two lines are headers
-        let Some((name, rest)) = line.split_once(':') else { continue };
-        if name.trim() == "lo" { continue; }
-        let f: Vec<u64> = rest.split_whitespace().filter_map(|x| x.parse().ok()).collect();
-        // Columns: rx_bytes packets errs drop fifo frame compressed multicast
-        //          tx_bytes packets errs drop fifo colls carrier compressed
-        if f.len() < 16 { continue; }
-        rx += f[0];
-        tx += f[8];
-    }
-    Some((rx, tx))
-}
-
-// ============================ info_command ============================
-
-pub fn info_command(stream: &mut TcpStream) {
-    let config = CONFIG.read().unwrap();
-
-    // Two samples 100 ms apart, so we can compute CPU% and net throughput.
-    // Blocks the request handler for ~100 ms — fine for an info ping at human
-    // polling rates. If you ever poll this faster than ~10 Hz, move sampling
-    // to a background thread that updates atomics and just read them here.
-    let s1 = sample_now();
-    thread::sleep(Duration::from_millis(100));
-    let s2 = sample_now();
-
-    let dt_secs = (s2.instant - s1.instant).as_secs_f32();
-
-    // CPU usage: 1 − idle_delta / total_delta, scaled to 0..100.
-    let total_d = s2.cpu_total.saturating_sub(s1.cpu_total);
-    let idle_d  = s2.cpu_idle.saturating_sub(s1.cpu_idle);
-    let cpu_usage = if total_d > 0 {
-        (total_d.saturating_sub(idle_d) as f32 / total_d as f32) * 100.0
-    } else { 0.0 };
-
-    // bytes/s → bits/s → Mbps. "Receive" on the device = downlink.
-    let rx_d = s2.rx_bytes.saturating_sub(s1.rx_bytes) as f32;
-    let tx_d = s2.tx_bytes.saturating_sub(s1.tx_bytes) as f32;
-    let downlink = if dt_secs > 0.0 { (rx_d * 8.0) / (dt_secs * 1_000_000.0) } else { 0.0 };
-    let uplink   = if dt_secs > 0.0 { (tx_d * 8.0) / (dt_secs * 1_000_000.0) } else { 0.0 };
-
-    let rsp = InfoRsp {
-        manufacturer:     crate::config::MANUFACTURER_NAME.to_owned(),
-        model:            crate::config::MODEL_NAME.to_owned(),
-        uptime:           read_uptime_secs(),
-        cpu_usage,
-        ram_usage:        read_ram_used_mb(),
-        uplink,
-        downlink,
-        selected_chip:    config.chip_index,
-        sim_enabled:      crate::config::SIMULATION_MODE,
-        pl_organization: crate::config::PL_RAM_ORGANIZATION,
-        pl_row:  crate::config::PL_ROW,
-        pl_col:  crate::config::PL_COL,
-        pl_bank:  crate::config::PL_BANK,
-        pl_ranks:  crate::config::PL_RANKS,
-        pl_bg:  crate::config::PL_BANK_GROUPS,
-        pl_stack_height:  crate::config::PL_STACK_HEIGHT,
-        beam_active: gpio::getBeamStatus(),
-        pl_cas: crate::config::PL_CAS,
-        pl_capacity: crate::config::PL_CAPACITY,
-        
-    };
-
-    send_response(stream, CMD_INFO, crate::server::codec().serialize(&rsp).unwrap()).unwrap();
-}
-
-pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
+pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
 
     //Load configuration
     let config = CONFIG.read().unwrap();
 
-    //Setup timers
-    let mut start_time = SystemTime::now();
+    //Setup required vars
+    let total_time = SystemTime::now();
     let mut time_since_last_update = SystemTime::now();
 
-    //Init the pseudo-random generator with the provided seed
-    crate::rand::set_seed(cmd.seed);
-    crate::rand::set_index(0);
+    //Check if we need to wait for the beam
+    if(cmd.wait_for_beam){
 
-    //Check to see if we need to wait for beam (armed)
-    if(cmd.beam_triggered){
-
-        //Only continue if beam is present
-        while(!gpio::getBeamStatus()){
-
-            //Beam is not present, wait
-
-            //Check if progress update is needed
+        //Wait for the beam signal to be high
+        while !gpio::get_beam_signal() {
+        
+            //Check if we need to send status update
             if time_since_last_update.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS {
 
                 //Calculate status
-                let elapsed = start_time.elapsed().unwrap().as_millis() as f32;
+                let elapsed = total_time.elapsed().unwrap().as_millis() as f32;
 
                 //Send status update
-                let rsp = WriteRsp {
-                    bytes_written: 0,
-                    time_spent_ms: elapsed,
-                    percent_complete: 0.0,
-                    beam_active: false
+                let rsp = DynamicRsp {
+                    exposure_time_ms: 0.0,
+                    total_time_ms: elapsed,
+                    total_bytes: 0,
+                    total_errors: 0,
+                    error_rate: 0.0,
+                    error_percent: 0.0,
+                    beam_signal: gpio::get_beam_signal(),
+                    controller_calibrated: gpio::get_ddr4_controller_calibrated(),
+                    exposure_started: false,
+                    sefi_detected: false,
+                    time_to_sefi: 0.0,
                 };
 
                 let payload = crate::server::codec().serialize(&rsp).unwrap();
 
-                if let Err(e) = send_response(stream, CMD_WRITE, payload) {
+                if let Err(e) = send_response(stream, CMD_DYNAMIC, payload) {
                     eprintln!("[!] Failed to send progress update: {}", e);
                     return;
                 }
@@ -209,14 +79,232 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
                 time_since_last_update = SystemTime::now();
             }
             
-        }
 
-        //Reset start time
-        start_time = SystemTime::now();
+        }
+    }
+
+    //Begin test
+    let time_since_exposure_start = SystemTime::now();
+    let mut time_since_last_sample = SystemTime::now();
+
+    //Error Statistics
+    let mut total_errors: u64 = 0;
+    let mut total_correct: u64 = 0;
+
+    //Rate calculation
+    let mut bits_sampled: u64 = 0;
+    let mut bits_errored: u64 = 0;
+    let mut error_rate: f32 = 0.0;
+    let mut error_percent: f32 = 0.0;
+    
+    //SEFI Detection
+    let mut sefi_detected: bool = false;
+    let mut time_to_sefi: Duration = Duration::from_secs(0);
+
+
+    //Wait for beam to become inactive
+    while gpio::get_beam_signal() || !cmd.wait_for_beam {
+
+        //Init the pseudo-random generator with the provided seed
+        crate::rand::set_seed(cmd.seed);
+        crate::rand::set_index(0);
+
+        //Iterate over chip
+        for i in 0..config.chip_size_bytes {
+
+            //Value to test
+            let v = match cmd.pattern {
+                0 => {
+                    // Zero mode
+                    0
+                },
+                1 => {
+                    // All ones
+                    1
+                },
+                2 => {
+                    // Random
+                    crate::rand::rand()
+                },
+                _ => {
+                    eprintln!("[!] Invalid pattern in DynamicCmd: {}", cmd.pattern);
+                    return;
+                }};
+            
+
+            //Write test value to byte
+            chip::write(&config, i, v);
+
+            //Read back and verify the value
+            match crate::chip::read(&config, i) {
+                Ok(actual) => {
+                    if actual != v {
+                        eprintln!(
+                            "[!] Error at address (expected: {:#x}, actual: {:#x}): {:#x}",
+                            v, actual, i
+                        );
+                        let differing_bits = (actual ^ v).count_ones() as u64;
+
+                        //Totals
+                        total_errors += differing_bits;
+                        total_correct += 8 - differing_bits;
+
+                        //Rate calculation
+                        bits_sampled += 8;
+                        bits_errored += differing_bits;
+
+                    } else {
+                        bits_sampled += 8;
+                        total_correct += 8;
+                    }
+                },
+                Err(e) => {
+                    bits_sampled += 8;
+                    bits_errored += 8;
+                    total_errors += 8;
+                    eprintln!("[!] Error reading from chip at offset {}: {:?}", i, e);
+                }
+            };
+
+            //Calculate rate if needed
+            if bits_sampled > cmd.sample_size_in_bytes as u64 * 8 {
+                error_rate = time_since_last_sample.elapsed().unwrap().as_millis() as f32 / bits_sampled as f32 * 1000.0; // Errors per second
+                error_percent = bits_errored as f32 / bits_sampled as f32;
+
+                //Clear sampling vars
+                bits_sampled = 0;
+                bits_errored = 0;
+                time_since_last_sample = SystemTime::now();
+
+                //Check if a SEFI has been detected
+                if error_rate > cmd.trigger_threshold {
+                    sefi_detected = true;
+                    time_to_sefi = total_time.elapsed().unwrap();
+                }
+            }
+
+            //Check if progress update is needed
+            if time_since_last_update.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS {
+
+                //Calculate status
+                let elapsed = total_time.elapsed().unwrap().as_millis() as f32;
+
+                //Send status update
+                let rsp = DynamicRsp {
+                    exposure_time_ms: time_since_exposure_start.elapsed().unwrap().as_millis() as f32,
+                    total_time_ms: elapsed,
+                    total_bytes: total_correct + total_errors,
+                    total_errors: total_errors,
+                    error_rate: error_rate,
+                    error_percent: error_percent,
+                    beam_signal: gpio::get_beam_signal(),
+                    controller_calibrated: gpio::get_ddr4_controller_calibrated(),
+                    exposure_started: true,
+                    sefi_detected: sefi_detected,
+                    time_to_sefi: time_to_sefi.as_millis() as f32,
+                };
+
+                let payload = crate::server::codec().serialize(&rsp).unwrap();
+
+                if let Err(e) = send_response(stream, CMD_DYNAMIC, payload) {
+                    eprintln!("[!] Failed to send progress update: {}", e);
+                    return;
+                }
+                
+                //Reset timer for next update
+                time_since_last_update = SystemTime::now();
+
+                //Check if beam has gone inactive
+                if !gpio::get_beam_signal() {
+                    break;
+                }
+
+                //Check if SEFI has been detected and beam detection disabled
+                if sefi_detected && !cmd.wait_for_beam {
+                    break;
+                }
+    
+            }
+
+
+        }
+    };
+
+
+    
+}
+
+
+pub fn info_command(stream: &mut TcpStream){
+
+    //Create info response struct
+    let payload = crate::server::codec().serialize(&InfoRsp {
+        beam_signal: gpio::get_beam_signal(),
+        controller_calibrated: gpio::get_ddr4_controller_calibrated(),
+    }).unwrap();
+
+    //Send ACK response
+    send_response(stream, CMD_INFO, payload).unwrap();
+    
+}
+
+pub fn reset_command(stream: &mut TcpStream, cmd: ResetCmd){
+
+    //Reset the FPGA if requested
+    if cmd.fpga_reset {
+
+        //Set FPGA reset line low
+        gpio::try_set_fpga_reset(false).unwrap();
+
+        //Wait 
+        std::thread::sleep(std::time::Duration::from_millis(250));
+
+        //Set FPGA reset line high
+        gpio::try_set_fpga_reset(true).unwrap();
+
+        //Wait 
+        std::thread::sleep(std::time::Duration::from_millis(250));
+
+        //Set FPGA reset line low
+        gpio::try_set_fpga_reset(false).unwrap();
 
     }
 
-    let mut cntr = 0;
+    //Reset the controller if requested
+    if cmd.controller_reset {
+
+        //Set controller reset line low
+        gpio::try_set_ddr4_controller_reset(false).unwrap();
+
+        //Wait 
+        std::thread::sleep(std::time::Duration::from_millis(250));
+
+        //Set controller reset line high
+        gpio::try_set_ddr4_controller_reset(true).unwrap();
+
+        //Wait 
+        std::thread::sleep(std::time::Duration::from_millis(250));
+
+        //Set controller reset line low
+        gpio::try_set_ddr4_controller_reset(false).unwrap();
+
+    }
+
+}
+
+pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
+
+    //Load configuration
+    let config = CONFIG.read().unwrap();
+
+    //Setup timers
+    let start_time = SystemTime::now();
+    let mut time_since_last_update = SystemTime::now();
+
+    //Init the pseudo-random generator with the provided seed
+    crate::rand::set_seed(cmd.seed);
+    crate::rand::set_index(0);
+
 
     // Iterate over chip 
     for i in 0..config.chip_size_bytes {
@@ -259,8 +347,7 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
             let rsp = WriteRsp {
                 bytes_written: i,
                 time_spent_ms: elapsed,
-                percent_complete,
-                beam_active: gpio::getBeamStatus()
+                percent_complete
             };
 
             let payload = crate::server::codec().serialize(&rsp).unwrap();
@@ -274,15 +361,6 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
             time_since_last_update = SystemTime::now();
         }
         
-        if(cntr > config.chip_size_bytes / 100){
-
-            //Wait the required amount of delay in ms
-            std::thread::sleep(std::time::Duration::from_millis(cmd.delay as u64));
-
-            cntr = 0;
-
-        } else {cntr += 1;}
-
     }
 
     //Send final status response
@@ -291,7 +369,6 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
         bytes_written: config.chip_size_bytes,
         time_spent_ms: start_time.elapsed().unwrap().as_millis() as f32,
         percent_complete: 100.0,
-        beam_active: gpio::getBeamStatus()
     };
 
     let payload = crate::server::codec().serialize(&rsp).unwrap();
@@ -325,47 +402,8 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
         percent_complete: 0.0,
         num_errors: 0,
         num_correct: 0,
-        beam_active: false
      };
 
-    //Check if we need to wait for beam to start
-    if(cmd.beam_triggered){
-
-        //Wait for beam
-        while(!gpio::getBeamStatus()){
-
-            //Check if progress update is needed
-            if time_since_last_update.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS {
-
-                //Calculate status
-                let elapsed = start_time.elapsed().unwrap().as_millis() as f32;
-
-                //Update bytes verified and percent complete in response structure
-                rsp.bytes_verified = 0;
-                rsp.time_spent_ms = elapsed;
-                rsp.percent_complete = 0.0;
-
-                let payload = crate::server::codec().serialize(&rsp).unwrap();
-
-                if let Err(e) = send_response(stream, CMD_VERIFY, payload) {
-                    eprintln!("[!] Failed to send progress update: {}", e);
-                    return;
-                }
-                
-                //Reset timer for next update
-                time_since_last_update = SystemTime::now();
-            }            
-
-        }
-
-        //We can now start, reset time elapsed
-        start_time = SystemTime::now();
-
-    }
-
-    //Pause counter
-    let mut cntr = 0;
-    
     // Iterate over chip 
     for i in 0..config.chip_size_bytes {
 
@@ -388,7 +426,7 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
                         "[!] Error at address (expected: {:#x}, actual: {:#x}): {:#x}",
                         expected, actual, i
                     );
-                    let differing_bits = (actual ^ expected).count_ones();
+                    let differing_bits = (actual ^ expected).count_ones() as u64;
                     rsp.num_errors += differing_bits;
                     rsp.num_correct += 8 - differing_bits;
                 } else {
@@ -423,19 +461,9 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
             //Reset timer for next update
             time_since_last_update = SystemTime::now();
         }
-        
-        if(cntr > config.chip_size_bytes / 100){
-
-            //Wait the required amount of delay in ms
-            std::thread::sleep(std::time::Duration::from_millis(cmd.delay as u64));
-
-            cntr = 0;
-
-        } else {cntr += 1;}
 
     
     }
-
 
     //Send final status response
     rsp.time_spent_ms = start_time.elapsed().unwrap().as_millis() as f32;

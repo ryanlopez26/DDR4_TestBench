@@ -27,7 +27,7 @@ use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use bincode::Options;
 use serde::de::DeserializeOwned;
 
-use crate::types::{ConfigCmd, DumpCmd, VerifyCmd, WriteCmd};
+use crate::types::{ConfigCmd, DumpCmd, DynamicCmd, ResetCmd, VerifyCmd, WriteCmd};
 use crate::config::*;
 
 // --- framing helpers -------------------------------------------------------
@@ -118,7 +118,7 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
     println!("[+] Client connected: {}", peer);
 
     // The settings used in the last verify operation (needed for differential dump)
-    let mut last_verify_parameters: VerifyCmd = VerifyCmd { pattern: 0, seed: 0, delay: 0, beam_triggered: false};
+    let mut last_verify_parameters: VerifyCmd = VerifyCmd { pattern: 0, seed: 0};
 
     loop {
         // --- SYNC ---
@@ -155,8 +155,8 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
             CMD_WRITE => match parse_payload::<WriteCmd>(&payload) {
                 Ok(w) => {
                     println!(
-                        "[{}] Write {{ pattern: 0x{:02X}, seed: 0x{:016X}, delay: {} }}",
-                        peer, w.pattern, w.seed, w.delay
+                        "[{}] Write {{ pattern: 0x{:02X}, seed: 0x{:016X} }}",
+                        peer, w.pattern, w.seed
                     );
                     
                     //Execute command
@@ -169,8 +169,8 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
             CMD_VERIFY => match parse_payload::<VerifyCmd>(&payload) {
                 Ok(v) => {
                     println!(
-                        "[{}] Verify {{ pattern: 0x{:02X}, seed: 0x{:016X}, delay: {} }}",
-                        peer, v.pattern, v.seed, v.delay
+                        "[{}] Verify {{ pattern: 0x{:02X}, seed: 0x{:016X}}}",
+                        peer, v.pattern, v.seed
                     );
 
                     //Save parameters
@@ -208,17 +208,36 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
                 Err(e) => eprintln!("[!] {}: invalid Config payload: {}", peer, e),
             },
 
-            CMD_INFO => {
+
+            CMD_DYNAMIC => match parse_payload::<DynamicCmd>(&payload) {
+                Ok(c) => {
                     println!(
-                        "[{}] Info cmd",
-                        peer
+                        "[{}] Dynamic {{ pattern: 0x{:02X}, seed: 0x{:016X}, sample_size_in_bytes: {}, wait_for_beam: {}, trigger_threshold: {} }}",
+                        peer, c.pattern, c.seed, c.sample_size_in_bytes, c.wait_for_beam, c.trigger_threshold
                     );
 
                     //Execute command
-                    crate::commands::info_command(&mut stream);
-   
+                    crate::commands::dynamic_command(&mut stream, c);
+                }
+                Err(e) => eprintln!("[!] {}: invalid Dynamic payload: {}", peer, e),
             },
 
+            CMD_RESET => match parse_payload::<ResetCmd>(&payload) {
+                Ok(c) => {
+                    println!(
+                        "[{}] Reset {{ fpga_reset: {}, controller_reset: {} }}",
+                        peer, c.fpga_reset, c.controller_reset
+                    );
+
+                    //Execute command
+                    crate::commands::reset_command(&mut stream, c);
+                }
+                Err(e) => eprintln!("[!] {}: invalid Dynamic payload: {}", peer, e),
+            },
+
+            CMD_INFO => {
+                crate::commands::info_command(&mut stream);
+            },
 
             other => eprintln!("[!] {}: unknown CMD 0x{:02X}", peer, other),
         }
