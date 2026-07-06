@@ -13,7 +13,7 @@
         "Enable_SysPorts": [ { "value": "true", "resolve_type": "user", "format": "bool", "usage": "all" } ],
         "Phy_Only": [ { "value": "Complete_Memory_Controller", "resolve_type": "user", "enabled": false, "usage": "all" } ],
         "RESET_BOARD_INTERFACE": [ { "value": "reset", "value_src": "user", "resolve_type": "user", "usage": "all" } ],
-        "C0_CLOCK_BOARD_INTERFACE": [ { "value": "Custom", "value_src": "user", "resolve_type": "user", "usage": "all" } ],
+        "C0_CLOCK_BOARD_INTERFACE": [ { "value": "clk_300mhz", "value_src": "user", "resolve_type": "user", "usage": "all" } ],
         "C0_DDR4_MEMORY_MAP_BASEADDR": [ { "value": "0x00000000", "resolve_type": "user", "format": "bitString", "usage": "all" } ],
         "C0_DDR4_MEMORY_MAP_HIGHADDR": [ { "value": "0xFFFFFFFF", "resolve_type": "user", "format": "bitString", "usage": "all" } ],
         "C0_DDR4_MEMORY_MAP_CTRL_BASEADDR": [ { "value": "0x00000000", "resolve_type": "user", "format": "bitString", "usage": "all" } ],
@@ -52,7 +52,7 @@
         "C0.DDR4_BurstType": [ { "value": "Sequential", "resolve_type": "user", "usage": "all" } ],
         "C0.DDR4_OutputDriverImpedenceControl": [ { "value": "RZQ/7", "resolve_type": "user", "usage": "all" } ],
         "C0.DDR4_OnDieTermination": [ { "value": "RZQ/6", "resolve_type": "user", "usage": "all" } ],
-        "C0.DDR4_CasLatency": [ { "value": "11", "resolve_type": "user", "format": "long", "usage": "all" } ],
+        "C0.DDR4_CasLatency": [ { "value": "12", "value_src": "user", "resolve_type": "user", "format": "long", "usage": "all" } ],
         "C0.DDR4_CasWriteLatency": [ { "value": "11", "resolve_type": "user", "format": "long", "usage": "all" } ],
         "C0.DDR4_ChipSelect": [ { "value": "true", "resolve_type": "user", "format": "bool", "usage": "all" } ],
         "C0.DDR4_isCKEShared": [ { "value": "false", "resolve_type": "user", "format": "bool", "usage": "all" } ],
@@ -408,7 +408,7 @@
             "MEM_ADDR_MAP": [ { "value": "ROW_COLUMN_BANK", "value_src": "user", "value_permission": "bd", "resolve_type": "generated", "is_ips_inferred": true, "is_static_object": false } ],
             "BURST_LENGTH": [ { "value": "8", "value_src": "user", "value_permission": "bd", "resolve_type": "generated", "format": "long", "is_ips_inferred": true, "is_static_object": false } ],
             "AXI_ARBITRATION_SCHEME": [ { "value": "RD_PRI_REG", "value_src": "user", "value_permission": "bd", "resolve_type": "generated", "is_ips_inferred": true, "is_static_object": false } ],
-            "CAS_LATENCY": [ { "value": "11", "value_src": "user", "value_permission": "bd", "resolve_type": "generated", "format": "long", "is_ips_inferred": true, "is_static_object": false } ],
+            "CAS_LATENCY": [ { "value": "12", "value_src": "user", "value_permission": "bd", "resolve_type": "generated", "format": "long", "is_ips_inferred": true, "is_static_object": false } ],
             "CAS_WRITE_LATENCY": [ { "value": "11", "value_src": "user", "value_permission": "bd", "resolve_type": "generated", "format": "long", "is_ips_inferred": true, "is_static_object": false } ]
           },
           "port_maps": {
@@ -593,5 +593,5 @@
       }
     }
   },
-  "checksum": "8c155ed1"
+  "checksum": "e4163888"
 }

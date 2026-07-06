@@ -1,7 +1,7 @@
 {
   "design": {
     "design_info": {
-      "boundary_crc": "0x3D030663F71E7304",
+      "boundary_crc": "0x3D030663E1F3E0BB",
       "device": "xczu7ev-ffvc1156-2-e",
       "gen_directory": "../../../../DDR4_Tester.gen/sources_1/bd/System",
       "name": "System",
@@ -17,7 +17,9 @@
       "rst_ps8_0_100M": "",
       "debug_leds_0": "",
       "util_vector_logic_1": "",
-      "ddr4_0": ""
+      "ddr4_0": "",
+      "ilslice_0": "",
+      "ilvector_logic_0": ""
     },
     "interface_ports": {
       "ddr4_sdram_0": {
@@ -38,7 +40,7 @@
             "value_src": "default"
           },
           "CAS_LATENCY": {
-            "value": "11",
+            "value": "12",
             "value_src": "user_prop"
           },
           "CAS_WRITE_LATENCY": {
@@ -208,7 +210,7 @@
         "vlnv": "xilinx.com:ip:zynq_ultra_ps_e:3.5",
         "ip_revision": "8",
         "xci_name": "System_zynq_ultra_ps_e_0_0",
-        "xci_path": "ip/System_zynq_ultra_ps_e_0_0/System_zynq_ultra_ps_e_0_0.xci",
+        "xci_path": "ip\\System_zynq_ultra_ps_e_0_0\\System_zynq_ultra_ps_e_0_0.xci",
         "inst_hier_path": "zynq_ultra_ps_e_0",
         "has_run_ip_tcl": "true",
         "parameters": {
@@ -2170,10 +2172,13 @@
             "value": "0"
           },
           "PSU__GPIO_EMIO_WIDTH": {
-            "value": "1"
+            "value": "8"
           },
           "PSU__GPIO_EMIO__PERIPHERAL__ENABLE": {
-            "value": "0"
+            "value": "1"
+          },
+          "PSU__GPIO_EMIO__PERIPHERAL__IO": {
+            "value": "8"
           },
           "PSU__GPIO_EMIO__WIDTH": {
             "value": "[94:0]"
@@ -3229,7 +3234,7 @@
         "vlnv": "xilinx.com:ip:smartconnect:1.0",
         "ip_revision": "28",
         "xci_name": "System_smartconnect_0_0",
-        "xci_path": "ip/System_smartconnect_0_0/System_smartconnect_0_0.xci",
+        "xci_path": "ip\\System_smartconnect_0_0\\System_smartconnect_0_0.xci",
         "inst_hier_path": "smartconnect_0",
         "has_run_ip_tcl": "true",
         "parameters": {
@@ -3333,7 +3338,7 @@
         "vlnv": "xilinx.com:ip:proc_sys_reset:5.0",
         "ip_revision": "17",
         "xci_name": "System_rst_ddr4_0_266M_0",
-        "xci_path": "ip/System_rst_ddr4_0_266M_0/System_rst_ddr4_0_266M_0.xci",
+        "xci_path": "ip\\System_rst_ddr4_0_266M_0\\System_rst_ddr4_0_266M_0.xci",
         "inst_hier_path": "rst_ddr4_0_266M",
         "has_run_ip_tcl": "true",
         "parameters": {
@@ -3349,7 +3354,7 @@
         "vlnv": "xilinx.com:ip:proc_sys_reset:5.0",
         "ip_revision": "17",
         "xci_name": "System_rst_ps8_0_100M_0",
-        "xci_path": "ip/System_rst_ps8_0_100M_0/System_rst_ps8_0_100M_0.xci",
+        "xci_path": "ip\\System_rst_ps8_0_100M_0\\System_rst_ps8_0_100M_0.xci",
         "inst_hier_path": "rst_ps8_0_100M",
         "has_run_ip_tcl": "true"
       },
@@ -3357,7 +3362,7 @@
         "vlnv": "xilinx.com:module_ref:debug_leds:1.0",
         "ip_revision": "1",
         "xci_name": "System_debug_leds_0_0",
-        "xci_path": "ip/System_debug_leds_0_0/System_debug_leds_0_0.xci",
+        "xci_path": "ip\\System_debug_leds_0_0\\System_debug_leds_0_0.xci",
         "inst_hier_path": "debug_leds_0",
         "has_run_ip_tcl": "true",
         "reference_info": {
@@ -3401,17 +3406,7 @@
             }
           },
           "calib_complete": {
-            "direction": "I",
-            "parameters": {
-              "PortType": {
-                "value": "undef",
-                "value_src": "ip_prop"
-              },
-              "PortType.PROP_SRC": {
-                "value": "false",
-                "value_src": "ip_prop"
-              }
-            }
+            "direction": "I"
           },
           "led": {
             "direction": "O",
@@ -3424,7 +3419,7 @@
         "vlnv": "xilinx.com:ip:util_vector_logic:2.0",
         "ip_revision": "5",
         "xci_name": "System_util_vector_logic_1_0",
-        "xci_path": "ip/System_util_vector_logic_1_0/System_util_vector_logic_1_0.xci",
+        "xci_path": "ip\\System_util_vector_logic_1_0\\System_util_vector_logic_1_0.xci",
         "inst_hier_path": "util_vector_logic_1",
         "has_run_ip_tcl": "true",
         "parameters": {
@@ -3440,7 +3435,7 @@
         "vlnv": "xilinx.com:ip:ddr4:2.2",
         "ip_revision": "28",
         "xci_name": "System_ddr4_0_2",
-        "xci_path": "ip/System_ddr4_0_2/System_ddr4_0_2.xci",
+        "xci_path": "ip\\System_ddr4_0_2\\System_ddr4_0_2.xci",
         "inst_hier_path": "ddr4_0",
         "has_run_ip_tcl": "true",
         "parameters": {
@@ -3452,6 +3447,9 @@
           },
           "C0.DDR4_AxiIDWidth": {
             "value": "1"
+          },
+          "C0.DDR4_CasLatency": {
+            "value": "12"
           },
           "C0.DDR4_DataWidth": {
             "value": "64"
@@ -3469,7 +3467,7 @@
             "value": "1250"
           },
           "C0_CLOCK_BOARD_INTERFACE": {
-            "value": "Custom"
+            "value": "clk_300mhz"
           },
           "C0_DDR4_BOARD_INTERFACE": {
             "value": "Custom"
@@ -3505,6 +3503,31 @@
                 }
               }
             }
+          }
+        }
+      },
+      "ilslice_0": {
+        "vlnv": "xilinx.com:inline_hdl:ilslice:1.0",
+        "parameters": {
+          "DIN_FROM": {
+            "value": "1"
+          },
+          "DIN_TO": {
+            "value": "1"
+          },
+          "DIN_WIDTH": {
+            "value": "8"
+          }
+        }
+      },
+      "ilvector_logic_0": {
+        "vlnv": "xilinx.com:inline_hdl:ilvector_logic:1.0",
+        "parameters": {
+          "C_OPERATION": {
+            "value": "and"
+          },
+          "C_SIZE": {
+            "value": "1"
           }
         }
       }
@@ -3562,10 +3585,22 @@
           "led_0"
         ]
       },
+      "ilslice_0_Dout": {
+        "ports": [
+          "ilslice_0/Dout",
+          "ilvector_logic_0/Op2"
+        ]
+      },
+      "ilvector_logic_0_Res": {
+        "ports": [
+          "ilvector_logic_0/Res",
+          "ddr4_0/c0_ddr4_aresetn"
+        ]
+      },
       "rst_ddr4_0_266M_peripheral_aresetn": {
         "ports": [
           "rst_ddr4_0_266M/peripheral_aresetn",
-          "ddr4_0/c0_ddr4_aresetn"
+          "ilvector_logic_0/Op1"
         ]
       },
       "rst_ps8_0_100M_peripheral_aresetn": {
@@ -3578,6 +3613,12 @@
         "ports": [
           "util_vector_logic_1/Res",
           "ddr4_0/sys_rst"
+        ]
+      },
+      "zynq_ultra_ps_e_0_emio_gpio_o": {
+        "ports": [
+          "zynq_ultra_ps_e_0/emio_gpio_o",
+          "ilslice_0/Din"
         ]
       },
       "zynq_ultra_ps_e_0_pl_clk0": {
