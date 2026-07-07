@@ -290,6 +290,18 @@ pub fn reset_command(stream: &mut TcpStream, cmd: ResetCmd){
 
     }
 
+
+    let rsp = ResetRsp {
+        success: true,
+    };
+
+    let payload = crate::server::codec().serialize(&rsp).unwrap();
+
+    if let Err(e) = send_response(stream, CMD_RESET, payload) {
+        eprintln!("[!] Failed to send reset response: {}", e);
+        return;
+    }
+
 }
 
 pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){

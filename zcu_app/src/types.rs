@@ -130,5 +130,10 @@ pub struct InfoRsp {
     pub controller_calibrated: bool,
 }
 
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ResetRsp {
+    pub success: bool,
+}
 
 

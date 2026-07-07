@@ -13,6 +13,7 @@ pub const CMD_DUMP: u8 = 0x03;
 pub const CMD_CONFIG: u8 = 0x04;
 pub const CMD_DYNAMIC: u8 = 0x05;
 pub const CMD_INFO: u8 = 0x06;
+pub const CMD_RESET: u8 = 0x07;
 pub const PAGE_SIZE: usize = 1024; // Size of data pages for dump responses
 
 pub const UPDATE_FREQUENCY_MS: f32 = 100.0; // Frequency of progress updates during long operations
