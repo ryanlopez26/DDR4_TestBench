@@ -9,7 +9,7 @@ namespace DDR4_TestingApp
 
         // On the form class:
         public static InfoRsp? sys;
-        private static bool _infoFetchInProgress;
+        public static bool _infoFetchInProgress;
 
 
         public static async void update()
@@ -42,7 +42,7 @@ namespace DDR4_TestingApp
                 }
                 finally
                 {
-                   // _infoFetchInProgress = false;
+                   _infoFetchInProgress = false;
                 }
             }
         }

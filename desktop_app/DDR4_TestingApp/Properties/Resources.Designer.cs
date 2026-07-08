@@ -59,5 +59,15 @@ namespace DDR4_TestingApp.Properties {
                 resourceCulture = value;
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] DOS_Font {
+            get {
+                object obj = ResourceManager.GetObject("DOS_Font", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
     }
 }

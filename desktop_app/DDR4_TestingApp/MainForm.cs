@@ -1,16 +1,31 @@
+using ScottPlot.WinForms;
 using System.ComponentModel;
+using System.Data;
+using System.Diagnostics;
+using System.Drawing.Text;
 using System.Globalization;
+using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.Swift;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
-using ScottPlot.WinForms;
 
 namespace DDR4_TestingApp
 {
     public partial class MainForm : Form
     {
 
+        // Data viewer settings
+        const uint DATA_VIEWER_ROW_SIZE = 16;
+        const uint DATA_VIEWER_RENDER_SIZE = 112;
+
+        // Keep the collection alive for the lifespan of the Form
+        private PrivateFontCollection privateFonts = new PrivateFontCollection();
+        private Font customFont;
+
+
         private readonly System.Windows.Forms.Timer _uiTimer = new();
+        private readonly System.Windows.Forms.Timer _statusTimer = new();
 
         // Parameters
         private bool captureDiff = false;
@@ -21,7 +36,7 @@ namespace DDR4_TestingApp
         private DateTime endTime = DateTime.Now;
 
         enum BeamState
-        {   
+        {
             Manual,
             Armed,
             Waiting,
@@ -36,7 +51,11 @@ namespace DDR4_TestingApp
         public MainForm()
         {
 
-            _uiTimer.Interval = 1000;          // milliseconds — 4x per second
+            _statusTimer.Interval = 20;          // milliseconds — 4x per second
+            _statusTimer.Tick += statusUpdate_Tick;
+            _statusTimer.Start();
+
+            _uiTimer.Interval = 100;          // milliseconds — 4x per second
             _uiTimer.Tick += UiTimer_Tick;
             _uiTimer.Start();
 
@@ -46,7 +65,10 @@ namespace DDR4_TestingApp
 
 
 
-        private void UpdateDramPanels(byte ramOrg, byte selectedChip)
+
+
+
+        private void UpdateDramPanels(uint ramOrg, uint selectedChip)
         {
             var panels = new[] { dram0, dram1, dram2, dram3, dram4, dram5, dram6, dram7 };
 
@@ -82,8 +104,6 @@ namespace DDR4_TestingApp
         {
             // --- Status indicator ---
             bool connected = TcpManager.Status == TcpManager.ConnectionStatus.Connected;
-           
-            connectionState.BackColor = connected ? Color.Green : Color.Red;
 
             //Attempt to update information
             Info.update();
@@ -100,161 +120,101 @@ namespace DDR4_TestingApp
                 captureModeRaw.BackColor = Color.ForestGreen;
             }
 
-            if (enableSEFI)
+            // Connection button
+            if (connected) { connect_btn.Text = "Disconnect"; }
+            else { connect_btn.Text = "Connect"; }
+
+            // Update DRAM panels
+            if (Config.sys.EnableChipSelect)
             {
-                setSEFIOff.BackColor = Color.Black;
-                SetSEFIArm.BackColor = Color.ForestGreen;
+
+                //Update panel
+                UpdateDramPanels(Convert.ToUInt32(Config.sys.BusBytesPerChip * 8), Config.sys.ChipIndex);
             }
             else
             {
-                setSEFIOff.BackColor = Color.ForestGreen;
-                SetSEFIArm.BackColor = Color.Black;
+                //Disable panels
+                sideA.Enabled = false;
+                sideB.Enabled = false;
+                UpdateDramPanels(0, 0);
             }
 
-            if (enableBeamTrigger)
+            // Attempt to Generate table
+            uint? addr = Tools.ParseHex(viewerAddress.Text);
+
+            //Check to see if an address was provided
+            if (addr.HasValue)
             {
-                setBeamOff.BackColor = Color.Black;
-                setBeamArm.BackColor = Color.ForestGreen;
-            }
-            else
-            {
-                setBeamOff.BackColor = Color.ForestGreen;
-                setBeamArm.BackColor = Color.Black;
+
+                Stopwatch stopwatch = Stopwatch.StartNew();
+
+                DumpTableFormatter.WriteDumpHexTableAsync(
+                  dataViewer,
+                  addr.Value,
+                  DATA_VIEWER_RENDER_SIZE,
+                  1,
+                  DATA_VIEWER_ROW_SIZE).GetAwaiter();
+
+                stopwatch.Stop();
+                TimeSpan timeSpan = stopwatch.Elapsed;
+
+                // 5. Print the results
+                dataViewerStats.Text = $"Fetched {DATA_VIEWER_RENDER_SIZE} bytes in {timeSpan.TotalMilliseconds} ms";
+
+
+
+
+
+
             }
 
-            updateTaskInfo();
-            UpdateStatusBar();
 
-            UpdateInfoFields(Info.sys);
+
         }
 
-        private void updateTaskInfo()
-        {
 
-            //Update time difference calculation
-            taskStart.Text = startTime.ToString();
-            taskEnd.Text = endTime.ToString();
-            duration.Text = $"{(endTime - startTime).TotalSeconds:F2} seconds";
-
-            //Update arm status
-            switch (bms)
-            {
-                case BeamState.Manual:
-                    beamSyncStatus.Text = "Manual Control";
-                    break;
-                case BeamState.Armed:
-                    beamSyncStatus.Text = "Ready for Arming";
-                    break;
-                case BeamState.Waiting:
-                    beamSyncStatus.Text = "Waiting for beam...";
-                    break;
-                case BeamState.Triggered:
-                    beamSyncStatus.Text = "Beam triggered";
-                    break;
-                case BeamState.Finished:
-                    beamSyncStatus.Text = "Task finished";
-                    break;
-                case BeamState.SEFI:
-                    beamSyncStatus.Text = "SEFI Detected";
-                    break;
-            }
-        }
-        public void UpdateStatusBar()
+        public void statusUpdate_Tick(object? sender, EventArgs e)
         {
             //Attempt to update task indicator
             taskProgress.Value = (int)Program.taskProgress;
-            taskInfo.Text = Program.taskInfo;
+            //taskInfo.Text = Program.taskInfo;
             taskName.Text = Program.taskName;
 
-            if (Program.beamStatus)
+
+            if (TcpManager.Status == TcpManager.ConnectionStatus.Connected) { onlineInd.BackColor = Color.Green; }
+            else { onlineInd.BackColor = Color.Red; }
+
+
+            if (Info.sys.HasValue)
             {
-                beamIndicator.BackColor = Color.Green;
-            } else { 
-                beamIndicator.BackColor = Color.Red;
+
+                //Update status indicators
+
+
+                if (Info.sys.Value.BeamSignal) { beamInd.BackColor = Color.Green; }
+                else { beamInd.BackColor = Color.Red; }
+
+                //if (Info.sys.Value.ControllerCalibrated) { .BackColor = Color.Green; }
+                //else { beamInd.BackColor = Color.Red; }
+
+                //if (Info.sys.Value.BeamSignal) { beamInd.BackColor = Color.Green; }
+                //else { beamInd.BackColor = Color.Red; }
             }
         }
-
-        private void ClearInfoFields()
-        {
-            manufacturerBox.Text = "";
-            modelBox.Text = "";
-            uptimeBox.Text = "";
-            cpuBar.Value = 0;
-            cpuPercentBox.Text = "";
-            ramUsageBar.Value = 0;
-            ramUsageBar.Text = "";
-            uplinkBox.Text = "";
-            downlinkBox.Text = "";
-
-            fpga_bank.Text = "";
-            fpga_rank.Text = "";
-            fpga_bg.Text = "";
-            fpga_capacity.Text = "";
-            fpga_cas.Text = "";
-            fpga_col.Text = "";
-            fpga_row.Text = "";
-            fpga_organization.Text = "";
-            fpga_stack_height.Text = "";
-        }
-
-        private void UpdateInfoFields(InfoRsp? maybeInfo)
-        {
-            if (maybeInfo is not InfoRsp info)
-            {
-                ClearInfoFields();
-                return;
-            }
-
-            //Beam status
-            Program.beamStatus = info.BeamActive;
-
-            // Board properties
-            manufacturerBox.Text = info.Manufacturer;
-            modelBox.Text = info.Model;
-
-            // HH:MM:SS — TotalHours so it doesn't wrap at 24 h
-            var ts = TimeSpan.FromSeconds(info.Uptime);
-            uptimeBox.Text = $"{(int)ts.TotalHours:D2}:{ts.Minutes:D2}:{ts.Seconds:D2}";
-
-            // CPU — 0..100 bar + readout
-            cpuBar.Maximum = 100;
-            cpuBar.Value = Math.Clamp((int)Math.Round(info.CpuUsage), 0, 100);
-            cpuPercentBox.Text = $"{info.CpuUsage:F1}%";
-
-            // RAM — bar scaled to total PS RAM, plus MB readout.
-            // InfoRsp doesn't report total, so adjust this for your board (ZCU104 = 2 GiB).
-            const int TOTAL_RAM_MB = 2048;
-            ramUsageBar.Maximum = TOTAL_RAM_MB;
-            ramUsageBar.Value = Math.Clamp((int)Math.Round(info.RamUsage), 0, TOTAL_RAM_MB);
-            ramUsageBox.Text = $"{info.RamUsage:F0} MB";
-
-            // Network throughput
-            uplinkBox.Text = $"{info.Uplink:F2} Mbps";
-            downlinkBox.Text = $"{info.Downlink:F2} Mbps";
-
-            // SODIMM info
-            fpga_bank.Text = info.PlBank.ToString();
-            fpga_rank.Text = info.PlRanks.ToString();
-            fpga_bg.Text = info.PlBg.ToString();
-            fpga_capacity.Text = $"{info.PlCapacity.ToString()} GB";
-            fpga_cas.Text = $"{info.PlCas.ToString()} CL";
-            fpga_col.Text = info.PlCol.ToString();
-            fpga_row.Text = info.PlRow.ToString();
-            fpga_organization.Text = $"X{info.PlOrganization.ToString()}";
-            fpga_stack_height.Text = info.PlStackHeight.ToString();
-
-            UpdateDramPanels(info.PlOrganization, info.SelectedChip);
-        }
-
 
         private async void button1_Click(object sender, EventArgs e)
         {
+
             if (TcpManager.Status == TcpManager.ConnectionStatus.Connected)
             {
+                connect_btn.Text = "Disconnecting...";
+
                 TcpManager.Disconnect();
             }
             else
             {
+                connect_btn.Text = "Connecting...";
+
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
                 try
                 {
@@ -279,61 +239,23 @@ namespace DDR4_TestingApp
 
             uint taskDelay = 0;
 
-            //Check if we need to add delay
-            if (enableDelay.Checked)
-            {
-                taskDelay = (uint)((delayAmount.Value * 1000) / 100);
-            }
 
             var cmd = new WriteCmd
             {
                 Pattern = (byte)writeMode.SelectedIndex,           // 0 = zeros, 1 = ones, 2 = pseudorandom
                 Seed = UInt32.Parse(prngSeed.Text),
-                Delay = taskDelay,           // per-byte delay in ms
-                BeamTriggered = enableBeamTrigger
             };
-
-            bms = BeamState.Waiting;
-            if(!cmd.BeamTriggered) startTime = DateTime.Now;
-
-            // Prev beam value
-            bool prevBeam = false;
 
             // Progress<T> captures the current SynchronizationContext (the UI thread),
             // so the lambda runs on the UI thread even though ConnectAsync's progress
             // reports come from a background continuation. Safe to touch controls.
             var progress = new Progress<WriteRsp>(rsp =>
             {
-
-                //Check to see if beam is triggered
-                if (!prevBeam && rsp.BeamActive)
-                {
-                    //Begin time capture
-                    startTime = DateTime.Now;
-
-                    bms = BeamState.Triggered;
-                }
-
-                //Check to see if beam is inactive
-                if (prevBeam && !rsp.BeamActive)
-                {
-                    //End time capture
-                    endTime = DateTime.Now;
-                }
-
-                //Update end time
-                if (!cmd.BeamTriggered) endTime = DateTime.Now;
-
-                //Update beam value
-                prevBeam = rsp.BeamActive;
-                updateTaskInfo();
-
                 //Update beam status
-                Program.beamStatus = rsp.BeamActive;
 
                 Program.taskProgress = rsp.PercentComplete;
                 Program.taskInfo = $"{rsp.BytesWritten:N0} bytes  ({rsp.PercentComplete:F1}%)  {(rsp.TimeSpentMs / 1000):F0}s";
-                UpdateStatusBar();
+
             });
 
             using var cts = new CancellationTokenSource();
@@ -344,11 +266,11 @@ namespace DDR4_TestingApp
             try
             {
                 WriteRsp final = await TcpManager.SendWriteAsync(cmd, progress, cts.Token);
-                taskInfo.Text = $"Done. {final.BytesWritten:N0} bytes in {(final.TimeSpentMs / 1000):F0} seconds";
+                Program.taskInfo = $"Done. {final.BytesWritten:N0} bytes in {(final.TimeSpentMs / 1000):F0} seconds";
             }
             catch (OperationCanceledException)
             {
-                taskInfo.Text = "Write cancelled.";
+                Program.taskInfo = "Write cancelled.";
             }
             catch (Exception ex)
             {
@@ -356,10 +278,6 @@ namespace DDR4_TestingApp
             }
             finally
             {
-                //Update end time
-                if (!cmd.BeamTriggered) endTime = DateTime.Now;
-
-                if (prevBeam) { endTime = DateTime.Now; }
                 writeButton.Enabled = true;
                 bms = BeamState.Finished;
             }
@@ -423,53 +341,20 @@ namespace DDR4_TestingApp
 
             uint taskDelay = 0;
 
-            //Check if we need to add delay
-            if (enableDelay.Checked)
-            {
-                taskDelay = (uint)((delayAmount.Value * 1000) / 100);
-            }
 
             var cmd = new VerifyCmd
             {
                 Pattern = (byte)verifyMode.SelectedIndex,    // 0 = zeros, 1 = ones, 2 = pseudorandom
                 Seed = UInt32.Parse(prngSeed.Text),
-                Delay = taskDelay,
-                BeamTriggered = enableBeamTrigger
             };
             bms = BeamState.Armed;
             bool prevBeam = false;
-            if (!cmd.BeamTriggered) startTime = DateTime.Now;
 
             var progress = new Progress<VerifyRsp>(rsp =>
             {
-                //Check to see if beam is triggered
-                if (!prevBeam && rsp.BeamActive)
-                {
-                    //Begin time capture
-                    startTime = DateTime.Now;
-                    bms = BeamState.Waiting;
-                }
-
-                //Check to see if beam is inactive
-                if (prevBeam && !rsp.BeamActive)
-                {
-                    //End time capture
-                    endTime = DateTime.Now;
-                }
-
-                //Update beam value
-                prevBeam = rsp.BeamActive;
-
-                //Update beam status
-                Program.beamStatus = rsp.BeamActive;
-
-                //Update end time
-                if (!cmd.BeamTriggered) endTime = DateTime.Now;
-
-                updateTaskInfo();
 
                 // Compose summary
-                uint total = rsp.NumCorrect + rsp.NumErrors;
+                ulong total = rsp.NumCorrect + rsp.NumErrors;
                 double corruptedPercent = total > 0 ? (rsp.NumErrors * 100.0 / total) : 0.0;
                 double seconds = rsp.TimeSpentMs / 1000.0;
 
@@ -482,7 +367,7 @@ namespace DDR4_TestingApp
 
                 Program.taskProgress = (int)rsp.PercentComplete;
                 Program.taskInfo = $"{rsp.BytesVerified:N0} bytes  ({rsp.PercentComplete:F1}%)  {(rsp.TimeSpentMs / 1000):F0}s";
-                UpdateStatusBar();
+
             });
 
             using var cts = new CancellationTokenSource();
@@ -495,7 +380,7 @@ namespace DDR4_TestingApp
                 VerifyRsp final = await TcpManager.SendVerifyAsync(cmd, progress, cts.Token);
 
                 // Compose summary
-                uint total = final.NumCorrect + final.NumErrors;
+                ulong total = final.NumCorrect + final.NumErrors;
                 double corruptedPercent = total > 0 ? (final.NumErrors * 100.0 / total) : 0.0;
                 double seconds = final.TimeSpentMs / 1000.0;
 
@@ -517,7 +402,6 @@ namespace DDR4_TestingApp
             }
             finally
             {
-                if (!cmd.BeamTriggered) endTime = DateTime.Now;
 
                 //Mark beam inactive
                 if (prevBeam)
@@ -572,7 +456,7 @@ namespace DDR4_TestingApp
                 pagesReceived++;
                 Program.taskProgress = Math.Clamp((int)(pagesReceived * 100L / numPages), 0, 100);
                 Program.taskInfo = $"Page {pagesReceived}/{numPages} @ 0x{page.Address:X8}";
-                UpdateStatusBar();
+
             });
 
             using var cts = new CancellationTokenSource();
@@ -621,7 +505,7 @@ namespace DDR4_TestingApp
 
         private void enableChipSelection_CheckedChanged(object sender, EventArgs e)
         {
-            Config.sys.enableChipSelect = Convert.ToByte(enableChipSelection.Checked);
+            Config.sys.EnableChipSelect = enableChipSelection.Checked;
         }
 
         private void chipSizeBox_TextChanged(object sender, EventArgs e)
@@ -679,34 +563,144 @@ namespace DDR4_TestingApp
 
         private void chip_capacity_SelectedIndexChanged(object sender, EventArgs e)
         {
-            var factor = 0.0;
+            //var factor = 0.0;
 
-            switch (chip_capacity.SelectedIndex)
+            //switch (chip_capacity.SelectedIndex)
+            //{
+            //    case 0:
+            //        factor = 0.010;
+            //        break;
+            //    case 1:
+            //        factor = 0.100;
+            //        break;
+            //    case 3:
+            //        factor = 0.200;
+            //        break;
+            //    case 4:
+            //        factor = 0.250;
+            //        break;
+            //    case 5:
+            //        factor = 0.500;
+            //        break;
+            //    case 6:
+            //        factor = 1.00;
+            //        break;
+            //    case 7:
+            //        factor = 1.5;
+            //        break;
+            //}
+
+            Config.sys.ChipSizeBytes = (uint)(100 * 1024.0 * 1024.0);
+        }
+
+        private void tabPage1_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void formsPlot1_Load(object sender, EventArgs e)
+        {
+
+        }
+
+        private void chipOrg_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            switch (chipOrg.SelectedIndex)
             {
                 case 0:
-                    factor = 0.010;
+                    Config.sys.BusBytesPerChip = 1;
                     break;
                 case 1:
-                    factor = 0.100;
-                    break;
-                case 3:
-                    factor = 0.200;
-                    break;
-                case 4:
-                    factor = 0.250;
-                    break;
-                case 5:
-                    factor = 0.500;
-                    break;
-                case 6:
-                    factor = 1.00;
-                    break;
-                case 7:
-                    factor = 1.5;
+                    Config.sys.BusBytesPerChip = 2;
                     break;
             }
+        }
 
-            Config.sys.ChipSizeBytes = (uint)((float)factor * (float)1024 * 1024.0 * 1024.0);
+
+        private void viewerAddress_TextChanged_1(object sender, EventArgs e)
+        {
+            //Attempt to parse address
+            uint? addr = Tools.ParseHex(viewerAddress.Text);
+
+            //Check to see if an address was provided
+            if (addr.HasValue)
+            {
+                //Update field
+                viewerAddress.Text = Tools.ToHexString(addr.Value);
+
+            }
+            else
+            {
+                //Default value
+                viewerAddress.Text = Tools.ToHexString(0);
+            }
+
+
+        }
+
+        private void viewerAddress_TextChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void DataViewerScrollUp_Click(object sender, EventArgs e)
+        {
+            //Attempt to parse address
+            uint? addr = Tools.ParseHex(viewerAddress.Text);
+
+            //Check to see if an address was provided
+            if (addr.HasValue)
+            {
+                //Scroll if possible
+                if (Convert.ToInt64(addr.Value) - Convert.ToInt64(DATA_VIEWER_ROW_SIZE) > 0x0) viewerAddress.Text = Tools.ToHexString(addr.Value - DATA_VIEWER_ROW_SIZE);
+
+            }
+        }
+
+        private void DataViewerScrollDown_Click(object sender, EventArgs e)
+        {
+            //Attempt to parse address
+            uint? addr = Tools.ParseHex(viewerAddress.Text);
+
+            //Check to see if an address was provided
+            if (addr.HasValue)
+            {
+                //Scroll if possible
+                if (addr.Value + DATA_VIEWER_RENDER_SIZE < 0xFFFFFFFF) viewerAddress.Text = Tools.ToHexString(addr.Value + DATA_VIEWER_ROW_SIZE);
+
+            }
+        }
+
+        private void tabPage3_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void resetFPGA_Click(object sender, EventArgs e)
+        {
+
+            ResetCmd r = new ResetCmd { ControllerReset = false, FpgaReset = true };
+
+            Program.taskName = "RESET";
+            Program.taskProgress = 0;
+
+            TcpManager.SendResetAsync(r).GetAwaiter();
+
+            Program.taskName = "RESET";
+            Program.taskProgress = 100;
+        }
+
+        private void resetController_Click(object sender, EventArgs e)
+        {
+            ResetCmd r = new ResetCmd { ControllerReset = true, FpgaReset = false};
+
+            Program.taskName = "RESET";
+            Program.taskProgress = 0;
+
+            TcpManager.SendResetAsync(r).GetAwaiter();
+
+            Program.taskName = "RESET";
+            Program.taskProgress = 100;
         }
     }
 }

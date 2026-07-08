@@ -14,15 +14,19 @@ namespace DDR4_TestingApp
 
         static public ConfigCmd sys = new ConfigCmd
         {
-            ChipIndex = 0,      // 0..7
-            BusBytesPerChip = 2,  // x8 -> 1, x16 -> 2
-            BusSizeInBytes = 8,                                     // x64 bus -> 8 bytes
-            ChipSizeBytes = 1 * 1024 * 1024 * 1024,    // MiB -> bytes
-            enableChipSelect = 0,
+            ChipIndex               = 0,
+            BusBytesPerChip         = 2,
+            BusSizeInBytes          = 8,
+            ChipSizeBytes           = 1 * 1024 * 1024 * 1024,
+            EnableChipSelect        = false,
+            AddressMultiplier       = 0x0,
         };
 
         static public async void apply()
         {
+            Program.taskName = "CONFIG";
+            Program.taskProgress = 0.0f;
+
             if (TcpManager.Status != TcpManager.ConnectionStatus.Connected)
             {
                 MessageBox.Show("Not connected.");
@@ -31,18 +35,10 @@ namespace DDR4_TestingApp
 
             if (Info.sys is InfoRsp info)
             {
-
-                sys.BusBytesPerChip  = (byte)(info.PlOrganization / 8);
-
-                Program.taskName = "CONFIG";
-
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
                 try
                 {
                     await TcpManager.SendConfigAsync(sys, cts.Token);
-                    Program.taskInfo = $"Config applied: chip {sys.ChipIndex}, " +
-                                       $"x{sys.BusBytesPerChip * 8}, " +
-                                       $"{sys.ChipSizeBytes / 1024 / 1024} MiB";
                 }
                 catch (OperationCanceledException)
                 {
@@ -52,6 +48,10 @@ namespace DDR4_TestingApp
                 {
                     MessageBox.Show($"Config failed: {ex.Message}");
 
+                } 
+                finally
+                {
+                    Program.taskProgress = 100.0f;
                 }
             }
         }
