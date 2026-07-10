@@ -1,14 +1,14 @@
 {
   "schema": "xilinx.com:schema:json_instance:1.0",
   "ip_inst": {
-    "xci_name": "System_util_vector_logic_1_1",
-    "cell_name": "util_vector_logic_2",
+    "xci_name": "System_util_vector_logic_3_0",
+    "cell_name": "util_vector_logic_4",
     "component_reference": "xilinx.com:ip:util_vector_logic:2.0",
     "ip_revision": "5",
-    "gen_directory": "../../../../../../DDR4_Tester.gen/sources_1/bd/System/ip/System_util_vector_logic_1_1",
+    "gen_directory": "../../../../../../DDR4_Tester.gen/sources_1/bd/System/ip/System_util_vector_logic_3_0",
     "parameters": {
       "component_parameters": {
-        "Component_Name": [ { "value": "System_util_vector_logic_1_1", "resolve_type": "user", "usage": "all" } ],
+        "Component_Name": [ { "value": "System_util_vector_logic_3_0", "resolve_type": "user", "usage": "all" } ],
         "C_SIZE": [ { "value": "1", "value_src": "user", "resolve_type": "user", "format": "long", "usage": "all" } ],
         "C_OPERATION": [ { "value": "not", "value_src": "user", "resolve_type": "user", "usage": "all" } ],
         "LOGO_FILE": [ { "value": "data/sym_notgate.png", "resolve_type": "user", "enabled": false, "usage": "all" } ]
@@ -34,7 +34,7 @@
         "IPCONTEXT": [ { "value": "IP_Integrator" } ],
         "IPREVISION": [ { "value": "5" } ],
         "MANAGED": [ { "value": "TRUE" } ],
-        "OUTPUTDIR": [ { "value": "../../../../../../DDR4_Tester.gen/sources_1/bd/System/ip/System_util_vector_logic_1_1" } ],
+        "OUTPUTDIR": [ { "value": "../../../../../../DDR4_Tester.gen/sources_1/bd/System/ip/System_util_vector_logic_3_0" } ],
         "SELECTEDSIMMODEL": [ { "value": "" } ],
         "SHAREDDIR": [ { "value": "../../ipshared" } ],
         "SWVERSION": [ { "value": "2025.2" } ],
@@ -48,5 +48,5 @@
       }
     }
   },
-  "checksum": "94892c1f"
+  "checksum": "1d445ce8"
 }

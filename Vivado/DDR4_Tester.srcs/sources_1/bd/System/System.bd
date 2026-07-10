@@ -1,7 +1,7 @@
 {
   "design": {
     "design_info": {
-      "boundary_crc": "0x7AC878B70A853F15",
+      "boundary_crc": "0x7AC878B7B42E8809",
       "device": "xczu7ev-ffvc1156-2-e",
       "gen_directory": "../../../../DDR4_Tester.gen/sources_1/bd/System",
       "name": "System",
@@ -13,19 +13,17 @@
     "design_tree": {
       "zynq_ultra_ps_e_0": "",
       "smartconnect_0": "",
-      "rst_ddr4_0_266M": "",
-      "rst_ps8_0_100M": "",
       "debug_leds_0": "",
       "ddr4_0": "",
-      "ilslice_0": "",
-      "ilvector_logic_0": "",
       "ilslice_1": "",
       "ilvector_logic_1": "",
       "ilconcat_0": "",
-      "util_vector_logic_2": "",
-      "util_vector_logic_3": "",
       "ilslice_2": "",
-      "ilslice_3": ""
+      "ilslice_3": "",
+      "ilconcat_1": "",
+      "proc_sys_reset_DDR": "",
+      "proc_sys_reset_PL": "",
+      "util_vector_logic_4": ""
     },
     "interface_ports": {
       "ddr4_sdram_0": {
@@ -208,7 +206,13 @@
       "led_0": {
         "direction": "O",
         "left": "3",
-        "right": "0"
+        "right": "0",
+        "parameters": {
+          "PortWidth": {
+            "value": "4",
+            "value_src": "ip_prop"
+          }
+        }
       },
       "beam_signal": {
         "direction": "I",
@@ -2530,9 +2534,6 @@
           "PSU__MAXIGP0__DATA_WIDTH": {
             "value": "128"
           },
-          "PSU__MAXIGP1__DATA_WIDTH": {
-            "value": "128"
-          },
           "PSU__M_AXI_GP0_SUPPORTS_NARROW_BURST": {
             "value": "1"
           },
@@ -3004,7 +3005,7 @@
             "value": "1"
           },
           "PSU__USE__M_AXI_GP1": {
-            "value": "1"
+            "value": "0"
           },
           "PSU__USE__M_AXI_GP2": {
             "value": "0"
@@ -3152,22 +3153,6 @@
               "maximum": "0x0047FFFFFFFF",
               "width": "40"
             }
-          },
-          "M_AXI_HPM1_FPD": {
-            "bd_attributes": {
-              "TYPE": {
-                "value": "END_POINT",
-                "value_src": "auto"
-              }
-            },
-            "vlnv": "xilinx.com:interface:aximm_rtl:1.0",
-            "mode": "Master",
-            "address_space_ref": "Data",
-            "base_address": {
-              "minimum": "0xB0000000",
-              "maximum": "0x007FFFFFFFFF",
-              "width": "40"
-            }
           }
         },
         "addressing": {
@@ -3251,36 +3236,13 @@
         "parameters": {
           "NUM_CLKS": {
             "value": "2"
+          },
+          "NUM_SI": {
+            "value": "1"
           }
         },
         "interface_ports": {
           "S00_AXI": {
-            "mode": "Slave",
-            "vlnv_bus_definition": "xilinx.com:interface:aximm:1.0",
-            "vlnv": "xilinx.com:interface:aximm_rtl:1.0",
-            "parameters": {
-              "NUM_READ_OUTSTANDING": {
-                "value": "8"
-              },
-              "NUM_WRITE_OUTSTANDING": {
-                "value": "8"
-              }
-            },
-            "bridges": [
-              "M00_AXI"
-            ],
-            "bd_attributes": {
-              "BRIDGES": {
-                "value": "M00_AXI",
-                "value_src": "auto"
-              },
-              "TYPE": {
-                "value": "interior",
-                "value_src": "default"
-              }
-            }
-          },
-          "S01_AXI": {
             "mode": "Slave",
             "vlnv_bus_definition": "xilinx.com:interface:aximm:1.0",
             "vlnv": "xilinx.com:interface:aximm_rtl:1.0",
@@ -3345,30 +3307,6 @@
           }
         }
       },
-      "rst_ddr4_0_266M": {
-        "vlnv": "xilinx.com:ip:proc_sys_reset:5.0",
-        "ip_revision": "17",
-        "xci_name": "System_rst_ddr4_0_266M_0",
-        "xci_path": "ip\\System_rst_ddr4_0_266M_0\\System_rst_ddr4_0_266M_0.xci",
-        "inst_hier_path": "rst_ddr4_0_266M",
-        "has_run_ip_tcl": "true",
-        "parameters": {
-          "RESET_BOARD_INTERFACE": {
-            "value": "Custom"
-          },
-          "USE_BOARD_FLOW": {
-            "value": "true"
-          }
-        }
-      },
-      "rst_ps8_0_100M": {
-        "vlnv": "xilinx.com:ip:proc_sys_reset:5.0",
-        "ip_revision": "17",
-        "xci_name": "System_rst_ps8_0_100M_0",
-        "xci_path": "ip\\System_rst_ps8_0_100M_0\\System_rst_ps8_0_100M_0.xci",
-        "inst_hier_path": "rst_ps8_0_100M",
-        "has_run_ip_tcl": "true"
-      },
       "debug_leds_0": {
         "vlnv": "xilinx.com:module_ref:debug_leds:1.0",
         "ip_revision": "1",
@@ -3396,6 +3334,10 @@
               "CLK_DOMAIN": {
                 "value": "System_ddr4_0_2_c0_ddr4_ui_clk",
                 "value_src": "default_prop"
+              },
+              "PortWidth": {
+                "value": "1",
+                "value_src": "user_prop"
               }
             }
           },
@@ -3413,6 +3355,14 @@
               "CLK_DOMAIN": {
                 "value": "System_zynq_ultra_ps_e_0_0_pl_clk0",
                 "value_src": "default_prop"
+              },
+              "POLARITY": {
+                "value": "ACTIVE_HIGH",
+                "value_src": "const_prop"
+              },
+              "PortWidth": {
+                "value": "1",
+                "value_src": "default_prop"
               }
             }
           },
@@ -3422,7 +3372,13 @@
           "led": {
             "direction": "O",
             "left": "3",
-            "right": "0"
+            "right": "0",
+            "parameters": {
+              "PortWidth": {
+                "value": "4",
+                "value_src": "ip_prop"
+              }
+            }
           }
         }
       },
@@ -3501,31 +3457,6 @@
           }
         }
       },
-      "ilslice_0": {
-        "vlnv": "xilinx.com:inline_hdl:ilslice:1.0",
-        "parameters": {
-          "DIN_FROM": {
-            "value": "0"
-          },
-          "DIN_TO": {
-            "value": "0"
-          },
-          "DIN_WIDTH": {
-            "value": "8"
-          }
-        }
-      },
-      "ilvector_logic_0": {
-        "vlnv": "xilinx.com:inline_hdl:ilvector_logic:1.0",
-        "parameters": {
-          "C_OPERATION": {
-            "value": "and"
-          },
-          "C_SIZE": {
-            "value": "1"
-          }
-        }
-      },
       "ilslice_1": {
         "vlnv": "xilinx.com:inline_hdl:ilslice:1.0",
         "parameters": {
@@ -3544,7 +3475,7 @@
         "vlnv": "xilinx.com:inline_hdl:ilvector_logic:1.0",
         "parameters": {
           "C_OPERATION": {
-            "value": "or"
+            "value": "and"
           },
           "C_SIZE": {
             "value": "1"
@@ -3599,38 +3530,6 @@
           }
         }
       },
-      "util_vector_logic_2": {
-        "vlnv": "xilinx.com:ip:util_vector_logic:2.0",
-        "ip_revision": "5",
-        "xci_name": "System_util_vector_logic_1_1",
-        "xci_path": "ip\\System_util_vector_logic_1_1\\System_util_vector_logic_1_1.xci",
-        "inst_hier_path": "util_vector_logic_2",
-        "has_run_ip_tcl": "true",
-        "parameters": {
-          "C_OPERATION": {
-            "value": "not"
-          },
-          "C_SIZE": {
-            "value": "1"
-          }
-        }
-      },
-      "util_vector_logic_3": {
-        "vlnv": "xilinx.com:ip:util_vector_logic:2.0",
-        "ip_revision": "5",
-        "xci_name": "System_util_vector_logic_2_0",
-        "xci_path": "ip\\System_util_vector_logic_2_0\\System_util_vector_logic_2_0.xci",
-        "inst_hier_path": "util_vector_logic_3",
-        "has_run_ip_tcl": "true",
-        "parameters": {
-          "C_OPERATION": {
-            "value": "not"
-          },
-          "C_SIZE": {
-            "value": "1"
-          }
-        }
-      },
       "ilslice_2": {
         "vlnv": "xilinx.com:inline_hdl:ilslice:1.0",
         "parameters": {
@@ -3664,6 +3563,86 @@
             "value": "1"
           }
         }
+      },
+      "ilconcat_1": {
+        "vlnv": "xilinx.com:inline_hdl:ilconcat:1.0",
+        "parameters": {
+          "IN0_WIDTH": {
+            "value": "1",
+            "value_src": "propagated",
+            "value_mode": "auto"
+          },
+          "IN1_WIDTH": {
+            "value": "1",
+            "value_src": "propagated",
+            "value_mode": "auto"
+          },
+          "IN2_WIDTH": {
+            "value": "1",
+            "value_src": "propagated",
+            "value_mode": "auto"
+          },
+          "IN3_WIDTH": {
+            "value": "1",
+            "value_src": "propagated",
+            "value_mode": "auto"
+          },
+          "IN4_WIDTH": {
+            "value": "1",
+            "value_src": "propagated",
+            "value_mode": "auto"
+          },
+          "IN5_WIDTH": {
+            "value": "1",
+            "value_src": "propagated",
+            "value_mode": "auto"
+          },
+          "IN6_WIDTH": {
+            "value": "1",
+            "value_src": "propagated",
+            "value_mode": "auto"
+          },
+          "IN7_WIDTH": {
+            "value": "1",
+            "value_src": "propagated",
+            "value_mode": "auto"
+          },
+          "NUM_PORTS": {
+            "value": "4"
+          }
+        }
+      },
+      "proc_sys_reset_DDR": {
+        "vlnv": "xilinx.com:ip:proc_sys_reset:5.0",
+        "ip_revision": "17",
+        "xci_name": "System_proc_sys_reset_0_0",
+        "xci_path": "ip\\System_proc_sys_reset_0_0\\System_proc_sys_reset_0_0.xci",
+        "inst_hier_path": "proc_sys_reset_DDR",
+        "has_run_ip_tcl": "true"
+      },
+      "proc_sys_reset_PL": {
+        "vlnv": "xilinx.com:ip:proc_sys_reset:5.0",
+        "ip_revision": "17",
+        "xci_name": "System_proc_sys_reset_1_0",
+        "xci_path": "ip\\System_proc_sys_reset_1_0\\System_proc_sys_reset_1_0.xci",
+        "inst_hier_path": "proc_sys_reset_PL",
+        "has_run_ip_tcl": "true"
+      },
+      "util_vector_logic_4": {
+        "vlnv": "xilinx.com:ip:util_vector_logic:2.0",
+        "ip_revision": "5",
+        "xci_name": "System_util_vector_logic_3_0",
+        "xci_path": "ip\\System_util_vector_logic_3_0\\System_util_vector_logic_3_0.xci",
+        "inst_hier_path": "util_vector_logic_4",
+        "has_run_ip_tcl": "true",
+        "parameters": {
+          "C_OPERATION": {
+            "value": "not"
+          },
+          "C_SIZE": {
+            "value": "1"
+          }
+        }
       }
     },
     "interface_nets": {
@@ -3690,12 +3669,6 @@
           "zynq_ultra_ps_e_0/M_AXI_HPM0_FPD",
           "smartconnect_0/S00_AXI"
         ]
-      },
-      "zynq_ultra_ps_e_0_M_AXI_HPM1_FPD": {
-        "interface_ports": [
-          "zynq_ultra_ps_e_0/M_AXI_HPM1_FPD",
-          "smartconnect_0/S01_AXI"
-        ]
       }
     },
     "nets": {
@@ -3708,9 +3681,9 @@
       "ddr4_0_c0_ddr4_ui_clk": {
         "ports": [
           "ddr4_0/c0_ddr4_ui_clk",
-          "rst_ddr4_0_266M/slowest_sync_clk",
           "smartconnect_0/aclk",
-          "debug_leds_0/clk_ui"
+          "debug_leds_0/clk_ui",
+          "proc_sys_reset_DDR/slowest_sync_clk"
         ]
       },
       "ddr4_0_c0_init_calib_complete": {
@@ -3723,21 +3696,15 @@
       "debug_leds_0_led": {
         "ports": [
           "debug_leds_0/led",
-          "led_0",
           "ilslice_2/Din",
-          "ilslice_3/Din"
+          "ilslice_3/Din",
+          "led_0"
         ]
       },
       "ilconcat_0_dout": {
         "ports": [
           "ilconcat_0/dout",
           "zynq_ultra_ps_e_0/emio_gpio_i"
-        ]
-      },
-      "ilslice_0_Dout": {
-        "ports": [
-          "ilslice_0/Dout",
-          "util_vector_logic_2/Op1"
         ]
       },
       "ilslice_1_Dout": {
@@ -3749,74 +3716,63 @@
       "ilslice_2_Dout": {
         "ports": [
           "ilslice_2/Dout",
-          "ilconcat_0/In4"
+          "ilconcat_0/In4",
+          "ilconcat_1/In0"
         ]
       },
       "ilslice_3_Dout": {
         "ports": [
           "ilslice_3/Dout",
-          "ilconcat_0/In5"
+          "ilconcat_0/In5",
+          "ilconcat_1/In1"
         ]
       },
-      "ilvector_logic_0_Res": {
+      "ilvector_logic_1_Res": {
         "ports": [
-          "ilvector_logic_0/Res",
+          "ilvector_logic_1/Res",
+          "proc_sys_reset_PL/ext_reset_in",
+          "proc_sys_reset_DDR/ext_reset_in",
+          "ilconcat_1/In2",
+          "util_vector_logic_4/Op1"
+        ]
+      },
+      "proc_sys_reset_DDR_peripheral_aresetn": {
+        "ports": [
+          "proc_sys_reset_DDR/peripheral_aresetn",
           "ddr4_0/c0_ddr4_aresetn"
         ]
       },
-      "rst_ddr4_0_266M_peripheral_aresetn": {
+      "proc_sys_reset_PL_peripheral_aresetn": {
         "ports": [
-          "rst_ddr4_0_266M/peripheral_aresetn",
-          "ilvector_logic_0/Op1"
-        ]
-      },
-      "rst_ps8_0_100M_peripheral_aresetn": {
-        "ports": [
-          "rst_ps8_0_100M/peripheral_aresetn",
+          "proc_sys_reset_PL/peripheral_aresetn",
           "smartconnect_0/aresetn"
         ]
       },
-      "util_vector_logic_2_Res": {
+      "util_vector_logic_4_Res": {
         "ports": [
-          "util_vector_logic_2/Res",
-          "ilvector_logic_0/Op2"
-        ]
-      },
-      "util_vector_logic_3_Res": {
-        "ports": [
-          "util_vector_logic_3/Res",
-          "ilvector_logic_1/Op1"
+          "util_vector_logic_4/Res",
+          "ddr4_0/sys_rst"
         ]
       },
       "zynq_ultra_ps_e_0_emio_gpio_o": {
         "ports": [
           "zynq_ultra_ps_e_0/emio_gpio_o",
-          "ilslice_0/Din",
           "ilslice_1/Din"
         ]
       },
       "zynq_ultra_ps_e_0_pl_clk0": {
         "ports": [
           "zynq_ultra_ps_e_0/pl_clk0",
-          "rst_ps8_0_100M/slowest_sync_clk",
           "smartconnect_0/aclk1",
           "zynq_ultra_ps_e_0/maxihpm0_fpd_aclk",
-          "zynq_ultra_ps_e_0/maxihpm1_fpd_aclk",
-          "debug_leds_0/clk_pl"
+          "debug_leds_0/clk_pl",
+          "proc_sys_reset_PL/slowest_sync_clk"
         ]
       },
       "zynq_ultra_ps_e_0_pl_resetn0": {
         "ports": [
-          "ilvector_logic_1/Res",
-          "rst_ddr4_0_266M/ext_reset_in",
-          "rst_ps8_0_100M/ext_reset_in",
-          "ddr4_0/sys_rst"
-        ]
-      },
-      "zynq_ultra_ps_e_0_pl_resetn1": {
-        "ports": [
           "zynq_ultra_ps_e_0/pl_resetn0",
-          "util_vector_logic_3/Op1"
+          "ilvector_logic_1/Op1"
         ]
       }
     },
