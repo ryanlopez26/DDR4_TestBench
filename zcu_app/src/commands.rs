@@ -62,7 +62,7 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
                     error_rate: 0.0,
                     error_percent: 0.0,
                     beam_signal: gpio::get_beam_signal(),
-                    controller_calibrated: gpio::get_ddr4_controller_calibrated(),
+                    controller_calibrated: gpio::get_calibration_signal(),
                     exposure_started: false,
                     sefi_detected: false,
                     time_to_sefi: 0.0,
@@ -198,7 +198,7 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
                     error_rate: error_rate,
                     error_percent: error_percent,
                     beam_signal: gpio::get_beam_signal(),
-                    controller_calibrated: gpio::get_ddr4_controller_calibrated(),
+                    controller_calibrated: gpio::get_calibration_signal(),
                     exposure_started: true,
                     sefi_detected: sefi_detected,
                     time_to_sefi: time_to_sefi.as_millis() as f32,
@@ -240,68 +240,15 @@ pub fn info_command(stream: &mut TcpStream){
     //Create info response struct
     let payload = crate::server::codec().serialize(&InfoRsp {
         beam_signal: gpio::get_beam_signal(),
-        controller_calibrated: gpio::get_ddr4_controller_calibrated(),
+        controller_calibrated: gpio::get_calibration_signal(),
+        ui_clock: gpio::get_ui_clock_signal(),
+        pl_clock: gpio::get_pl_clock_signal(),
+        fpga_loaded: gpio::get_fpga_loaded_status(),
     }).unwrap();
 
     //Send ACK response
     send_response(stream, CMD_INFO, payload).unwrap();
     
-}
-
-pub fn reset_command(stream: &mut TcpStream, cmd: ResetCmd){
-
-    //Reset the FPGA if requested
-    if cmd.fpga_reset {
-
-        //Set FPGA reset line low
-        gpio::try_set_fpga_reset(false).unwrap();
-
-        //Wait 
-        std::thread::sleep(std::time::Duration::from_millis(250));
-
-        //Set FPGA reset line high
-        gpio::try_set_fpga_reset(true).unwrap();
-
-        //Wait 
-        std::thread::sleep(std::time::Duration::from_millis(250));
-
-        //Set FPGA reset line low
-        gpio::try_set_fpga_reset(false).unwrap();
-
-    }
-
-    //Reset the controller if requested
-    if cmd.controller_reset {
-
-        //Set controller reset line low
-        gpio::try_set_ddr4_controller_reset(false).unwrap();
-
-        //Wait 
-        std::thread::sleep(std::time::Duration::from_millis(250));
-
-        //Set controller reset line high
-        gpio::try_set_ddr4_controller_reset(true).unwrap();
-
-        //Wait 
-        std::thread::sleep(std::time::Duration::from_millis(250));
-
-        //Set controller reset line low
-        gpio::try_set_ddr4_controller_reset(false).unwrap();
-
-    }
-
-
-    let rsp = ResetRsp {
-        success: true,
-    };
-
-    let payload = crate::server::codec().serialize(&rsp).unwrap();
-
-    if let Err(e) = send_response(stream, CMD_RESET, payload) {
-        eprintln!("[!] Failed to send reset response: {}", e);
-        return;
-    }
-
 }
 
 pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){

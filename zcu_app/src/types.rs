@@ -59,13 +59,6 @@ pub struct ConfigCmd {
     pub address_multiplier: u32,
 }
 
-//Reset Command
-#[repr(C)]
-#[derive(Debug, Deserialize, Serialize)]
-pub struct ResetCmd {
-    pub fpga_reset: bool,
-    pub controller_reset: bool
-}
 
 // --- Response structures (unchanged; not deserialized from the wire) -------
 
@@ -128,6 +121,9 @@ pub struct DynamicRsp {
 pub struct InfoRsp {
     pub beam_signal: bool,
     pub controller_calibrated: bool,
+    pub ui_clock: bool,
+    pub pl_clock: bool,
+    pub fpga_loaded: bool
 }
 
 #[repr(C)]
