@@ -35,11 +35,11 @@
             taskName = new ToolStripStatusLabel();
             taskProgress = new ToolStripProgressBar();
             beamInd = new ToolStripStatusLabel();
-            toolStripStatusLabel1 = new ToolStripStatusLabel();
+            calInd = new ToolStripStatusLabel();
             onlineInd = new ToolStripStatusLabel();
-            calibInd = new ToolStripStatusLabel();
-            toolStripStatusLabel4 = new ToolStripStatusLabel();
-            toolStripStatusLabel3 = new ToolStripStatusLabel();
+            loadedInd = new ToolStripStatusLabel();
+            uiInd = new ToolStripStatusLabel();
+            plInd = new ToolStripStatusLabel();
             mainPane = new TabControl();
             tabPage1 = new TabPage();
             groupBox6 = new GroupBox();
@@ -226,7 +226,7 @@
             // 
             // statusStrip1
             // 
-            statusStrip1.Items.AddRange(new ToolStripItem[] { taskName, taskProgress, beamInd, toolStripStatusLabel1, onlineInd, calibInd, toolStripStatusLabel4, toolStripStatusLabel3 });
+            statusStrip1.Items.AddRange(new ToolStripItem[] { taskName, taskProgress, beamInd, calInd, onlineInd, loadedInd, uiInd, plInd });
             statusStrip1.Location = new Point(0, 511);
             statusStrip1.Name = "statusStrip1";
             statusStrip1.Padding = new Padding(1, 0, 12, 0);
@@ -257,14 +257,14 @@
             beamInd.Size = new Size(75, 17);
             beamInd.Text = "BEAM";
             // 
-            // toolStripStatusLabel1
+            // calInd
             // 
-            toolStripStatusLabel1.BackColor = Color.Red;
-            toolStripStatusLabel1.Font = new Font("Microsoft Sans Serif", 8.25F, FontStyle.Bold);
-            toolStripStatusLabel1.ForeColor = Color.White;
-            toolStripStatusLabel1.Name = "toolStripStatusLabel1";
-            toolStripStatusLabel1.Size = new Size(84, 17);
-            toolStripStatusLabel1.Text = "CALIBRATED";
+            calInd.BackColor = Color.Red;
+            calInd.Font = new Font("Microsoft Sans Serif", 8.25F, FontStyle.Bold);
+            calInd.ForeColor = Color.White;
+            calInd.Name = "calInd";
+            calInd.Size = new Size(84, 17);
+            calInd.Text = "CALIBRATED";
             // 
             // onlineInd
             // 
@@ -275,32 +275,32 @@
             onlineInd.Size = new Size(53, 17);
             onlineInd.Text = "ONLINE";
             // 
-            // calibInd
+            // loadedInd
             // 
-            calibInd.BackColor = Color.Red;
-            calibInd.Font = new Font("Microsoft Sans Serif", 8.25F, FontStyle.Bold);
-            calibInd.ForeColor = Color.White;
-            calibInd.Name = "calibInd";
-            calibInd.Size = new Size(57, 17);
-            calibInd.Text = "LOADED";
+            loadedInd.BackColor = Color.Red;
+            loadedInd.Font = new Font("Microsoft Sans Serif", 8.25F, FontStyle.Bold);
+            loadedInd.ForeColor = Color.White;
+            loadedInd.Name = "loadedInd";
+            loadedInd.Size = new Size(57, 17);
+            loadedInd.Text = "LOADED";
             // 
-            // toolStripStatusLabel4
+            // uiInd
             // 
-            toolStripStatusLabel4.BackColor = Color.Red;
-            toolStripStatusLabel4.Font = new Font("Microsoft Sans Serif", 8.25F, FontStyle.Bold);
-            toolStripStatusLabel4.ForeColor = Color.White;
-            toolStripStatusLabel4.Name = "toolStripStatusLabel4";
-            toolStripStatusLabel4.Size = new Size(20, 17);
-            toolStripStatusLabel4.Text = "UI";
+            uiInd.BackColor = Color.Red;
+            uiInd.Font = new Font("Microsoft Sans Serif", 8.25F, FontStyle.Bold);
+            uiInd.ForeColor = Color.White;
+            uiInd.Name = "uiInd";
+            uiInd.Size = new Size(20, 17);
+            uiInd.Text = "UI";
             // 
-            // toolStripStatusLabel3
+            // plInd
             // 
-            toolStripStatusLabel3.BackColor = Color.Red;
-            toolStripStatusLabel3.Font = new Font("Microsoft Sans Serif", 8.25F, FontStyle.Bold);
-            toolStripStatusLabel3.ForeColor = Color.White;
-            toolStripStatusLabel3.Name = "toolStripStatusLabel3";
-            toolStripStatusLabel3.Size = new Size(22, 17);
-            toolStripStatusLabel3.Text = "PL";
+            plInd.BackColor = Color.Red;
+            plInd.Font = new Font("Microsoft Sans Serif", 8.25F, FontStyle.Bold);
+            plInd.ForeColor = Color.White;
+            plInd.Name = "plInd";
+            plInd.Size = new Size(22, 17);
+            plInd.Text = "PL";
             // 
             // mainPane
             // 
@@ -1825,12 +1825,12 @@
         private Button resetFPGA;
         private Panel panel2;
         private Panel panel1;
-        private ToolStripStatusLabel calibInd;
+        private ToolStripStatusLabel loadedInd;
         private DataGridView dataGridView1;
-        private ToolStripStatusLabel toolStripStatusLabel1;
+        private ToolStripStatusLabel calInd;
         private ToolStripStatusLabel onlineInd;
-        private ToolStripStatusLabel toolStripStatusLabel4;
-        private ToolStripStatusLabel toolStripStatusLabel3;
+        private ToolStripStatusLabel uiInd;
+        private ToolStripStatusLabel plInd;
         private ComboBox chipOrg;
         private Label label13;
         private GroupBox groupBox14;

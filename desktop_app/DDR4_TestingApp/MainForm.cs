@@ -194,11 +194,18 @@ namespace DDR4_TestingApp
                 if (Info.sys.Value.BeamSignal) { beamInd.BackColor = Color.Green; }
                 else { beamInd.BackColor = Color.Red; }
 
-                //if (Info.sys.Value.ControllerCalibrated) { .BackColor = Color.Green; }
-                //else { beamInd.BackColor = Color.Red; }
+                if (Info.sys.Value.CalibrationSignal) { calInd.BackColor = Color.Green; }
+                else { calInd.BackColor = Color.Red; }
 
-                //if (Info.sys.Value.BeamSignal) { beamInd.BackColor = Color.Green; }
-                //else { beamInd.BackColor = Color.Red; }
+                if (Info.sys.Value.UiClockSignal) { uiInd.BackColor = Color.Green; }
+                else { uiInd.BackColor = Color.Red; }
+
+                if (Info.sys.Value.PlClockSignal) { plInd.BackColor = Color.Green; }
+                else { plInd.BackColor = Color.Red; }
+
+                if (Info.sys.Value.FpgaLoadedStatus) { loadedInd.BackColor = Color.Green; }
+                else { loadedInd.BackColor = Color.Red; }
+
             }
         }
 
