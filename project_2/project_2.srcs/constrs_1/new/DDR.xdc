@@ -201,23 +201,23 @@ set_property -dict {PACKAGE_PIN AN21 IOSTANDARD DIFF_POD12_DCI} [get_ports {ddr4
 
 
 ####################################################################################
-# DATA MASK / DBI  (DM_DBI_n[7:0])  --  POD12_DCI
+# DATA MASK  (DM_n[7:0])  --  POD12_DCI
 # --------------------------------------------------------------------------------
-# Pins are wired for BOTH x8 and x16 modules. Whether the ports exist depends on the
-# MIG "DM_DBI" setting:
-#   - DM enabled (typical x8)        : keep these lines.
-#   - DM disabled / DBI (some x16)   : the ddr4_sdram_dm_dbi_n ports won't exist and
-#                                      these lines produce harmless "no ports matched"
-#                                      warnings -> comment them out for that config.
+# Pins are wired at the socket for both organizations, BUT the port only exists in a
+# data-mask MIG config, which implies an x8 device (DDR4 x16 devices have no DM):
+#   - x8  module, DM enabled  : port is ddr4_sdram_dm_n[7:0]  -> keep these 8 lines.
+#   - x16 module              : reconfigure MIG to the x16 part; DM is unavailable, so
+#                               NO dm_n ports are generated -> COMMENT OUT all 8 lines.
+# (If a config uses DM+DBI, the port is instead named ddr4_sdram_dm_dbi_n[7:0].)
 ####################################################################################
-set_property -dict {PACKAGE_PIN AH18 IOSTANDARD POD12_DCI} [get_ports {ddr4_sdram_dm_dbi_n[0]}]
-set_property -dict {PACKAGE_PIN AD15 IOSTANDARD POD12_DCI} [get_ports {ddr4_sdram_dm_dbi_n[1]}]
-set_property -dict {PACKAGE_PIN AM16 IOSTANDARD POD12_DCI} [get_ports {ddr4_sdram_dm_dbi_n[2]}]
-set_property -dict {PACKAGE_PIN AP18 IOSTANDARD POD12_DCI} [get_ports {ddr4_sdram_dm_dbi_n[3]}]
-set_property -dict {PACKAGE_PIN AE18 IOSTANDARD POD12_DCI} [get_ports {ddr4_sdram_dm_dbi_n[4]}]
-set_property -dict {PACKAGE_PIN AH22 IOSTANDARD POD12_DCI} [get_ports {ddr4_sdram_dm_dbi_n[5]}]
-set_property -dict {PACKAGE_PIN AL20 IOSTANDARD POD12_DCI} [get_ports {ddr4_sdram_dm_dbi_n[6]}]
-set_property -dict {PACKAGE_PIN AP19 IOSTANDARD POD12_DCI} [get_ports {ddr4_sdram_dm_dbi_n[7]}]
+set_property -dict {PACKAGE_PIN AH18 IOSTANDARD POD12_DCI} [get_ports {ddr4_sdram_dm_n[0]}]
+set_property -dict {PACKAGE_PIN AD15 IOSTANDARD POD12_DCI} [get_ports {ddr4_sdram_dm_n[1]}]
+set_property -dict {PACKAGE_PIN AM16 IOSTANDARD POD12_DCI} [get_ports {ddr4_sdram_dm_n[2]}]
+set_property -dict {PACKAGE_PIN AP18 IOSTANDARD POD12_DCI} [get_ports {ddr4_sdram_dm_n[3]}]
+set_property -dict {PACKAGE_PIN AE18 IOSTANDARD POD12_DCI} [get_ports {ddr4_sdram_dm_n[4]}]
+set_property -dict {PACKAGE_PIN AH22 IOSTANDARD POD12_DCI} [get_ports {ddr4_sdram_dm_n[5]}]
+set_property -dict {PACKAGE_PIN AL20 IOSTANDARD POD12_DCI} [get_ports {ddr4_sdram_dm_n[6]}]
+set_property -dict {PACKAGE_PIN AP19 IOSTANDARD POD12_DCI} [get_ports {ddr4_sdram_dm_n[7]}]
 
 
 ####################################################################################
