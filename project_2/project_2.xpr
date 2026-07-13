@@ -697,7 +697,7 @@
     <MsgAttr Name="ShowRule" Val="1"/>
     <MsgAttr Name="RuleSource" Val="2"/>
     <MsgAttr Name="StringIsRegExp" Val="0"/>
-    <MsgAttr Name="RuleId" Val="13"/>
+    <MsgAttr Name="RuleId" Val="1"/>
     <MsgAttr Name="Note" Val=""/>
     <MsgAttr Name="Author" Val=""/>
     <MsgAttr Name="CreatedTimestamp" Val=""/>
@@ -711,7 +711,7 @@
     <MsgAttr Name="ShowRule" Val="1"/>
     <MsgAttr Name="RuleSource" Val="2"/>
     <MsgAttr Name="StringIsRegExp" Val="0"/>
-    <MsgAttr Name="RuleId" Val="14"/>
+    <MsgAttr Name="RuleId" Val="2"/>
     <MsgAttr Name="Note" Val=""/>
     <MsgAttr Name="Author" Val=""/>
     <MsgAttr Name="CreatedTimestamp" Val=""/>
@@ -725,7 +725,7 @@
     <MsgAttr Name="ShowRule" Val="1"/>
     <MsgAttr Name="RuleSource" Val="2"/>
     <MsgAttr Name="StringIsRegExp" Val="0"/>
-    <MsgAttr Name="RuleId" Val="15"/>
+    <MsgAttr Name="RuleId" Val="3"/>
     <MsgAttr Name="Note" Val=""/>
     <MsgAttr Name="Author" Val=""/>
     <MsgAttr Name="CreatedTimestamp" Val=""/>

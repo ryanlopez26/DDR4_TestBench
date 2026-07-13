@@ -8,8 +8,7 @@
       "pfm_name": "xilinx.com:zcu104:zcu104_base:1.0",
       "rev_ctrl_bd_flag": "RevCtrlBdOff",
       "synth_flow_mode": "Hierarchical",
-      "tool_version": "2025.2",
-      "validated": "true"
+      "tool_version": "2025.2"
     },
     "design_tree": {
       "axi_smartconnect_lpd": "",
@@ -207,10 +206,6 @@
         "type": "rst",
         "direction": "I",
         "parameters": {
-          "INSERT_VIP": {
-            "value": "0",
-            "value_src": "default"
-          },
           "POLARITY": {
             "value": "ACTIVE_HIGH"
           }
@@ -1888,11 +1883,26 @@
         "inst_hier_path": "pl_ddr4",
         "has_run_ip_tcl": "true",
         "parameters": {
+          "C0.DDR4_CasWriteLatency": {
+            "value": "16"
+          },
+          "C0.DDR4_InputClockPeriod": {
+            "value": "3332"
+          },
+          "C0.DDR4_MemoryPart": {
+            "value": "MTA4ATF51264HZ-2G6"
+          },
+          "C0.DDR4_Specify_MandD": {
+            "value": "false"
+          },
+          "C0.DDR4_TimePeriod": {
+            "value": "833"
+          },
           "C0_CLOCK_BOARD_INTERFACE": {
             "value": "clk_300mhz"
           },
           "C0_DDR4_BOARD_INTERFACE": {
-            "value": "ddr4_sdram"
+            "value": "Custom"
           },
           "RESET_BOARD_INTERFACE": {
             "value": "reset"
