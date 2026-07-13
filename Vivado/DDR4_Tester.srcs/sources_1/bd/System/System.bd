@@ -1,7 +1,7 @@
 {
   "design": {
     "design_info": {
-      "boundary_crc": "0x7AC878B7B42E8809",
+      "boundary_crc": "0x6795B6F30D2410C8",
       "device": "xczu7ev-ffvc1156-2-e",
       "gen_directory": "../../../../DDR4_Tester.gen/sources_1/bd/System",
       "name": "System",
@@ -15,12 +15,7 @@
       "smartconnect_0": "",
       "debug_leds_0": "",
       "ddr4_0": "",
-      "ilslice_1": "",
-      "ilvector_logic_1": "",
       "ilconcat_0": "",
-      "ilslice_2": "",
-      "ilslice_3": "",
-      "ilconcat_1": "",
       "proc_sys_reset_DDR": "",
       "proc_sys_reset_PL": "",
       "util_vector_logic_4": ""
@@ -44,7 +39,7 @@
             "value_src": "default"
           },
           "CAS_LATENCY": {
-            "value": "12",
+            "value": "15",
             "value_src": "user_prop"
           },
           "CAS_WRITE_LATENCY": {
@@ -68,7 +63,7 @@
             "value_src": "user_prop"
           },
           "MEMORY_PART": {
-            "value": "MTA4ATF51264HZ-2G6",
+            "value": "MTA8ATF51264HZ-2G1",
             "value_src": "user_prop"
           },
           "MEMORY_TYPE": {
@@ -84,7 +79,7 @@
             "value_src": "user_prop"
           },
           "TIMEPERIOD_PS": {
-            "value": "1250",
+            "value": "938",
             "value_src": "user_prop"
           }
         },
@@ -108,7 +103,7 @@
           "BG": {
             "physical_name": "ddr4_sdram_0_bg",
             "direction": "O",
-            "left": "0",
+            "left": "1",
             "right": "0"
           },
           "CK_C": {
@@ -2187,13 +2182,13 @@
             "value": "0"
           },
           "PSU__GPIO_EMIO_WIDTH": {
-            "value": "8"
+            "value": "64"
           },
           "PSU__GPIO_EMIO__PERIPHERAL__ENABLE": {
             "value": "1"
           },
           "PSU__GPIO_EMIO__PERIPHERAL__IO": {
-            "value": "8"
+            "value": "64"
           },
           "PSU__GPIO_EMIO__WIDTH": {
             "value": "[94:0]"
@@ -3324,7 +3319,7 @@
             "direction": "I",
             "parameters": {
               "FREQ_HZ": {
-                "value": "200000000",
+                "value": "266500000",
                 "value_src": "user_prop"
               },
               "PHASE": {
@@ -3390,38 +3385,23 @@
         "inst_hier_path": "ddr4_0",
         "has_run_ip_tcl": "true",
         "parameters": {
+          "ADDN_UI_CLKOUT1_FREQ_HZ": {
+            "value": "100"
+          },
           "C0.DDR4_AxiAddressWidth": {
             "value": "32"
           },
-          "C0.DDR4_AxiDataWidth": {
-            "value": "512"
-          },
           "C0.DDR4_AxiIDWidth": {
             "value": "1"
-          },
-          "C0.DDR4_CasLatency": {
-            "value": "12"
-          },
-          "C0.DDR4_DataWidth": {
-            "value": "64"
-          },
-          "C0.DDR4_InputClockPeriod": {
-            "value": "3334"
-          },
-          "C0.DDR4_MemoryPart": {
-            "value": "MTA4ATF51264HZ-2G6"
-          },
-          "C0.DDR4_MemoryType": {
-            "value": "SODIMMs"
-          },
-          "C0.DDR4_TimePeriod": {
-            "value": "1250"
           },
           "C0_CLOCK_BOARD_INTERFACE": {
             "value": "clk_300mhz"
           },
           "C0_DDR4_BOARD_INTERFACE": {
-            "value": "Custom"
+            "value": "ddr4_sdram"
+          },
+          "Debug_Signal": {
+            "value": "Disable"
           },
           "RESET_BOARD_INTERFACE": {
             "value": "reset"
@@ -3457,31 +3437,6 @@
           }
         }
       },
-      "ilslice_1": {
-        "vlnv": "xilinx.com:inline_hdl:ilslice:1.0",
-        "parameters": {
-          "DIN_FROM": {
-            "value": "1"
-          },
-          "DIN_TO": {
-            "value": "1"
-          },
-          "DIN_WIDTH": {
-            "value": "8"
-          }
-        }
-      },
-      "ilvector_logic_1": {
-        "vlnv": "xilinx.com:inline_hdl:ilvector_logic:1.0",
-        "parameters": {
-          "C_OPERATION": {
-            "value": "and"
-          },
-          "C_SIZE": {
-            "value": "1"
-          }
-        }
-      },
       "ilconcat_0": {
         "vlnv": "xilinx.com:inline_hdl:ilconcat:1.0",
         "parameters": {
@@ -3508,7 +3463,7 @@
           "IN4_WIDTH": {
             "value": "1",
             "value_src": "propagated",
-            "value_mode": "auto"
+            "value_mode": "manual"
           },
           "IN5_WIDTH": {
             "value": "1",
@@ -3527,88 +3482,6 @@
           },
           "NUM_PORTS": {
             "value": "8"
-          }
-        }
-      },
-      "ilslice_2": {
-        "vlnv": "xilinx.com:inline_hdl:ilslice:1.0",
-        "parameters": {
-          "DIN_FROM": {
-            "value": "1"
-          },
-          "DIN_TO": {
-            "value": "1"
-          },
-          "DIN_WIDTH": {
-            "value": "4"
-          },
-          "DOUT_WIDTH": {
-            "value": "1"
-          }
-        }
-      },
-      "ilslice_3": {
-        "vlnv": "xilinx.com:inline_hdl:ilslice:1.0",
-        "parameters": {
-          "DIN_FROM": {
-            "value": "2"
-          },
-          "DIN_TO": {
-            "value": "2"
-          },
-          "DIN_WIDTH": {
-            "value": "4"
-          },
-          "DOUT_WIDTH": {
-            "value": "1"
-          }
-        }
-      },
-      "ilconcat_1": {
-        "vlnv": "xilinx.com:inline_hdl:ilconcat:1.0",
-        "parameters": {
-          "IN0_WIDTH": {
-            "value": "1",
-            "value_src": "propagated",
-            "value_mode": "auto"
-          },
-          "IN1_WIDTH": {
-            "value": "1",
-            "value_src": "propagated",
-            "value_mode": "auto"
-          },
-          "IN2_WIDTH": {
-            "value": "1",
-            "value_src": "propagated",
-            "value_mode": "auto"
-          },
-          "IN3_WIDTH": {
-            "value": "1",
-            "value_src": "propagated",
-            "value_mode": "auto"
-          },
-          "IN4_WIDTH": {
-            "value": "1",
-            "value_src": "propagated",
-            "value_mode": "auto"
-          },
-          "IN5_WIDTH": {
-            "value": "1",
-            "value_src": "propagated",
-            "value_mode": "auto"
-          },
-          "IN6_WIDTH": {
-            "value": "1",
-            "value_src": "propagated",
-            "value_mode": "auto"
-          },
-          "IN7_WIDTH": {
-            "value": "1",
-            "value_src": "propagated",
-            "value_mode": "auto"
-          },
-          "NUM_PORTS": {
-            "value": "4"
           }
         }
       },
@@ -3696,8 +3569,6 @@
       "debug_leds_0_led": {
         "ports": [
           "debug_leds_0/led",
-          "ilslice_2/Din",
-          "ilslice_3/Din",
           "led_0"
         ]
       },
@@ -3707,32 +3578,11 @@
           "zynq_ultra_ps_e_0/emio_gpio_i"
         ]
       },
-      "ilslice_1_Dout": {
-        "ports": [
-          "ilslice_1/Dout",
-          "ilvector_logic_1/Op2"
-        ]
-      },
-      "ilslice_2_Dout": {
-        "ports": [
-          "ilslice_2/Dout",
-          "ilconcat_0/In4",
-          "ilconcat_1/In0"
-        ]
-      },
-      "ilslice_3_Dout": {
-        "ports": [
-          "ilslice_3/Dout",
-          "ilconcat_0/In5",
-          "ilconcat_1/In1"
-        ]
-      },
       "ilvector_logic_1_Res": {
         "ports": [
-          "ilvector_logic_1/Res",
+          "zynq_ultra_ps_e_0/pl_resetn0",
           "proc_sys_reset_PL/ext_reset_in",
           "proc_sys_reset_DDR/ext_reset_in",
-          "ilconcat_1/In2",
           "util_vector_logic_4/Op1"
         ]
       },
@@ -3754,12 +3604,6 @@
           "ddr4_0/sys_rst"
         ]
       },
-      "zynq_ultra_ps_e_0_emio_gpio_o": {
-        "ports": [
-          "zynq_ultra_ps_e_0/emio_gpio_o",
-          "ilslice_1/Din"
-        ]
-      },
       "zynq_ultra_ps_e_0_pl_clk0": {
         "ports": [
           "zynq_ultra_ps_e_0/pl_clk0",
@@ -3767,12 +3611,6 @@
           "zynq_ultra_ps_e_0/maxihpm0_fpd_aclk",
           "debug_leds_0/clk_pl",
           "proc_sys_reset_PL/slowest_sync_clk"
-        ]
-      },
-      "zynq_ultra_ps_e_0_pl_resetn0": {
-        "ports": [
-          "zynq_ultra_ps_e_0/pl_resetn0",
-          "ilvector_logic_1/Op1"
         ]
       }
     },
