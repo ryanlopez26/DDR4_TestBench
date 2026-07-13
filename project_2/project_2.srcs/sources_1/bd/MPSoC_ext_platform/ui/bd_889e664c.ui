@@ -25,32 +25,32 @@ preplace inst axi_smc -pg 1 -lvl 6 -x 2010 -y 330 -defaultsOSRD
 preplace inst pl_ddr4 -pg 1 -lvl 7 -x 2360 -y 570 -defaultsOSRD
 preplace inst rst_pl_ddr4_0 -pg 1 -lvl 6 -x 2010 -y 640 -defaultsOSRD
 preplace inst debug_leds_0 -pg 1 -lvl 6 -x 2010 -y -50 -defaultsOSRD
-preplace netloc clk_wiz_0_clk_out1 1 1 1 N 90
-preplace netloc clk_wiz_0_clk_out2 1 1 6 280 30 620 30 870 20 1170 260 1810 240 2190
-preplace netloc clk_wiz_0_clk_out3 1 1 1 260 150n
 preplace netloc Net 1 0 6 30 210 270 10 NJ 10 NJ 10 NJ 10 1780
-preplace netloc clk_wiz_0_locked 1 1 1 250 110n
+preplace netloc axi_intc_0_irq 1 4 4 1180 20 1800J 30 NJ 30 2540
+preplace netloc clk_wiz_0_clk_out1 1 1 1 N 90
+preplace netloc clk_wiz_0_clk_out2 1 1 6 260 30 620 30 870 20 1170 260 1810 240 2190
+preplace netloc clk_wiz_0_clk_out3 1 1 1 280 130n
+preplace netloc clk_wiz_0_locked 1 1 1 250 150n
+preplace netloc debug_leds_0_led 1 6 2 NJ -50 NJ
 preplace netloc pl_ddr4_c0_ddr4_ui_clk 1 5 3 1830 750 NJ 750 2530
 preplace netloc pl_ddr4_c0_ddr4_ui_clk_sync_rst 1 5 3 1840 450 NJ 450 2540
-preplace netloc rst_pl_ddr4_0_peripheral_aresetn 1 6 1 2180 580n
-preplace netloc proc_sys_reset_1_interconnect_aresetn 1 2 5 640 310 860 180 1150J 270 1820 230 2180J
-preplace netloc reset_1 1 0 7 NJ 740 NJ 740 NJ 740 NJ 740 NJ 740 NJ 740 2190J
-preplace netloc axi_intc_0_irq 1 4 4 1180 20 1800J 30 NJ 30 2540
-preplace netloc ps_e_pl_clk0 1 0 6 20 0 NJ 0 NJ 0 NJ 0 NJ 0 1790
-preplace netloc proc_sys_reset_2_peripheral_aresetn 1 2 5 630 320 840J 420 NJ 420 NJ 420 2190J
-preplace netloc debug_leds_0_led 1 6 2 NJ -50 NJ
 preplace netloc pl_ddr4_c0_init_calib_complete 1 5 3 1840 40 NJ 40 2550
-preplace netloc pl_ddr4_C0_DDR4 1 7 1 N 510
-preplace netloc axi_smc_M00_AXI 1 6 1 2180 320n
-preplace netloc ps_e_M_AXI_HPM0_FPD 1 5 1 1800 110n
-preplace netloc clk_300mhz_1 1 0 7 NJ 540 NJ 540 NJ 540 NJ 540 NJ 540 NJ 540 NJ
-preplace netloc axi_smc_M01_AXI 1 6 1 N 340
+preplace netloc proc_sys_reset_1_interconnect_aresetn 1 2 5 640 310 860 180 1150J 270 1820 230 2180J
+preplace netloc proc_sys_reset_2_peripheral_aresetn 1 2 5 630 320 840J 420 NJ 420 NJ 420 2190J
+preplace netloc ps_e_pl_clk0 1 0 6 20 0 NJ 0 NJ 0 NJ 0 NJ 0 1790
+preplace netloc reset_1 1 0 7 NJ 740 NJ 740 NJ 740 NJ 740 NJ 740 NJ 740 2190J
+preplace netloc rst_pl_ddr4_0_peripheral_aresetn 1 6 1 2180 580n
 preplace netloc axi_smartconnect_0_M00_AXI 1 6 1 N 150
-preplace netloc ps_e_M_AXI_HPM0_LPD 1 5 1 N 130
 preplace netloc axi_smartconnect_0_M00_AXI1 1 4 1 N 100
 preplace netloc axi_smartconnect_1_M00_AXI 1 4 1 1160 80n
+preplace netloc axi_smc_M00_AXI 1 6 1 2180 320n
+preplace netloc axi_smc_M01_AXI 1 6 1 N 340
 preplace netloc axi_vip_0_M_AXI 1 3 1 N 240
 preplace netloc axi_vip_1_M_AXI 1 3 1 850 80n
+preplace netloc clk_300mhz_1 1 0 7 NJ 540 NJ 540 NJ 540 NJ 540 NJ 540 NJ 540 NJ
+preplace netloc pl_ddr4_C0_DDR4 1 7 1 N 510
+preplace netloc ps_e_M_AXI_HPM0_FPD 1 5 1 1800 110n
+preplace netloc ps_e_M_AXI_HPM0_LPD 1 5 1 N 130
 levelinfo -pg 1 -40 120 450 740 1010 1480 2010 2360 2570
 pagesize -pg 1 -db -bbox -sgen -170 -130 2700 760
 "
