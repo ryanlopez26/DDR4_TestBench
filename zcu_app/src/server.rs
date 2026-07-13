@@ -27,7 +27,7 @@ use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use bincode::Options;
 use serde::de::DeserializeOwned;
 
-use crate::types::{ConfigCmd, DumpCmd, DynamicCmd, ResetCmd, VerifyCmd, WriteCmd};
+use crate::types::{ConfigCmd, DumpCmd, DynamicCmd, VerifyCmd, WriteCmd};
 use crate::config::*;
 
 // --- framing helpers -------------------------------------------------------
@@ -218,19 +218,6 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
 
                     //Execute command
                     crate::commands::dynamic_command(&mut stream, c);
-                }
-                Err(e) => eprintln!("[!] {}: invalid Dynamic payload: {}", peer, e),
-            },
-
-            CMD_RESET => match parse_payload::<ResetCmd>(&payload) {
-                Ok(c) => {
-                    println!(
-                        "[{}] Reset {{ fpga_reset: {}, controller_reset: {} }}",
-                        peer, c.fpga_reset, c.controller_reset
-                    );
-
-                    //Execute command
-                    crate::commands::reset_command(&mut stream, c);
                 }
                 Err(e) => eprintln!("[!] {}: invalid Dynamic payload: {}", peer, e),
             },
