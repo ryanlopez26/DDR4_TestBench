@@ -38,8 +38,8 @@
 # included because a wrong sys_clk LOC (e.g. AH18, which is actually DM0) prevents
 # calibration entirely. Rename the port below to match your top-level sys_clk port.
 ####################################################################################
-set_property -dict {PACKAGE_PIN AH12 IOSTANDARD DIFF_SSTL12} [get_ports {c0_sys_clk_clk_p}]
-set_property -dict {PACKAGE_PIN AJ12 IOSTANDARD DIFF_SSTL12} [get_ports {c0_sys_clk_clk_n}]
+set_property -dict {PACKAGE_PIN AH12 IOSTANDARD DIFF_SSTL12} [get_ports {c0_sys_clk_p}]
+set_property -dict {PACKAGE_PIN AJ12 IOSTANDARD DIFF_SSTL12} [get_ports {c0_sys_clk_n}]
 
 
 ####################################################################################
