@@ -39,7 +39,16 @@
 //     { success } once the requested line pulses finish (up to ~1.5 s if
 //     both fpga_reset and controller_reset are set — each pulses low/high/
 //     low with 250 ms holds), so this call blocks until that completes.
-//   - Info: single InfoRsp reply { beam_signal, controller_calibrated }.
+//     NOTE: gpio.rs's EMIO map was recently changed to five read-only
+//     channels (beam, calibration, UI clock, PL clock, FPGA-loaded status)
+//     with no FPGA-reset/controller-reset output lines anymore. Unless
+//     reset_command() has been repointed at some other mechanism, this
+//     command currently has no hardware backing — flagging it here rather
+//     than removing it, since the client can't tell which is true from
+//     this side of the wire.
+//   - Info: single InfoRsp reply { beam_signal, calibration_signal,
+//     ui_clock_signal, pl_clock_signal, fpga_loaded_status } — one bool
+//     per gpio.rs EMIO channel.
 
 using System;
 using System.Buffers.Binary;
@@ -150,15 +159,22 @@ namespace DDR4_TestingApp
         public bool ExposureStarted;
         public bool SefiDetected;
 
-        // Beam and controller status
+        // Signal status — one bool per gpio.rs EMIO channel (all five are
+        // read-only inputs: beam, calibration, UI clock, PL clock, FPGA-loaded).
         public bool BeamSignal;
-        public bool ControllerCalibrated;
+        public bool CalibrationSignal;
+        public bool UiClockSignal;
+        public bool PlClockSignal;
+        public bool FpgaLoadedStatus;
     }
 
     public struct InfoRsp
     {
         public bool BeamSignal;
-        public bool ControllerCalibrated;
+        public bool CalibrationSignal;
+        public bool UiClockSignal;
+        public bool PlClockSignal;
+        public bool FpgaLoadedStatus;
     }
 
     // ============================== TcpManager ==============================
@@ -384,6 +400,12 @@ namespace DDR4_TestingApp
         /// server side, so this can take up to ~1.5 s to return if both
         /// <see cref="ResetCmd.FpgaReset"/> and <see cref="ResetCmd.ControllerReset"/>
         /// are set.
+        ///
+        /// NOTE: gpio.rs's EMIO map is now five read-only channels with no
+        /// FPGA-reset/controller-reset output lines. Until reset_command() is
+        /// confirmed to drive reset through some other mechanism, calling this
+        /// may no longer do anything on the server side even though it still
+        /// returns a ResetRsp.
         /// </summary>
         public static async Task<ResetRsp> SendResetAsync(ResetCmd r, CancellationToken ct = default)
         {
@@ -403,8 +425,9 @@ namespace DDR4_TestingApp
         }
 
         /// <summary>
-        /// Send an Info command and return the server's current beam/controller
-        /// status snapshot.
+        /// Send an Info command and return the server's current signal-status
+        /// snapshot — one bool per gpio.rs EMIO channel (beam, calibration,
+        /// UI clock, PL clock, FPGA-loaded).
         /// </summary>
         public static async Task<InfoRsp> SendInfoAsync(CancellationToken ct = default)
         {
@@ -595,9 +618,9 @@ namespace DDR4_TestingApp
 
         private static DynamicRsp DecodeDynamicRsp(byte[] p)
         {
-            if (p.Length < 40)
+            if (p.Length < 43)
                 throw new InvalidDataException(
-                    $"short DynamicRsp: {p.Length} bytes (need 40)");
+                    $"short DynamicRsp: {p.Length} bytes (need 43)");
             return new DynamicRsp
             {
                 ExposureTimeMs = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(0, 4)),
@@ -610,7 +633,10 @@ namespace DDR4_TestingApp
                 ExposureStarted = p[36] != 0,
                 SefiDetected = p[37] != 0,
                 BeamSignal = p[38] != 0,
-                ControllerCalibrated = p[39] != 0,
+                CalibrationSignal = p[39] != 0,
+                UiClockSignal = p[40] != 0,
+                PlClockSignal = p[41] != 0,
+                FpgaLoadedStatus = p[42] != 0,
             };
         }
 
@@ -624,13 +650,16 @@ namespace DDR4_TestingApp
 
         private static InfoRsp DecodeInfoRsp(byte[] p)
         {
-            if (p.Length < 2)
+            if (p.Length < 5)
                 throw new InvalidDataException(
-                    $"short InfoRsp: {p.Length} bytes (need 2)");
+                    $"short InfoRsp: {p.Length} bytes (need 5)");
             return new InfoRsp
             {
                 BeamSignal = p[0] != 0,
-                ControllerCalibrated = p[1] != 0,
+                CalibrationSignal = p[1] != 0,
+                UiClockSignal = p[2] != 0,
+                PlClockSignal = p[3] != 0,
+                FpgaLoadedStatus = p[4] != 0,
             };
         }
     }

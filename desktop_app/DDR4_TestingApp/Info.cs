@@ -9,7 +9,7 @@ namespace DDR4_TestingApp
 
         // On the form class:
         public static InfoRsp? sys;
-        public static bool _infoFetchInProgress;
+        public static bool _infoFetchInProgress = false;
 
 
         public static async void update()
@@ -28,6 +28,8 @@ namespace DDR4_TestingApp
             // a fetch is still going.
             if (!_infoFetchInProgress)
             {
+                
+
                 _infoFetchInProgress = true;
                 try
                 {
