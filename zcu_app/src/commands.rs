@@ -110,7 +110,7 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
         crate::rand::set_index(0);
 
         //Iterate over chip
-        for i in 0..config.chip_size_bytes {
+        for i in (0..config.chip_size_bytes).step_by(config.address_multiplier as usize) {
 
             //Value to test
             let v = match cmd.pattern {
@@ -266,7 +266,7 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
 
 
     // Iterate over chip 
-    for i in 0..config.chip_size_bytes {
+    for i in (0..config.chip_size_bytes).step_by(config.address_multiplier as usize) {
 
         //Determine the required contents to write
         match match cmd.pattern {
@@ -364,7 +364,7 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
      };
 
     // Iterate over chip 
-    for i in 0..config.chip_size_bytes {
+    for i in (0..config.chip_size_bytes).step_by(config.address_multiplier as usize) {
 
         //Expected value
         let expected = match cmd.pattern {
@@ -381,10 +381,10 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
         match crate::chip::read(&config, i) {
             Ok(actual) => {
                 if actual != expected {
-                    eprintln!(
-                        "[!] Error at address (expected: {:#x}, actual: {:#x}): {:#x}",
-                        expected, actual, i
-                    );
+                    // eprintln!(
+                    //     "[!] Error at address (expected: {:#x}, actual: {:#x}): {:#x}",
+                    //     expected, actual, i
+                    // );
                     let differing_bits = (actual ^ expected).count_ones() as u64;
                     rsp.num_errors += differing_bits;
                     rsp.num_correct += 8 - differing_bits;
