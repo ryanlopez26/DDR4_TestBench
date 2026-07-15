@@ -101,17 +101,21 @@ pub struct DynamicRsp {
 
     //Error statistics
     pub total_bytes: u64,
-    pub total_errors: u64,
     pub error_rate: f32,
-    pub error_percent: f32,
+    pub error_rate_per_second: f32,
+    pub error_rate_percent: f32,
 
     //Capture status
     pub exposure_started: bool,
     pub sefi_detected: bool,
+    pub test_completed: bool,
 
     //Beam and controller status
     pub beam_signal: bool,
     pub controller_calibrated: bool,
+    pub ui_clock: bool,
+    pub pl_clock: bool,
+    pub fpga_loaded: bool
     
 }
 

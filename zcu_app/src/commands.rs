@@ -1,5 +1,3 @@
-
-
 // ======================= Performs the commands ========================
 
 use std::net::TcpStream;
@@ -12,7 +10,41 @@ use crate::{chip, gpio, types::*};
 use crate::server::send_response;
 use crate::config::*;
 
+// ============================================================================
+//  Feature-gated debug logging.
+//
+//  Enable with:  cargo build --features debug
+//
+//  In Cargo.toml add:
+//      [features]
+//      debug = []
+//
+//  This macro is `#[macro_export]`, so it lands at the crate root and is
+//  callable anywhere as `crate::dbg_log!(...)`. If you prefer, move the two
+//  macro definitions below into main.rs / lib.rs near the top — they only need
+//  to be defined once per crate.
+// ============================================================================
+
+#[cfg(feature = "debug")]
+#[macro_export]
+macro_rules! dbg_log {
+    ($($arg:tt)*) => {
+        eprintln!("[dbg] {}", format_args!($($arg)*));
+    };
+}
+
+#[cfg(not(feature = "debug"))]
+#[macro_export]
+macro_rules! dbg_log {
+    ($($arg:tt)*) => {{}};
+}
+
 pub fn config_command(stream: &mut TcpStream, cmd: ConfigCmd){
+
+    crate::dbg_log!(
+        "config_command: incoming ConfigCmd chip_index={}, bus_bytes_per_chip={}, chip_size_bytes={}, bus_size_in_bytes={}, enable_chip_select={}, address_multiplier={}",
+        cmd.chip_index, cmd.bus_bytes_per_chip, cmd.chip_size_bytes, cmd.bus_size_in_bytes, cmd.enable_chip_select, cmd.address_multiplier
+    );
 
     //Load new configuration settings
     {
@@ -22,6 +54,15 @@ pub fn config_command(stream: &mut TcpStream, cmd: ConfigCmd){
         config.chip_size_bytes = cmd.chip_size_bytes;
         config.bus_size_in_bytes = cmd.bus_size_in_bytes;
         config.enable_chip_select = cmd.enable_chip_select;
+        config.address_multiplier = cmd.address_multiplier;
+
+        // NOTE: address_multiplier is NOT set from ConfigCmd here. Every loop
+        // reads config.address_multiplier; if nothing else assigns it, it holds
+        // its default. Logging it so the stale/default value is visible.
+        crate::dbg_log!(
+            "config_command: post-apply CONFIG chip_size_bytes={}, address_multiplier={} (address_multiplier is NOT written by this handler)",
+            config.chip_size_bytes, config.address_multiplier
+        );
     }
 
     //Status response 
@@ -37,36 +78,62 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
     //Load configuration
     let config = CONFIG.read().unwrap();
 
-    //Setup required vars
-    let total_time = SystemTime::now();
-    let mut time_since_last_update = SystemTime::now();
+    //Init the pseudo-random generator with the provided seed
+    crate::rand::set_seed(cmd.seed);
+
+    //Response structure
+    let mut rsp = DynamicRsp {
+        exposure_time_ms: 0.0,
+        total_time_ms: 0.0,
+        total_bytes: 0,
+        error_rate: 0.0,
+        error_rate_per_second: 0.0,
+        error_rate_percent: 0.0,
+        beam_signal: gpio::get_beam_signal(),
+        controller_calibrated: gpio::get_calibration_signal(),
+        exposure_started: false,
+        sefi_detected: false,
+        time_to_sefi: 0.0,
+        test_completed: false,
+        ui_clock: gpio::get_ui_clock_signal(),
+        pl_clock: gpio::get_pl_clock_signal(),
+        fpga_loaded: gpio::get_fpga_loaded_status(),
+    };
+
+    crate::dbg_log!(
+        "dynamic_command: seed={}, pattern={}, wait_for_beam={}, sample_size_in_bytes={}, trigger_threshold={}, chip_size_bytes={}, address_multiplier={}",
+        cmd.seed, cmd.pattern, cmd.wait_for_beam, cmd.sample_size_in_bytes, cmd.trigger_threshold, config.chip_size_bytes, config.address_multiplier
+    );
+
+    if config.address_multiplier == 0 {
+        crate::dbg_log!("dynamic_command: WARNING address_multiplier==0, step_by(0) will panic");
+    }
+    if config.chip_size_bytes == 0 {
+        crate::dbg_log!("dynamic_command: WARNING chip_size_bytes==0, loop range is empty and will not execute");
+    }
+
+    //Instant when test first started
+    let first_start_instant = SystemTime::now();
+    let mut last_update_instant = SystemTime::now();
 
     //Check if we need to wait for the beam
-    if(cmd.wait_for_beam){
+    if cmd.wait_for_beam {
+
+        crate::dbg_log!("dynamic_command: waiting for beam signal to go high...");
 
         //Wait for the beam signal to be high
         while !gpio::get_beam_signal() {
         
             //Check if we need to send status update
-            if time_since_last_update.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS {
-
-                //Calculate status
-                let elapsed = total_time.elapsed().unwrap().as_millis() as f32;
+            if last_update_instant.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS {
 
                 //Send status update
-                let rsp = DynamicRsp {
-                    exposure_time_ms: 0.0,
-                    total_time_ms: elapsed,
-                    total_bytes: 0,
-                    total_errors: 0,
-                    error_rate: 0.0,
-                    error_percent: 0.0,
-                    beam_signal: gpio::get_beam_signal(),
-                    controller_calibrated: gpio::get_calibration_signal(),
-                    exposure_started: false,
-                    sefi_detected: false,
-                    time_to_sefi: 0.0,
-                };
+                rsp.beam_signal = gpio::get_beam_signal();
+                rsp.controller_calibrated = gpio::get_calibration_signal();
+                rsp.ui_clock = gpio::get_ui_clock_signal();
+                rsp.pl_clock = gpio::get_pl_clock_signal();
+                rsp.fpga_loaded = gpio::get_fpga_loaded_status();
+                rsp.total_time_ms = first_start_instant.elapsed().unwrap().as_millis() as f32;
 
                 let payload = crate::server::codec().serialize(&rsp).unwrap();
 
@@ -76,166 +143,210 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
                 }
                 
                 //Reset timer for next update
-                time_since_last_update = SystemTime::now();
+                last_update_instant = SystemTime::now();
             }
             
 
         }
+
+        crate::dbg_log!("dynamic_command: beam signal high, beginning exposure");
     }
 
     //Begin test
-    let time_since_exposure_start = SystemTime::now();
-    let mut time_since_last_sample = SystemTime::now();
-
-    //Error Statistics
-    let mut total_errors: u64 = 0;
-    let mut total_correct: u64 = 0;
+    let exposure_start_instant = SystemTime::now();
+    let mut last_sample_instant = SystemTime::now();
+    rsp.exposure_started = true;
 
     //Rate calculation
     let mut bits_sampled: u64 = 0;
     let mut bits_errored: u64 = 0;
-    let mut error_rate: f32 = 0.0;
-    let mut error_percent: f32 = 0.0;
     
     //SEFI Detection
     let mut sefi_detected: bool = false;
-    let mut time_to_sefi: Duration = Duration::from_secs(0);
 
+    //Debug-only pass counter (how many full chip sweeps we complete)
+    #[cfg(feature = "debug")]
+    let mut pass_count: u64 = 0;
 
-    //Wait for beam to become inactive
-    while gpio::get_beam_signal() || !cmd.wait_for_beam {
+    
+    //Exposure present - Perform test
+    loop {
 
-        //Init the pseudo-random generator with the provided seed
-        crate::rand::set_seed(cmd.seed);
-        crate::rand::set_index(0);
+        #[cfg(feature = "debug")]
+        {
+            pass_count += 1;
+            crate::dbg_log!("dynamic_command: starting chip sweep #{}", pass_count);
+        }
 
         //Iterate over chip
         for i in (0..config.chip_size_bytes).step_by(config.address_multiplier as usize) {
 
-            //Value to test
-            let v = match cmd.pattern {
-                0 => {
-                    // Zero mode
-                    0
-                },
-                1 => {
-                    // All ones
-                    1
-                },
-                2 => {
-                    // Random
-                    crate::rand::rand()
-                },
-                _ => {
-                    eprintln!("[!] Invalid pattern in DynamicCmd: {}", cmd.pattern);
-                    return;
-                }};
-            
+            // Perform write and verify operation
+            {
+                //Value to test
+                let v = match cmd.pattern {
+                    0 => {
+                        // Zero mode
+                        0
+                    },
+                    1 => {
+                        // All ones
+                        1
+                    },
+                    2 => {
+                        // Random
+                        crate::rand::rand(i)
+                    },
+                    _ => {
+                        eprintln!("[!] Invalid pattern in DynamicCmd: {}", cmd.pattern);
+                        return;
+                    }};
+                
+                //Write test value to byte
+                chip::write(&config, i, v);
 
-            //Write test value to byte
-            chip::write(&config, i, v);
+                //Read back and verify the value
+                match crate::chip::read(&config, i) {
+                    Ok(actual) => {
+                        if actual != v {
+                            eprintln!(
+                                "[!] Error at address (expected: {:#x}, actual: {:#x}): {:#x}",
+                                v, actual, i
+                            );
+                            let differing_bits = (actual ^ v).count_ones() as u64;
 
-            //Read back and verify the value
-            match crate::chip::read(&config, i) {
-                Ok(actual) => {
-                    if actual != v {
-                        eprintln!(
-                            "[!] Error at address (expected: {:#x}, actual: {:#x}): {:#x}",
-                            v, actual, i
-                        );
-                        let differing_bits = (actual ^ v).count_ones() as u64;
 
-                        //Totals
-                        total_errors += differing_bits;
-                        total_correct += 8 - differing_bits;
+                            //Rate calculation
+                            bits_sampled += 8;
+                            bits_errored += differing_bits;
 
-                        //Rate calculation
+                        } else {
+                            bits_sampled += 8;
+                        }
+                    },
+                    Err(e) => {
                         bits_sampled += 8;
-                        bits_errored += differing_bits;
-
-                    } else {
-                        bits_sampled += 8;
-                        total_correct += 8;
+                        bits_errored += 8;
+                        eprintln!("[!] Error reading from chip at offset {}: {:?}", i, e);
                     }
-                },
-                Err(e) => {
-                    bits_sampled += 8;
-                    bits_errored += 8;
-                    total_errors += 8;
-                    eprintln!("[!] Error reading from chip at offset {}: {:?}", i, e);
-                }
-            };
-
-            //Calculate rate if needed
-            if bits_sampled > cmd.sample_size_in_bytes as u64 * 8 {
-                error_rate = time_since_last_sample.elapsed().unwrap().as_millis() as f32 / bits_sampled as f32 * 1000.0; // Errors per second
-                error_percent = bits_errored as f32 / bits_sampled as f32;
-
-                //Clear sampling vars
-                bits_sampled = 0;
-                bits_errored = 0;
-                time_since_last_sample = SystemTime::now();
-
-                //Check if a SEFI has been detected
-                if error_rate > cmd.trigger_threshold {
-                    sefi_detected = true;
-                    time_to_sefi = total_time.elapsed().unwrap();
-                }
-            }
-
-            //Check if progress update is needed
-            if time_since_last_update.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS {
-
-                //Calculate status
-                let elapsed = total_time.elapsed().unwrap().as_millis() as f32;
-
-                //Send status update
-                let rsp = DynamicRsp {
-                    exposure_time_ms: time_since_exposure_start.elapsed().unwrap().as_millis() as f32,
-                    total_time_ms: elapsed,
-                    total_bytes: total_correct + total_errors,
-                    total_errors: total_errors,
-                    error_rate: error_rate,
-                    error_percent: error_percent,
-                    beam_signal: gpio::get_beam_signal(),
-                    controller_calibrated: gpio::get_calibration_signal(),
-                    exposure_started: true,
-                    sefi_detected: sefi_detected,
-                    time_to_sefi: time_to_sefi.as_millis() as f32,
                 };
 
-                let payload = crate::server::codec().serialize(&rsp).unwrap();
+                //Totals
+                rsp.total_bytes += 1;
 
-                if let Err(e) = send_response(stream, CMD_DYNAMIC, payload) {
-                    eprintln!("[!] Failed to send progress update: {}", e);
-                    return;
-                }
-                
-                //Reset timer for next update
-                time_since_last_update = SystemTime::now();
-
-                //Check if beam has gone inactive
-                if !gpio::get_beam_signal() {
-                    break;
-                }
-
-                //Check if SEFI has been detected and beam detection disabled
-                if sefi_detected && !cmd.wait_for_beam {
-                    break;
-                }
-    
             }
 
+            // Perform rate calculation
+            {
+                if bits_sampled > cmd.sample_size_in_bytes as u64 * 8 {
+                    rsp.error_rate_per_second = (last_sample_instant.elapsed().unwrap().as_millis() as f32 / bits_sampled as f32) * 1000.0; // Errors per second
+                    rsp.error_rate_percent = bits_errored as f32 / bits_sampled as f32;
+                    rsp.error_rate = bits_errored as f32;
+
+                    crate::dbg_log!(
+                        "dynamic_command: sample window closed error_rate={:.4}, error_percent={:.4}, bits_errored={}",
+                        error_rate, error_percent, bits_errored
+                    );
+
+                    //Clear sampling vars
+                    bits_sampled = 0;
+                    bits_errored = 0;
+                    last_sample_instant = SystemTime::now();
+
+                    //Check if a SEFI has been detected
+                    if (rsp.error_rate_percent > cmd.trigger_threshold) && !sefi_detected {
+
+                        //First SEFI trigger
+                        sefi_detected = true;
+
+                        //Record time this took to occur
+                        rsp.time_to_sefi = exposure_start_instant.elapsed().unwrap().as_millis() as f32;
+
+                        //Test is complete
+                        rsp.test_completed = true;
+
+                        crate::dbg_log!(
+                            "dynamic_command: SEFI detected error_rate={:.4} > threshold={:.4}, time_to_sefi={}ms",
+                            error_rate, cmd.trigger_threshold, time_to_sefi.as_millis()
+                        );
+                    }
+                }
+            }
+
+            // Perform beam check (if enabled)
+            {
+                //Check if beam has gone inactive
+                if !gpio::get_beam_signal() && cmd.wait_for_beam {
+                    crate::dbg_log!("dynamic_command: beam signal went low, ending test");
+                    rsp.test_completed = true;
+                }
+            }
+
+            //Update required timings
+            {
+                //If beam is still active, increase exposure time
+                if gpio::get_beam_signal() || !cmd.wait_for_beam {
+                    rsp.exposure_time_ms = exposure_start_instant.elapsed().unwrap().as_millis() as f32;
+                }
+
+                //Increase total test time
+                if !rsp.test_completed {
+                    rsp.total_time_ms = first_start_instant.elapsed().unwrap().as_millis() as f32;
+                }
+            }
+
+            // Perform progress update (if needed) - Progress update performed early if test is over
+            {
+                if last_update_instant.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS || rsp.test_completed {
+                    
+                    //Update response structure
+                    rsp.beam_signal = gpio::get_beam_signal();
+                    rsp.controller_calibrated = gpio::get_calibration_signal();
+                    rsp.ui_clock = gpio::get_ui_clock_signal();
+                    rsp.pl_clock = gpio::get_pl_clock_signal();
+                    rsp.fpga_loaded = gpio::get_fpga_loaded_status();
+
+                    let payload = crate::server::codec().serialize(&rsp).unwrap();
+
+                    if let Err(e) = send_response(stream, CMD_DYNAMIC, payload) {
+                        eprintln!("[!] Failed to send progress update: {}", e);
+                        return;
+                    }
+                    
+                    //Reset timer for next update
+                    last_update_instant = SystemTime::now();
+        
+                }
+            }
+
+            //Check if the test is over
+            if rsp.test_completed {
+                //End test
+                return;
+            }
+                    
 
         }
     };
 
+    crate::dbg_log!(
+        "dynamic_command: done total_errors={}, total_correct={}, total_bytes={}, sefi_detected={}",
+        total_errors, total_correct, total_correct + total_errors, sefi_detected
+    );
 
-    
 }
 
 
 pub fn info_command(stream: &mut TcpStream){
+
+    #[cfg(feature = "debug")]
+    {
+        crate::dbg_log!(
+            "info_command: beam={}, calibrated={}, ui_clock={}, pl_clock={}, fpga_loaded={}",
+            gpio::get_beam_signal(), gpio::get_calibration_signal(), gpio::get_ui_clock_signal(),
+            gpio::get_pl_clock_signal(), gpio::get_fpga_loaded_status()
+        );
+    }
 
     //Create info response struct
     let payload = crate::server::codec().serialize(&InfoRsp {
@@ -256,17 +367,39 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
     //Load configuration
     let config = CONFIG.read().unwrap();
 
+    crate::dbg_log!(
+        "write_command: seed={}, pattern={}, chip_size_bytes={}, address_multiplier={}",
+        cmd.seed, cmd.pattern, config.chip_size_bytes, config.address_multiplier
+    );
+
+    if config.address_multiplier == 0 {
+        crate::dbg_log!("write_command: WARNING address_multiplier==0, step_by(0) will panic");
+    }
+    if config.chip_size_bytes == 0 {
+        crate::dbg_log!("write_command: WARNING chip_size_bytes==0, loop range 0..0 is empty; nothing will be written");
+    }
+    crate::dbg_log!(
+        "write_command: iterating range 0..{} step {} (expected {} writes)",
+        config.chip_size_bytes, config.address_multiplier,
+        if config.address_multiplier == 0 { 0 } else { config.chip_size_bytes / config.address_multiplier }
+    );
+
     //Setup timers
     let start_time = SystemTime::now();
     let mut time_since_last_update = SystemTime::now();
 
     //Init the pseudo-random generator with the provided seed
     crate::rand::set_seed(cmd.seed);
-    crate::rand::set_index(0);
 
+    //Debug-only iteration counter
+    #[cfg(feature = "debug")]
+    let mut iterations: u64 = 0;
 
     // Iterate over chip 
     for i in (0..config.chip_size_bytes).step_by(config.address_multiplier as usize) {
+
+        #[cfg(feature = "debug")]
+        { iterations += 1; }
 
         //Determine the required contents to write
         match match cmd.pattern {
@@ -280,7 +413,7 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
             },
             2 => {
                 // Pseudorandom pattern based on seed
-                chip::write(&config, i, crate::rand::rand())
+                chip::write(&config, i, crate::rand::rand(i))
             },
             _ => {
                 eprintln!("[!] Invalid pattern in WriteCmd: {}", cmd.pattern);
@@ -302,6 +435,8 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
             let elapsed = start_time.elapsed().unwrap().as_millis() as f32;
             let percent_complete = (i as f32 / config.chip_size_bytes as f32) * 100.0;  
 
+            crate::dbg_log!("write_command: progress offset={}, {:.1}% complete, {}ms elapsed", i, percent_complete, elapsed);
+
             //Send status update
             let rsp = WriteRsp {
                 bytes_written: i,
@@ -321,6 +456,11 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
         }
         
     }
+
+    crate::dbg_log!(
+        "write_command: loop complete, {} writes performed in {}ms",
+        iterations, start_time.elapsed().unwrap().as_millis()
+    );
 
     //Send final status response
 
@@ -346,13 +486,24 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
     //Load configuration
     let config = CONFIG.read().unwrap();
 
+    crate::dbg_log!(
+        "verify_command: seed={}, pattern={}, chip_size_bytes={}, address_multiplier={}",
+        cmd.seed, cmd.pattern, config.chip_size_bytes, config.address_multiplier
+    );
+
+    if config.address_multiplier == 0 {
+        crate::dbg_log!("verify_command: WARNING address_multiplier==0, step_by(0) will panic");
+    }
+    if config.chip_size_bytes == 0 {
+        crate::dbg_log!("verify_command: WARNING chip_size_bytes==0, loop range is empty; nothing will be verified");
+    }
+
     //Setup timers
     let mut start_time = SystemTime::now();
     let mut time_since_last_update = SystemTime::now();
 
     //Init the pseudo-random generator with the provided seed
     crate::rand::set_seed(cmd.seed);
-    crate::rand::set_index(0);
 
     //Create response structure
     let mut rsp = VerifyRsp {
@@ -370,7 +521,7 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
         let expected = match cmd.pattern {
             0 => 0, // All zeros
             1 => 0xFF, // All ones
-            2 => crate::rand::rand(), // Pseudorandom pattern based on seed
+            2 => crate::rand::rand(i), // Pseudorandom pattern based on seed
             _ => {
                 eprintln!("[!] Invalid pattern in VerifyCmd: {}", cmd.pattern);
                 return;
@@ -381,10 +532,10 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
         match crate::chip::read(&config, i) {
             Ok(actual) => {
                 if actual != expected {
-                    // eprintln!(
-                    //     "[!] Error at address (expected: {:#x}, actual: {:#x}): {:#x}",
-                    //     expected, actual, i
-                    // );
+                    crate::dbg_log!(
+                        "verify_command: mismatch at offset {:#x} expected={:#x}, actual={:#x}",
+                        i, expected, actual
+                    );
                     let differing_bits = (actual ^ expected).count_ones() as u64;
                     rsp.num_errors += differing_bits;
                     rsp.num_correct += 8 - differing_bits;
@@ -405,6 +556,11 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
             let elapsed = start_time.elapsed().unwrap().as_millis() as f32;
             let percent_complete = (i as f32 / config.chip_size_bytes as f32) * 100.0;  
 
+            crate::dbg_log!(
+                "verify_command: progress offset={}, {:.1}% complete, errors={}, correct={}",
+                i, percent_complete, rsp.num_errors, rsp.num_correct
+            );
+
             //Update bytes verified and percent complete in response structure
             rsp.bytes_verified = i;
             rsp.time_spent_ms = elapsed;
@@ -423,6 +579,11 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
 
     
     }
+
+    crate::dbg_log!(
+        "verify_command: complete errors={}, correct={} in {}ms",
+        rsp.num_errors, rsp.num_correct, start_time.elapsed().unwrap().as_millis()
+    );
 
     //Send final status response
     rsp.time_spent_ms = start_time.elapsed().unwrap().as_millis() as f32;
@@ -445,10 +606,13 @@ pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd, v_cmd: &VerifyCmd){
     //Get base page address
     let base_address = cmd.offset_start - (cmd.offset_start % PAGE_SIZE as u32); // Align down to page boundary
 
+    crate::dbg_log!(
+        "dump_command: offset_start={:#x}, base_address={:#x}, num_pages={}, comparison_mode={}, PAGE_SIZE={}, pattern={}",
+        cmd.offset_start, base_address, cmd.num_pages, cmd.comparison_mode, PAGE_SIZE, v_cmd.pattern
+    );
+
     //Init the pseudo-random generator with the provided seed
     crate::rand::set_seed(v_cmd.seed);
-    crate::rand::set_index(base_address as u64);
-
 
     // Iterate over requested pages
     for page_num in 0..cmd.num_pages {
@@ -474,7 +638,7 @@ pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd, v_cmd: &VerifyCmd){
                         let expected = match v_cmd.pattern {
                             0 => 0, // All zeros
                             1 => 0xFF, // All ones
-                            2 => crate::rand::rand(), // Pseudorandom pattern based on seed
+                            2 => crate::rand::rand(page_address + offset), // Pseudorandom pattern based on seed
                             _ => {
                                 eprintln!("[!] Invalid pattern in VerifyCmd: {}", v_cmd.pattern);
                                 return;
@@ -511,6 +675,11 @@ pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd, v_cmd: &VerifyCmd){
 
         }
 
+        crate::dbg_log!(
+            "dump_command: page {}/{} address={:#x}, bytes={}, errors={}",
+            page_num + 1, cmd.num_pages, page_address, page_data.len(), num_errors
+        );
+
         //Send page data in response
         let rsp = DumpRsp {
             num_errors: num_errors,
@@ -528,5 +697,7 @@ pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd, v_cmd: &VerifyCmd){
         }
 
     }
+
+    crate::dbg_log!("dump_command: complete, {} pages dumped in {}ms", cmd.num_pages, start_time.elapsed().unwrap().as_millis());
 
 }
