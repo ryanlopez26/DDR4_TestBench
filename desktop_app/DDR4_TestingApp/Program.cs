@@ -10,6 +10,10 @@ namespace DDR4_TestingApp
         public static float  taskProgress = 1.0f;
 
 
+        // Selection and sampling sizes
+        public static uint selection_size = 0;
+        public static uint sample_size = 0;
+
         [STAThread]
         static void Main()
         {

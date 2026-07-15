@@ -7,7 +7,7 @@ namespace DDR4_TestingApp
 {
     internal static class Tools
     {
-        public static string FormatBytes(uint bytes)
+        public static string FormatBytes(ulong bytes)
         {
             string[] suffixes = { "B", "KB", "MB", "GB", "TB" };
             double size = bytes;

@@ -1,3 +1,4 @@
+using ScottPlot;
 using ScottPlot.WinForms;
 using System.ComponentModel;
 using System.Data;
@@ -9,6 +10,7 @@ using System.Runtime.InteropServices.Swift;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
+using Color = System.Drawing.Color;
 
 namespace DDR4_TestingApp
 {
@@ -18,6 +20,8 @@ namespace DDR4_TestingApp
         // Data viewer settings
         const uint DATA_VIEWER_ROW_SIZE = 16;
         const uint DATA_VIEWER_RENDER_SIZE = 112;
+
+        float dyn_trigger_threshold = 0.5f;
 
         // Keep the collection alive for the lifespan of the Form
         private PrivateFontCollection privateFonts = new PrivateFontCollection();
@@ -34,6 +38,10 @@ namespace DDR4_TestingApp
 
         private DateTime startTime = DateTime.Now;
         private DateTime endTime = DateTime.Now;
+
+        //Data arrays for dynamic plot
+        private readonly List<float> dataX = new();
+        private readonly List<float> dataY = new();
 
         enum BeamState
         {
@@ -60,6 +68,25 @@ namespace DDR4_TestingApp
             _uiTimer.Start();
 
             InitializeComponent();
+
+            //Setup scaling for dynamic test plot
+
+            var sp = dynPlot.Plot.Add.Scatter(dataX, dataY);
+            sp.LineWidth = 2;              // connecting line thickness in pixels
+            sp.LineColor = Colors.Blue;    // optional
+            //dynPlot.Plot.XLabel("Time [ms]");
+            //dynPlot.Plot.YLabel("Error [%]");
+
+            // Just one axis
+            dynPlot.Plot.Axes.SetLimitsX(0, 60);
+            dynPlot.Plot.Axes.SetLimitsY(0, 1);    // e.g. error rate pinned to 0–100%
+            dynPlot.Plot.Axes.Title.Label.IsVisible = false;
+            //dynPlot.Plot.Axes.Bottom.Label.IsVisible = false;
+            //dynPlot.Plot.Axes.Left.Label.IsVisible = false;
+            dynPlot.Dock = DockStyle.Fill;
+
+
+            dynPlot.Refresh();          // always call Refresh() after changing the plot
 
         }
 
@@ -162,13 +189,13 @@ namespace DDR4_TestingApp
                 dataViewerStats.Text = $"Fetched {DATA_VIEWER_RENDER_SIZE} bytes in {timeSpan.TotalMilliseconds} ms";
 
 
-
+                
 
 
 
             }
 
-
+            update_addrInfo();
 
         }
 
@@ -194,16 +221,16 @@ namespace DDR4_TestingApp
                 if (Info.sys.Value.BeamSignal) { beamInd.BackColor = Color.Green; }
                 else { beamInd.BackColor = Color.Red; }
 
-                if (Info.sys.Value.CalibrationSignal) { calInd.BackColor = Color.Green; }
+                if (Info.sys.Value.ControllerCalibrated) { calInd.BackColor = Color.Green; }
                 else { calInd.BackColor = Color.Red; }
 
-                if (Info.sys.Value.UiClockSignal) { uiInd.BackColor = Color.Green; }
+                if (Info.sys.Value.UiClock) { uiInd.BackColor = Color.Green; }
                 else { uiInd.BackColor = Color.Red; }
 
-                if (Info.sys.Value.PlClockSignal) { plInd.BackColor = Color.Green; }
+                if (Info.sys.Value.PlClock) { plInd.BackColor = Color.Green; }
                 else { plInd.BackColor = Color.Red; }
 
-                if (Info.sys.Value.FpgaLoadedStatus) { loadedInd.BackColor = Color.Green; }
+                if (Info.sys.Value.FpgaLoaded) { loadedInd.BackColor = Color.Green; }
                 else { loadedInd.BackColor = Color.Red; }
 
             }
@@ -421,6 +448,15 @@ namespace DDR4_TestingApp
             }
         }
 
+        private void update_addrInfo()
+        {
+
+            address_information.Text = $"Start Address: \t{Tools.ToHexString(0)}\nEnd Address: \t\t{Tools.ToHexString(Program.selection_size)}\nAddress Scaling: \t{Tools.ToHexString(Config.sys.AddressMultiplier)}\nPercent Sampled: \t{Math.Round(((float)Program.sample_size / Program.selection_size) * 100)}%\n";
+
+
+
+        }
+
         private void selectSaveLocation_Click(object sender, EventArgs e)
         {
             dumpPath.Text = Tools.SelectFolder(dumpPath.Text);
@@ -512,7 +548,7 @@ namespace DDR4_TestingApp
 
         private void enableChipSelection_CheckedChanged(object sender, EventArgs e)
         {
-            Config.sys.EnableChipSelect = enableChipSelection.Checked;
+            Config.sys.EnableChipSelect = chip_isolation.Checked;
         }
 
         private void chipSizeBox_TextChanged(object sender, EventArgs e)
@@ -570,34 +606,47 @@ namespace DDR4_TestingApp
 
         private void chip_capacity_SelectedIndexChanged(object sender, EventArgs e)
         {
-            //var factor = 0.0;
+            uint sb = 0;
 
-            //switch (chip_capacity.SelectedIndex)
-            //{
-            //    case 0:
-            //        factor = 0.010;
-            //        break;
-            //    case 1:
-            //        factor = 0.100;
-            //        break;
-            //    case 3:
-            //        factor = 0.200;
-            //        break;
-            //    case 4:
-            //        factor = 0.250;
-            //        break;
-            //    case 5:
-            //        factor = 0.500;
-            //        break;
-            //    case 6:
-            //        factor = 1.00;
-            //        break;
-            //    case 7:
-            //        factor = 1.5;
-            //        break;
-            //}
+            switch (selection_size.SelectedIndex)
+            {
+                case 0:
+                    // 10 MB
+                    sb = 1024 * 1024 * 10;
+                    break;
+                case 1:
+                    // 20 MB
+                    sb = 1024 * 1024 * 20;
+                    break;
+                case 2:
+                    // 50 MB
+                    sb = 1024 * 1024 * 50;
+                    break;
+                case 3:
+                    // 100 MB
+                    sb = 1024 * 1024 * 100;
+                    break;
+                case 4:
+                    // 250 MB
+                    sb = 1024 * 1024 * 250;
+                    break;
+                case 5:
+                    // 512 MB
+                    sb = 1024 * 1024 * 512;
+                    break;
+                case 6:
+                    // 1 GB
+                    sb = 1024 * 1024 * 1024;
+                    break;
+                default:
+                    // 2 GB
+                    sb = (uint)1024 * 1024 * 1024 * 2;
+                    break;
+            }
 
-            Config.sys.ChipSizeBytes = (uint)(100 * 1024.0 * 1024.0);
+            Program.selection_size = sb;
+
+
         }
 
         private void tabPage1_Click(object sender, EventArgs e)
@@ -612,15 +661,46 @@ namespace DDR4_TestingApp
 
         private void chipOrg_SelectedIndexChanged(object sender, EventArgs e)
         {
-            switch (chipOrg.SelectedIndex)
+            uint sb = 0;
+
+            switch (sample_size.SelectedIndex)
             {
                 case 0:
-                    Config.sys.BusBytesPerChip = 1;
+                    // 10 MB
+                    sb = 1024 * 1024 * 10;
                     break;
                 case 1:
-                    Config.sys.BusBytesPerChip = 2;
+                    // 20 MB
+                    sb = 1024 * 1024 * 20;
+                    break;
+                case 2:
+                    // 50 MB
+                    sb = 1024 * 1024 * 50;
+                    break;
+                case 3:
+                    // 100 MB
+                    sb = 1024 * 1024 * 100;
+                    break;
+                case 4:
+                    // 250 MB
+                    sb = 1024 * 1024 * 250;
+                    break;
+                case 5:
+                    // 512 MB
+                    sb = 1024 * 1024 * 512;
+                    break;
+                case 6:
+                    // 1 GB
+                    sb = 1024 * 1024 * 1024;
+                    break;
+                default:
+                    // 2 GB
+                    sb = (uint)1024 * 1024 * 1024 * 2;
                     break;
             }
+
+            Program.sample_size = sb;
+
         }
 
 
@@ -659,7 +739,7 @@ namespace DDR4_TestingApp
             if (addr.HasValue)
             {
                 //Scroll if possible
-                if (Convert.ToInt64(addr.Value) - Convert.ToInt64(DATA_VIEWER_ROW_SIZE) > 0x0) viewerAddress.Text = Tools.ToHexString(addr.Value - DATA_VIEWER_ROW_SIZE);
+                if (Convert.ToInt64(addr.Value) - Convert.ToInt64(DATA_VIEWER_ROW_SIZE) >= 0x0) viewerAddress.Text = Tools.ToHexString(addr.Value - DATA_VIEWER_ROW_SIZE);
 
             }
         }
@@ -699,7 +779,7 @@ namespace DDR4_TestingApp
 
         private void resetController_Click(object sender, EventArgs e)
         {
-            ResetCmd r = new ResetCmd { ControllerReset = true, FpgaReset = false};
+            ResetCmd r = new ResetCmd { ControllerReset = true, FpgaReset = false };
 
             Program.taskName = "RESET";
             Program.taskProgress = 0;
@@ -708,6 +788,229 @@ namespace DDR4_TestingApp
 
             Program.taskName = "RESET";
             Program.taskProgress = 100;
+        }
+
+        private void chip_org_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            switch (chip_org.SelectedIndex)
+            {
+                case 0:
+                    Config.sys.BusBytesPerChip = 1;
+                    break;
+                case 1:
+                    Config.sys.BusBytesPerChip = 2;
+                    break;
+            }
+        }
+
+        private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private async void dyn_execute_Click(object sender, EventArgs e)
+        {
+            if (TcpManager.Status != TcpManager.ConnectionStatus.Connected)
+            {
+                MessageBox.Show("Not connected.");
+                return;
+            }
+
+            Program.taskName = "DYNAMIC";
+            Program.taskProgress = 50;
+
+            //Clear all previous data
+            dataX.Clear();
+            dataY.Clear();
+
+
+            var cmd = new DynamicCmd
+            {
+                // Pattern generation
+                Pattern = (byte)dyn_pattern.SelectedIndex,
+                Seed = UInt32.Parse(prngSeed.Text),
+
+                SampleSizeInBytes = UInt32.Parse(dyn_bps.Text),
+                WaitForBeam = (bool)(dyn_beam.Checked),
+
+                // SEFI threshold
+                TriggerThreshold = dyn_trigger_threshold
+            };
+
+
+            var progress = new Progress<DynamicRsp>(rsp =>
+            {
+
+                // Update status pane
+                if (!rsp.SefiDetected)
+                {
+                    if (!rsp.ExposureStarted) dynStage.Text = "WAITING";
+                    else dynStage.Text = "RUNNING";
+                }
+                else
+                {
+                    dynStage.Text = "TRIGGERED";
+                }
+
+                //Add data to collection
+                dataX.Add(rsp.ExposureTimeMs);
+
+                if (!double.IsNaN(rsp.ErrorRatePercent) && !double.IsInfinity(rsp.ErrorRatePercent))
+                    dataY.Add(rsp.ErrorRatePercent);
+
+                double cutoff = rsp.ExposureTimeMs - 10000;
+                while (dataX.Count > 0 && dataX[0] < cutoff)
+                {
+                    dataX.RemoveAt(0);
+                    dataY.RemoveAt(0);
+                }
+
+                dynPlot.Plot.Axes.AutoScaleX();   // now fits only the retained window
+                dynPlot.Refresh();
+                //Calculate bit error rate per thousand
+                float err_per_thousand = ((float)rsp.ErrorRate / (cmd.SampleSizeInBytes * 8)) * 1000.0f;
+
+                dynSEFI.Text = $"{Math.Round(err_per_thousand)} per thousand";
+
+                // Update status indicators
+                {
+                    if (rsp.BeamSignal) { beamInd.BackColor = Color.Green; }
+                    else { beamInd.BackColor = Color.Red; }
+
+                    if (rsp.ControllerCalibrated) { calInd.BackColor = Color.Green; }
+                    else { calInd.BackColor = Color.Red; }
+
+                    if (rsp.UiClock) { uiInd.BackColor = Color.Green; }
+                    else { uiInd.BackColor = Color.Red; }
+
+                    if (rsp.PlClock) { plInd.BackColor = Color.Green; }
+                    else { plInd.BackColor = Color.Red; }
+
+                    if (rsp.FpgaLoaded) { loadedInd.BackColor = Color.Green; }
+                    else { loadedInd.BackColor = Color.Red; }
+                }
+
+                //Update status boxes
+                dynTotalTime.Text = rsp.TotalTimeMs.ToString() + " ms";
+                dynExposureTime.Text = rsp.ExposureTimeMs.ToString() + " ms";
+                dynBytes.Text = Tools.FormatBytes(rsp.TotalBytes);
+
+                //Check if SEFI occured
+                if (!rsp.SefiDetected)
+                {
+                    // No SEFI
+                    dynSEFI.Text = "NO FAULTS";
+                    dynUntilSEFI.Text = "==========";
+
+                }
+                else
+                {
+                    dynSEFI.Text = "SEFI DETECTED";
+                    dynUntilSEFI.Text = rsp.TimeToSefi.ToString() + " ms";
+                }
+
+                //Update rate and error stats
+                dynBitErrors.Text = rsp.ErrorRate.ToString() + " bit(s)";
+                dynRateTime.Text = rsp.ErrorRatePerSecond.ToString() + " errors/sec";
+                dynRatePercent.Text = rsp.ErrorRatePercent.ToString();
+
+                //Render Memory Viewer
+                {
+                    uint rows = 21;
+                    String txt = "";
+
+                    uint start_addr = 0;
+                    uint end_addr = Config.sys.ChipSizeBytes;
+                    uint step = (uint)(end_addr - start_addr) / rows;
+
+                    //Render rows
+                    for(int i = 0; i < rows; i++)
+                    {
+
+                        //Check if cursor should be rendered
+
+                        txt += "  --->  |        | 0x00000000 ";
+
+
+
+                    }
+
+
+                    
+
+
+
+                }
+
+            });
+
+            using var cts = new CancellationTokenSource();
+            EventHandler cancelHandler = (_, _) => cts.Cancel();
+
+            verifyButton.Enabled = false;
+
+            try
+            {
+                await TcpManager.RunDynamicAsync(cmd, progress, cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                Program.taskInfo = "Verify cancelled.";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Verify failed: {ex.Message}");
+            }
+            finally
+            {
+
+                //Task complete
+                Program.taskProgress = 100;
+
+                //Fill in info
+                dynStage.Text = "DONE";
+                   
+            }
+        }
+
+        private void textBox8_TextChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void dyn_trigger_bar_Scroll(object sender, EventArgs e)
+        {
+            //Update from bar
+            dyn_trigger_threshold = ((float)dyn_trigger_bar.Value) / 100;
+
+            //Propagate to textbox
+            dyn_trigger_box.Text = dyn_trigger_threshold.ToString();
+        }
+
+        private void dyn_trigger_box_TextChanged(object sender, EventArgs e)
+        {
+            // Update from textbox; any non-float zeroes both
+            if (!float.TryParse(dyn_trigger_box.Text, out dyn_trigger_threshold))
+            {
+                dyn_trigger_threshold = 0;
+                dyn_trigger_bar.Value = 0;
+                return;
+            }
+
+            // Clamp overflows
+            if (dyn_trigger_threshold > 1)
+            {
+                dyn_trigger_threshold = 1;
+                dyn_trigger_box.Text = "1";
+            }
+            else if (dyn_trigger_threshold < 0)
+            {
+                dyn_trigger_threshold = 0;
+                dyn_trigger_box.Text = "0";
+            }
+
+            // Propagate to bar (clamped to valid range as a guard)
+            dyn_trigger_bar.Value = Math.Clamp((int)(dyn_trigger_threshold * 100), 0, 100);
         }
     }
 }

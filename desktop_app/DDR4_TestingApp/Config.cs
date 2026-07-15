@@ -24,6 +24,13 @@ namespace DDR4_TestingApp
 
         static public async void apply()
         {
+
+            //Populate total size parameter
+            sys.ChipSizeBytes = Program.selection_size;
+
+            //Calculate address scaling needed to obtain target sample size
+            sys.AddressMultiplier = Program.selection_size / Program.sample_size;
+
             Program.taskName = "CONFIG";
             Program.taskProgress = 0.0f;
 
@@ -33,27 +40,25 @@ namespace DDR4_TestingApp
                 return;
             }
 
-            if (Info.sys is InfoRsp info)
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            try
             {
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                try
-                {
-                    await TcpManager.SendConfigAsync(sys, cts.Token);
-                }
-                catch (OperationCanceledException)
-                {
-                    Program.taskInfo= "Config timed out.";
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Config failed: {ex.Message}");
-
-                } 
-                finally
-                {
-                    Program.taskProgress = 100.0f;
-                }
+                await TcpManager.SendConfigAsync(sys, cts.Token);
             }
+            catch (OperationCanceledException)
+            {
+                Program.taskInfo= "Config timed out.";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Config failed: {ex.Message}");
+
+            } 
+            finally
+            {
+                Program.taskProgress = 100.0f;
+            }
+            
         }
     }
 }
