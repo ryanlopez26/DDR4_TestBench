@@ -46,9 +46,9 @@
 //     command currently has no hardware backing — flagging it here rather
 //     than removing it, since the client can't tell which is true from
 //     this side of the wire.
-//   - Info: single InfoRsp reply { beam_signal, calibration_signal,
-//     ui_clock_signal, pl_clock_signal, fpga_loaded_status } — one bool
-//     per gpio.rs EMIO channel.
+//   - Info: single InfoRsp reply { beam_signal, controller_calibrated,
+//     ui_clock, pl_clock, fpga_loaded } — one bool per gpio.rs EMIO
+//     channel.
 
 using System;
 using System.Buffers.Binary;
@@ -147,34 +147,36 @@ namespace DDR4_TestingApp
         public float TotalTimeMs;
         public float TimeToSefi;
 
-        // Error statistics (NOTE: despite the name, TotalBytes/TotalErrors on
-        // the wire are accumulated in *bits*, not bytes — commands.rs sums
-        // per-byte popcount differences directly into these fields)
+        // Error statistics (NOTE: despite the name, TotalBytes on the wire is
+        // accumulated in *bits*, not bytes — commands.rs sums per-byte popcount
+        // differences directly into this field)
         public ulong TotalBytes;
-        public ulong TotalErrors;
-        public float ErrorRate;
-        public float ErrorPercent;
+        public float ErrorRate;          // errors over the sample window
+        public float ErrorRatePerSecond; // errors normalized to wall-clock time
+        public float ErrorRatePercent;   // error rate expressed as a percentage
 
         // Capture status
         public bool ExposureStarted;
         public bool SefiDetected;
+        public bool TestCompleted;
 
         // Signal status — one bool per gpio.rs EMIO channel (all five are
-        // read-only inputs: beam, calibration, UI clock, PL clock, FPGA-loaded).
+        // read-only inputs: beam, calibration/controller-calibrated, UI clock,
+        // PL clock, FPGA-loaded).
         public bool BeamSignal;
-        public bool CalibrationSignal;
-        public bool UiClockSignal;
-        public bool PlClockSignal;
-        public bool FpgaLoadedStatus;
+        public bool ControllerCalibrated;
+        public bool UiClock;
+        public bool PlClock;
+        public bool FpgaLoaded;
     }
 
     public struct InfoRsp
     {
         public bool BeamSignal;
-        public bool CalibrationSignal;
-        public bool UiClockSignal;
-        public bool PlClockSignal;
-        public bool FpgaLoadedStatus;
+        public bool ControllerCalibrated;
+        public bool UiClock;
+        public bool PlClock;
+        public bool FpgaLoaded;
     }
 
     // ============================== TcpManager ==============================
@@ -230,6 +232,7 @@ namespace DDR4_TestingApp
             stream = c.GetStream();
             Host = host;
             Port = port;
+            Info._infoFetchInProgress = false;
             StatusChanged?.Invoke(ConnectionStatus.Connected);
         }
 
@@ -357,18 +360,24 @@ namespace DDR4_TestingApp
 
         /// <summary>
         /// Send a Dynamic command and stream <see cref="DynamicRsp"/> progress
-        /// frames to <paramref name="progress"/> for as long as the server keeps
-        /// sending them.
+        /// frames to <paramref name="progress"/> until the test completes,
+        /// returning the final frame.
         ///
-        /// Unlike Write/Verify, Dynamic has no percent-complete/done signal in
-        /// commands.rs: with <c>d.WaitForBeam == true</c> the server keeps
-        /// testing while the beam stays asserted and only returns to the idle
-        /// loop once it drops; with <c>d.WaitForBeam == false</c> the server's
-        /// loop is effectively unbounded. This call will therefore run until
-        /// <paramref name="ct"/> is cancelled or the connection drops — it does
-        /// not return a final value on its own.
+        /// The new DynamicRsp carries a <see cref="DynamicRsp.TestCompleted"/>
+        /// flag (added in types.rs), so unlike before, this loop has a defined
+        /// end: it returns the first frame whose TestCompleted is set. Server-
+        /// side, with <c>d.WaitForBeam == true</c> the test runs while the beam
+        /// stays asserted and completes when it drops (or on SEFI); with
+        /// <c>d.WaitForBeam == false</c> it runs until a SEFI is detected.
+        /// Cancelling <paramref name="ct"/> remains a valid early exit and will
+        /// surface as an <see cref="OperationCanceledException"/> rather than a
+        /// return.
+        ///
+        /// NOTE: this assumes commands.rs actually sets test_completed on the
+        /// terminating frame. If the server never sets it, this behaves like the
+        /// old unbounded loop and only exits on cancellation/disconnect.
         /// </summary>
-        public static async Task RunDynamicAsync(
+        public static async Task<DynamicRsp> RunDynamicAsync(
             DynamicCmd d,
             IProgress<DynamicRsp> progress,
             CancellationToken ct = default)
@@ -385,7 +394,9 @@ namespace DDR4_TestingApp
                         throw new InvalidDataException(
                             $"unexpected response 0x{cmd:X2} during Dynamic");
 
-                    progress.Report(DecodeDynamicRsp(payload));
+                    var rsp = DecodeDynamicRsp(payload);
+                    progress.Report(rsp);
+                    if (rsp.TestCompleted) return rsp;
                 }
             }
             finally { sendLock.Release(); }
@@ -426,8 +437,8 @@ namespace DDR4_TestingApp
 
         /// <summary>
         /// Send an Info command and return the server's current signal-status
-        /// snapshot — one bool per gpio.rs EMIO channel (beam, calibration,
-        /// UI clock, PL clock, FPGA-loaded).
+        /// snapshot — one bool per gpio.rs EMIO channel (beam, controller-
+        /// calibrated, UI clock, PL clock, FPGA-loaded).
         /// </summary>
         public static async Task<InfoRsp> SendInfoAsync(CancellationToken ct = default)
         {
@@ -618,25 +629,26 @@ namespace DDR4_TestingApp
 
         private static DynamicRsp DecodeDynamicRsp(byte[] p)
         {
-            if (p.Length < 43)
+            if (p.Length < 40)
                 throw new InvalidDataException(
-                    $"short DynamicRsp: {p.Length} bytes (need 43)");
+                    $"short DynamicRsp: {p.Length} bytes (need 40)");
             return new DynamicRsp
             {
                 ExposureTimeMs = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(0, 4)),
                 TotalTimeMs = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(4, 4)),
                 TimeToSefi = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(8, 4)),
                 TotalBytes = BinaryPrimitives.ReadUInt64BigEndian(p.AsSpan(12, 8)),
-                TotalErrors = BinaryPrimitives.ReadUInt64BigEndian(p.AsSpan(20, 8)),
-                ErrorRate = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(28, 4)),
-                ErrorPercent = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(32, 4)),
-                ExposureStarted = p[36] != 0,
-                SefiDetected = p[37] != 0,
-                BeamSignal = p[38] != 0,
-                CalibrationSignal = p[39] != 0,
-                UiClockSignal = p[40] != 0,
-                PlClockSignal = p[41] != 0,
-                FpgaLoadedStatus = p[42] != 0,
+                ErrorRate = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(20, 4)),
+                ErrorRatePerSecond = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(24, 4)),
+                ErrorRatePercent = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(28, 4)),
+                ExposureStarted = p[32] != 0,
+                SefiDetected = p[33] != 0,
+                TestCompleted = p[34] != 0,
+                BeamSignal = p[35] != 0,
+                ControllerCalibrated = p[36] != 0,
+                UiClock = p[37] != 0,
+                PlClock = p[38] != 0,
+                FpgaLoaded = p[39] != 0,
             };
         }
 
@@ -656,10 +668,10 @@ namespace DDR4_TestingApp
             return new InfoRsp
             {
                 BeamSignal = p[0] != 0,
-                CalibrationSignal = p[1] != 0,
-                UiClockSignal = p[2] != 0,
-                PlClockSignal = p[3] != 0,
-                FpgaLoadedStatus = p[4] != 0,
+                ControllerCalibrated = p[1] != 0,
+                UiClock = p[2] != 0,
+                PlClock = p[3] != 0,
+                FpgaLoaded = p[4] != 0,
             };
         }
     }

@@ -51,11 +51,13 @@
             panel2 = new Panel();
             panel1 = new Panel();
             groupBox2 = new GroupBox();
-            dataGridView1 = new DataGridView();
+            address_information = new RichTextBox();
             groupBox4 = new GroupBox();
-            chipOrg = new ComboBox();
+            chip_org = new ComboBox();
+            label16 = new Label();
+            sample_size = new ComboBox();
             label13 = new Label();
-            chip_capacity = new ComboBox();
+            selection_size = new ComboBox();
             label24 = new Label();
             applyConfiguration = new Button();
             sideB = new GroupBox();
@@ -71,7 +73,7 @@
             sel_dram4 = new Button();
             label11 = new Label();
             dram4 = new Panel();
-            enableChipSelection = new CheckBox();
+            chip_isolation = new CheckBox();
             sideA = new GroupBox();
             sel_dram3 = new Button();
             label7 = new Label();
@@ -123,39 +125,43 @@
             groupBox7 = new GroupBox();
             viewerAddress = new TextBox();
             tabPage3 = new TabPage();
+            groupBox37 = new GroupBox();
+            dynPlot = new ScottPlot.WinForms.FormsPlot();
             groupBox33 = new GroupBox();
-            groupBox34 = new GroupBox();
-            checkBox2 = new CheckBox();
-            groupBox35 = new GroupBox();
-            comboBox2 = new ComboBox();
+            groupBox30 = new GroupBox();
+            richTextBox3 = new RichTextBox();
+            groupBox38 = new GroupBox();
+            dynRatePercent = new TextBox();
             groupBox36 = new GroupBox();
-            label15 = new Label();
-            textBox8 = new TextBox();
-            trackBar2 = new TrackBar();
+            dynRateTime = new TextBox();
+            dynBitErrors = new TextBox();
             groupBox25 = new GroupBox();
+            groupBox39 = new GroupBox();
+            dynSEFI = new TextBox();
             groupBox32 = new GroupBox();
             richTextBox2 = new RichTextBox();
-            groupBox31 = new GroupBox();
-            textBox7 = new TextBox();
-            groupBox30 = new GroupBox();
-            textBox6 = new TextBox();
             groupBox29 = new GroupBox();
-            textBox5 = new TextBox();
+            dynBytes = new TextBox();
             groupBox28 = new GroupBox();
-            textBox4 = new TextBox();
+            dynUntilSEFI = new TextBox();
+            groupBox35 = new GroupBox();
+            dynStage = new TextBox();
             groupBox27 = new GroupBox();
-            textBox3 = new TextBox();
+            dynExposureTime = new TextBox();
             groupBox26 = new GroupBox();
-            textBox2 = new TextBox();
+            dynTotalTime = new TextBox();
             groupBox18 = new GroupBox();
+            dyn_execute = new Button();
+            groupBox34 = new GroupBox();
+            dyn_bps = new TextBox();
             groupBox24 = new GroupBox();
-            checkBox1 = new CheckBox();
+            dyn_beam = new CheckBox();
             groupBox20 = new GroupBox();
-            comboBox1 = new ComboBox();
+            dyn_pattern = new ComboBox();
             groupBox19 = new GroupBox();
             label14 = new Label();
-            textBox1 = new TextBox();
-            trackBar1 = new TrackBar();
+            dyn_trigger_box = new TextBox();
+            dyn_trigger_bar = new TrackBar();
             tabPage4 = new TabPage();
             groupBox13 = new GroupBox();
             groupBox21 = new GroupBox();
@@ -178,7 +184,6 @@
             groupBox6.SuspendLayout();
             groupBox5.SuspendLayout();
             groupBox2.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)dataGridView1).BeginInit();
             groupBox4.SuspendLayout();
             sideB.SuspendLayout();
             sideA.SuspendLayout();
@@ -199,24 +204,25 @@
             groupBox16.SuspendLayout();
             groupBox7.SuspendLayout();
             tabPage3.SuspendLayout();
+            groupBox37.SuspendLayout();
             groupBox33.SuspendLayout();
-            groupBox34.SuspendLayout();
-            groupBox35.SuspendLayout();
-            groupBox36.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)trackBar2).BeginInit();
-            groupBox25.SuspendLayout();
-            groupBox32.SuspendLayout();
-            groupBox31.SuspendLayout();
             groupBox30.SuspendLayout();
+            groupBox38.SuspendLayout();
+            groupBox36.SuspendLayout();
+            groupBox25.SuspendLayout();
+            groupBox39.SuspendLayout();
+            groupBox32.SuspendLayout();
             groupBox29.SuspendLayout();
             groupBox28.SuspendLayout();
+            groupBox35.SuspendLayout();
             groupBox27.SuspendLayout();
             groupBox26.SuspendLayout();
             groupBox18.SuspendLayout();
+            groupBox34.SuspendLayout();
             groupBox24.SuspendLayout();
             groupBox20.SuspendLayout();
             groupBox19.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)trackBar1).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)dyn_trigger_bar).BeginInit();
             tabPage4.SuspendLayout();
             groupBox21.SuspendLayout();
             groupBox17.SuspendLayout();
@@ -416,7 +422,7 @@
             // 
             // groupBox2
             // 
-            groupBox2.Controls.Add(dataGridView1);
+            groupBox2.Controls.Add(address_information);
             groupBox2.Location = new Point(411, 141);
             groupBox2.Name = "groupBox2";
             groupBox2.Size = new Size(270, 130);
@@ -424,67 +430,86 @@
             groupBox2.TabStop = false;
             groupBox2.Text = "Address Information";
             // 
-            // dataGridView1
+            // address_information
             // 
-            dataGridView1.AllowUserToAddRows = false;
-            dataGridView1.AllowUserToDeleteRows = false;
-            dataGridView1.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dataGridView1.Location = new Point(9, 19);
-            dataGridView1.Name = "dataGridView1";
-            dataGridView1.ReadOnly = true;
-            dataGridView1.Size = new Size(255, 105);
-            dataGridView1.TabIndex = 0;
+            address_information.Font = new Font("Consolas", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            address_information.Location = new Point(6, 18);
+            address_information.Name = "address_information";
+            address_information.Size = new Size(258, 106);
+            address_information.TabIndex = 1;
+            address_information.Text = "";
             // 
             // groupBox4
             // 
-            groupBox4.Controls.Add(chipOrg);
+            groupBox4.Controls.Add(chip_org);
+            groupBox4.Controls.Add(label16);
+            groupBox4.Controls.Add(sample_size);
             groupBox4.Controls.Add(label13);
-            groupBox4.Controls.Add(chip_capacity);
+            groupBox4.Controls.Add(selection_size);
             groupBox4.Controls.Add(label24);
             groupBox4.Controls.Add(applyConfiguration);
             groupBox4.Controls.Add(sideB);
-            groupBox4.Controls.Add(enableChipSelection);
+            groupBox4.Controls.Add(chip_isolation);
             groupBox4.Controls.Add(sideA);
             groupBox4.Location = new Point(5, 5);
             groupBox4.Name = "groupBox4";
             groupBox4.Size = new Size(399, 377);
             groupBox4.TabIndex = 4;
             groupBox4.TabStop = false;
-            groupBox4.Text = "Chip Selection";
+            groupBox4.Text = "Configuration";
             // 
-            // chipOrg
+            // chip_org
             // 
-            chipOrg.FormattingEnabled = true;
-            chipOrg.Items.AddRange(new object[] { "x8", "x16" });
-            chipOrg.Location = new Point(289, 42);
-            chipOrg.Name = "chipOrg";
-            chipOrg.Size = new Size(104, 21);
-            chipOrg.TabIndex = 25;
-            chipOrg.SelectedIndexChanged += chipOrg_SelectedIndexChanged;
+            chip_org.FormattingEnabled = true;
+            chip_org.Items.AddRange(new object[] { "X8", "X16" });
+            chip_org.Location = new Point(126, 16);
+            chip_org.Name = "chip_org";
+            chip_org.Size = new Size(59, 21);
+            chip_org.TabIndex = 28;
+            chip_org.SelectedIndexChanged += chip_org_SelectedIndexChanged;
+            // 
+            // label16
+            // 
+            label16.AutoSize = true;
+            label16.Location = new Point(9, 19);
+            label16.Name = "label16";
+            label16.Size = new Size(115, 13);
+            label16.TabIndex = 26;
+            label16.Text = "Chip Organization:";
+            // 
+            // sample_size
+            // 
+            sample_size.FormattingEnabled = true;
+            sample_size.Items.AddRange(new object[] { "10 MB", "20 MB", "50 MB", "100 MB", "250 MB", "512 MB", "1 GB", "2 GB" });
+            sample_size.Location = new Point(317, 39);
+            sample_size.Name = "sample_size";
+            sample_size.Size = new Size(76, 21);
+            sample_size.TabIndex = 25;
+            sample_size.SelectedIndexChanged += chipOrg_SelectedIndexChanged;
             // 
             // label13
             // 
             label13.AutoSize = true;
-            label13.Location = new Point(168, 46);
+            label13.Location = new Point(225, 42);
             label13.Name = "label13";
-            label13.Size = new Size(115, 13);
+            label13.Size = new Size(79, 13);
             label13.TabIndex = 24;
-            label13.Text = "Chip Organization:";
+            label13.Text = "Sample Size:";
             // 
-            // chip_capacity
+            // selection_size
             // 
-            chip_capacity.FormattingEnabled = true;
-            chip_capacity.Items.AddRange(new object[] { "10 MB", "100 MB", "200 MB", "250 MB", "500 MB", "1 GB", "1.5 GB" });
-            chip_capacity.Location = new Point(289, 15);
-            chip_capacity.Name = "chip_capacity";
-            chip_capacity.Size = new Size(104, 21);
-            chip_capacity.TabIndex = 23;
-            chip_capacity.SelectedIndexChanged += chip_capacity_SelectedIndexChanged;
+            selection_size.FormattingEnabled = true;
+            selection_size.Items.AddRange(new object[] { "10 MB", "20 MB", "50 MB", "100 MB", "250 MB", "512 MB", "1 GB", "2 GB" });
+            selection_size.Location = new Point(317, 15);
+            selection_size.Name = "selection_size";
+            selection_size.Size = new Size(76, 21);
+            selection_size.TabIndex = 23;
+            selection_size.SelectedIndexChanged += chip_capacity_SelectedIndexChanged;
             // 
             // label24
             // 
             label24.AutoSize = true;
-            label24.Location = new Point(186, 20);
+            label24.Location = new Point(207, 18);
             label24.Name = "label24";
             label24.Size = new Size(97, 13);
             label24.TabIndex = 22;
@@ -638,16 +663,16 @@
             dram4.Size = new Size(90, 50);
             dram4.TabIndex = 0;
             // 
-            // enableChipSelection
+            // chip_isolation
             // 
-            enableChipSelection.AutoSize = true;
-            enableChipSelection.Location = new Point(5, 20);
-            enableChipSelection.Name = "enableChipSelection";
-            enableChipSelection.Size = new Size(152, 17);
-            enableChipSelection.TabIndex = 1;
-            enableChipSelection.Text = "Enable Chip Isolation";
-            enableChipSelection.UseVisualStyleBackColor = true;
-            enableChipSelection.CheckedChanged += enableChipSelection_CheckedChanged;
+            chip_isolation.AutoSize = true;
+            chip_isolation.Location = new Point(19, 43);
+            chip_isolation.Name = "chip_isolation";
+            chip_isolation.Size = new Size(152, 17);
+            chip_isolation.TabIndex = 1;
+            chip_isolation.Text = "Enable Chip Isolation";
+            chip_isolation.UseVisualStyleBackColor = true;
+            chip_isolation.CheckedChanged += enableChipSelection_CheckedChanged;
             // 
             // sideA
             // 
@@ -1182,6 +1207,7 @@
             // 
             // tabPage3
             // 
+            tabPage3.Controls.Add(groupBox37);
             tabPage3.Controls.Add(groupBox33);
             tabPage3.Controls.Add(groupBox25);
             tabPage3.Controls.Add(groupBox18);
@@ -1194,104 +1220,103 @@
             tabPage3.UseVisualStyleBackColor = true;
             tabPage3.Click += tabPage3_Click;
             // 
+            // groupBox37
+            // 
+            groupBox37.Controls.Add(dynPlot);
+            groupBox37.Location = new Point(6, 348);
+            groupBox37.Name = "groupBox37";
+            groupBox37.Size = new Size(673, 127);
+            groupBox37.TabIndex = 6;
+            groupBox37.TabStop = false;
+            groupBox37.Text = "Error Rate Log";
+            // 
+            // dynPlot
+            // 
+            dynPlot.Location = new Point(5, 19);
+            dynPlot.Name = "dynPlot";
+            dynPlot.Size = new Size(662, 108);
+            dynPlot.TabIndex = 0;
+            // 
             // groupBox33
             // 
-            groupBox33.Controls.Add(groupBox34);
-            groupBox33.Controls.Add(groupBox35);
+            groupBox33.Controls.Add(groupBox30);
+            groupBox33.Controls.Add(groupBox38);
             groupBox33.Controls.Add(groupBox36);
-            groupBox33.Location = new Point(6, 156);
+            groupBox33.Location = new Point(6, 204);
             groupBox33.Name = "groupBox33";
-            groupBox33.Size = new Size(312, 186);
+            groupBox33.Size = new Size(312, 138);
             groupBox33.TabIndex = 4;
             groupBox33.TabStop = false;
-            groupBox33.Text = "Dynamic Test Settings";
+            groupBox33.Text = "Validation Metrics";
             // 
-            // groupBox34
+            // groupBox30
             // 
-            groupBox34.Controls.Add(checkBox2);
-            groupBox34.Location = new Point(167, 19);
-            groupBox34.Name = "groupBox34";
-            groupBox34.Size = new Size(137, 48);
-            groupBox34.TabIndex = 3;
-            groupBox34.TabStop = false;
-            groupBox34.Text = "Beam Detection";
+            groupBox30.Controls.Add(richTextBox3);
+            groupBox30.Location = new Point(167, 15);
+            groupBox30.Name = "groupBox30";
+            groupBox30.Size = new Size(139, 116);
+            groupBox30.TabIndex = 8;
+            groupBox30.TabStop = false;
+            groupBox30.Text = "Error ";
             // 
-            // checkBox2
+            // richTextBox3
             // 
-            checkBox2.AutoSize = true;
-            checkBox2.Location = new Point(37, 21);
-            checkBox2.Name = "checkBox2";
-            checkBox2.Size = new Size(68, 17);
-            checkBox2.TabIndex = 0;
-            checkBox2.Text = "Enabled";
-            checkBox2.UseVisualStyleBackColor = true;
+            richTextBox3.Location = new Point(6, 17);
+            richTextBox3.Name = "richTextBox3";
+            richTextBox3.Size = new Size(127, 90);
+            richTextBox3.TabIndex = 0;
+            richTextBox3.Text = "";
             // 
-            // groupBox35
+            // groupBox38
             // 
-            groupBox35.Controls.Add(comboBox2);
-            groupBox35.Location = new Point(6, 19);
-            groupBox35.Name = "groupBox35";
-            groupBox35.Size = new Size(155, 48);
-            groupBox35.TabIndex = 2;
-            groupBox35.TabStop = false;
-            groupBox35.Text = "Pattern Type";
+            groupBox38.Controls.Add(dynRatePercent);
+            groupBox38.Location = new Point(5, 90);
+            groupBox38.Name = "groupBox38";
+            groupBox38.Size = new Size(156, 41);
+            groupBox38.TabIndex = 5;
+            groupBox38.TabStop = false;
+            groupBox38.Text = "Error Rate Percent";
             // 
-            // comboBox2
+            // dynRatePercent
             // 
-            comboBox2.FormattingEnabled = true;
-            comboBox2.Items.AddRange(new object[] { "ZEROS", "ONES", "PRNG" });
-            comboBox2.Location = new Point(6, 19);
-            comboBox2.Name = "comboBox2";
-            comboBox2.Size = new Size(143, 21);
-            comboBox2.TabIndex = 1;
+            dynRatePercent.Location = new Point(6, 15);
+            dynRatePercent.Name = "dynRatePercent";
+            dynRatePercent.Size = new Size(144, 20);
+            dynRatePercent.TabIndex = 2;
             // 
             // groupBox36
             // 
-            groupBox36.Controls.Add(label15);
-            groupBox36.Controls.Add(textBox8);
-            groupBox36.Controls.Add(trackBar2);
-            groupBox36.Location = new Point(6, 73);
+            groupBox36.Controls.Add(dynRateTime);
+            groupBox36.Controls.Add(dynBitErrors);
+            groupBox36.Location = new Point(6, 15);
             groupBox36.Name = "groupBox36";
-            groupBox36.Size = new Size(298, 62);
-            groupBox36.TabIndex = 1;
+            groupBox36.Size = new Size(155, 72);
+            groupBox36.TabIndex = 3;
             groupBox36.TabStop = false;
-            groupBox36.Text = "SEFI Trigger Threshold (%)";
+            groupBox36.Text = "Error Rate";
             // 
-            // label15
+            // dynRateTime
             // 
-            label15.AutoSize = true;
-            label15.Font = new Font("Consolas", 12F, FontStyle.Bold);
-            label15.Location = new Point(274, 20);
-            label15.Name = "label15";
-            label15.Size = new Size(18, 19);
-            label15.TabIndex = 3;
-            label15.Text = "%";
+            dynRateTime.Location = new Point(6, 45);
+            dynRateTime.Name = "dynRateTime";
+            dynRateTime.Size = new Size(143, 20);
+            dynRateTime.TabIndex = 3;
             // 
-            // textBox8
+            // dynBitErrors
             // 
-            textBox8.Location = new Point(220, 19);
-            textBox8.Name = "textBox8";
-            textBox8.Size = new Size(48, 20);
-            textBox8.TabIndex = 2;
-            // 
-            // trackBar2
-            // 
-            trackBar2.AutoSize = false;
-            trackBar2.LargeChange = 25;
-            trackBar2.Location = new Point(6, 18);
-            trackBar2.Maximum = 100;
-            trackBar2.Name = "trackBar2";
-            trackBar2.Size = new Size(208, 30);
-            trackBar2.SmallChange = 5;
-            trackBar2.TabIndex = 0;
+            dynBitErrors.Location = new Point(6, 19);
+            dynBitErrors.Name = "dynBitErrors";
+            dynBitErrors.Size = new Size(143, 20);
+            dynBitErrors.TabIndex = 2;
+            dynBitErrors.TextChanged += textBox8_TextChanged;
             // 
             // groupBox25
             // 
+            groupBox25.Controls.Add(groupBox39);
             groupBox25.Controls.Add(groupBox32);
-            groupBox25.Controls.Add(groupBox31);
-            groupBox25.Controls.Add(groupBox30);
             groupBox25.Controls.Add(groupBox29);
             groupBox25.Controls.Add(groupBox28);
+            groupBox25.Controls.Add(groupBox35);
             groupBox25.Controls.Add(groupBox27);
             groupBox25.Controls.Add(groupBox26);
             groupBox25.Location = new Point(324, 6);
@@ -1301,12 +1326,29 @@
             groupBox25.TabStop = false;
             groupBox25.Text = "Test Progress Monitor";
             // 
+            // groupBox39
+            // 
+            groupBox39.Controls.Add(dynSEFI);
+            groupBox39.Location = new Point(6, 281);
+            groupBox39.Name = "groupBox39";
+            groupBox39.Size = new Size(141, 48);
+            groupBox39.TabIndex = 4;
+            groupBox39.TabStop = false;
+            groupBox39.Text = "SEFI Detector";
+            // 
+            // dynSEFI
+            // 
+            dynSEFI.Location = new Point(6, 19);
+            dynSEFI.Name = "dynSEFI";
+            dynSEFI.Size = new Size(129, 20);
+            dynSEFI.TabIndex = 2;
+            // 
             // groupBox32
             // 
             groupBox32.Controls.Add(richTextBox2);
-            groupBox32.Location = new Point(136, 21);
+            groupBox32.Location = new Point(153, 21);
             groupBox32.Name = "groupBox32";
-            groupBox32.Size = new Size(213, 306);
+            groupBox32.Size = new Size(196, 308);
             groupBox32.TabIndex = 7;
             groupBox32.TabStop = false;
             groupBox32.Text = "Address Space Viewer";
@@ -1315,127 +1357,140 @@
             // 
             richTextBox2.Location = new Point(6, 17);
             richTextBox2.Name = "richTextBox2";
-            richTextBox2.Size = new Size(201, 282);
+            richTextBox2.Size = new Size(184, 285);
             richTextBox2.TabIndex = 0;
             richTextBox2.Text = "";
             // 
-            // groupBox31
-            // 
-            groupBox31.Controls.Add(textBox7);
-            groupBox31.Location = new Point(6, 281);
-            groupBox31.Name = "groupBox31";
-            groupBox31.Size = new Size(124, 46);
-            groupBox31.TabIndex = 6;
-            groupBox31.TabStop = false;
-            groupBox31.Text = "Exposure Duration";
-            // 
-            // textBox7
-            // 
-            textBox7.Location = new Point(6, 19);
-            textBox7.Name = "textBox7";
-            textBox7.Size = new Size(110, 20);
-            textBox7.TabIndex = 1;
-            // 
-            // groupBox30
-            // 
-            groupBox30.Controls.Add(textBox6);
-            groupBox30.Location = new Point(6, 229);
-            groupBox30.Name = "groupBox30";
-            groupBox30.Size = new Size(124, 46);
-            groupBox30.TabIndex = 5;
-            groupBox30.TabStop = false;
-            groupBox30.Text = "Test Duration";
-            // 
-            // textBox6
-            // 
-            textBox6.Location = new Point(6, 19);
-            textBox6.Name = "textBox6";
-            textBox6.Size = new Size(110, 20);
-            textBox6.TabIndex = 1;
-            // 
             // groupBox29
             // 
-            groupBox29.Controls.Add(textBox5);
+            groupBox29.Controls.Add(dynBytes);
             groupBox29.Location = new Point(6, 177);
             groupBox29.Name = "groupBox29";
-            groupBox29.Size = new Size(124, 46);
+            groupBox29.Size = new Size(141, 46);
             groupBox29.TabIndex = 4;
             groupBox29.TabStop = false;
-            groupBox29.Text = "Exposure End";
+            groupBox29.Text = "Total Bytes";
             // 
-            // textBox5
+            // dynBytes
             // 
-            textBox5.Location = new Point(6, 19);
-            textBox5.Name = "textBox5";
-            textBox5.Size = new Size(110, 20);
-            textBox5.TabIndex = 1;
+            dynBytes.Location = new Point(6, 19);
+            dynBytes.Name = "dynBytes";
+            dynBytes.Size = new Size(129, 20);
+            dynBytes.TabIndex = 1;
             // 
             // groupBox28
             // 
-            groupBox28.Controls.Add(textBox4);
+            groupBox28.Controls.Add(dynUntilSEFI);
             groupBox28.Location = new Point(6, 125);
             groupBox28.Name = "groupBox28";
-            groupBox28.Size = new Size(124, 46);
+            groupBox28.Size = new Size(141, 46);
             groupBox28.TabIndex = 3;
             groupBox28.TabStop = false;
-            groupBox28.Text = "Exposure Start";
+            groupBox28.Text = "Exposure Until SEFI";
             // 
-            // textBox4
+            // dynUntilSEFI
             // 
-            textBox4.Location = new Point(6, 19);
-            textBox4.Name = "textBox4";
-            textBox4.Size = new Size(110, 20);
-            textBox4.TabIndex = 1;
+            dynUntilSEFI.Location = new Point(6, 19);
+            dynUntilSEFI.Name = "dynUntilSEFI";
+            dynUntilSEFI.Size = new Size(129, 20);
+            dynUntilSEFI.TabIndex = 1;
+            // 
+            // groupBox35
+            // 
+            groupBox35.Controls.Add(dynStage);
+            groupBox35.Location = new Point(6, 229);
+            groupBox35.Name = "groupBox35";
+            groupBox35.Size = new Size(141, 48);
+            groupBox35.TabIndex = 2;
+            groupBox35.TabStop = false;
+            groupBox35.Text = "Current Stage";
+            // 
+            // dynStage
+            // 
+            dynStage.Location = new Point(6, 19);
+            dynStage.Name = "dynStage";
+            dynStage.Size = new Size(129, 20);
+            dynStage.TabIndex = 2;
             // 
             // groupBox27
             // 
-            groupBox27.Controls.Add(textBox3);
+            groupBox27.Controls.Add(dynExposureTime);
             groupBox27.Location = new Point(6, 73);
             groupBox27.Name = "groupBox27";
-            groupBox27.Size = new Size(124, 46);
+            groupBox27.Size = new Size(141, 46);
             groupBox27.TabIndex = 2;
             groupBox27.TabStop = false;
-            groupBox27.Text = "End Time";
+            groupBox27.Text = "Exposure Time";
             // 
-            // textBox3
+            // dynExposureTime
             // 
-            textBox3.Location = new Point(6, 19);
-            textBox3.Name = "textBox3";
-            textBox3.Size = new Size(110, 20);
-            textBox3.TabIndex = 1;
+            dynExposureTime.Location = new Point(6, 19);
+            dynExposureTime.Name = "dynExposureTime";
+            dynExposureTime.Size = new Size(129, 20);
+            dynExposureTime.TabIndex = 1;
             // 
             // groupBox26
             // 
-            groupBox26.Controls.Add(textBox2);
+            groupBox26.Controls.Add(dynTotalTime);
             groupBox26.Location = new Point(6, 21);
             groupBox26.Name = "groupBox26";
-            groupBox26.Size = new Size(124, 46);
+            groupBox26.Size = new Size(141, 46);
             groupBox26.TabIndex = 0;
             groupBox26.TabStop = false;
-            groupBox26.Text = "Start Time";
+            groupBox26.Text = "Total Time";
             // 
-            // textBox2
+            // dynTotalTime
             // 
-            textBox2.Location = new Point(6, 19);
-            textBox2.Name = "textBox2";
-            textBox2.Size = new Size(110, 20);
-            textBox2.TabIndex = 1;
+            dynTotalTime.Location = new Point(6, 19);
+            dynTotalTime.Name = "dynTotalTime";
+            dynTotalTime.Size = new Size(129, 20);
+            dynTotalTime.TabIndex = 1;
             // 
             // groupBox18
             // 
+            groupBox18.Controls.Add(dyn_execute);
+            groupBox18.Controls.Add(groupBox34);
             groupBox18.Controls.Add(groupBox24);
             groupBox18.Controls.Add(groupBox20);
             groupBox18.Controls.Add(groupBox19);
             groupBox18.Location = new Point(6, 6);
             groupBox18.Name = "groupBox18";
-            groupBox18.Size = new Size(312, 144);
+            groupBox18.Size = new Size(312, 192);
             groupBox18.TabIndex = 0;
             groupBox18.TabStop = false;
             groupBox18.Text = "Dynamic Test Settings";
             // 
+            // dyn_execute
+            // 
+            dyn_execute.Font = new Font("Segoe UI", 9F);
+            dyn_execute.Location = new Point(173, 144);
+            dyn_execute.Name = "dyn_execute";
+            dyn_execute.Size = new Size(131, 45);
+            dyn_execute.TabIndex = 6;
+            dyn_execute.Text = "Execute";
+            dyn_execute.UseVisualStyleBackColor = true;
+            dyn_execute.Click += dyn_execute_Click;
+            // 
+            // groupBox34
+            // 
+            groupBox34.Controls.Add(dyn_bps);
+            groupBox34.Location = new Point(6, 141);
+            groupBox34.Name = "groupBox34";
+            groupBox34.Size = new Size(155, 48);
+            groupBox34.TabIndex = 5;
+            groupBox34.TabStop = false;
+            groupBox34.Text = "Bytes per Rate Sample";
+            // 
+            // dyn_bps
+            // 
+            dyn_bps.Location = new Point(6, 19);
+            dyn_bps.Name = "dyn_bps";
+            dyn_bps.Size = new Size(138, 20);
+            dyn_bps.TabIndex = 2;
+            // 
             // groupBox24
             // 
-            groupBox24.Controls.Add(checkBox1);
+            groupBox24.Controls.Add(dyn_beam);
             groupBox24.Location = new Point(167, 19);
             groupBox24.Name = "groupBox24";
             groupBox24.Size = new Size(137, 48);
@@ -1443,19 +1498,19 @@
             groupBox24.TabStop = false;
             groupBox24.Text = "Beam Detection";
             // 
-            // checkBox1
+            // dyn_beam
             // 
-            checkBox1.AutoSize = true;
-            checkBox1.Location = new Point(37, 21);
-            checkBox1.Name = "checkBox1";
-            checkBox1.Size = new Size(68, 17);
-            checkBox1.TabIndex = 0;
-            checkBox1.Text = "Enabled";
-            checkBox1.UseVisualStyleBackColor = true;
+            dyn_beam.AutoSize = true;
+            dyn_beam.Location = new Point(37, 21);
+            dyn_beam.Name = "dyn_beam";
+            dyn_beam.Size = new Size(68, 17);
+            dyn_beam.TabIndex = 0;
+            dyn_beam.Text = "Enabled";
+            dyn_beam.UseVisualStyleBackColor = true;
             // 
             // groupBox20
             // 
-            groupBox20.Controls.Add(comboBox1);
+            groupBox20.Controls.Add(dyn_pattern);
             groupBox20.Location = new Point(6, 19);
             groupBox20.Name = "groupBox20";
             groupBox20.Size = new Size(155, 48);
@@ -1463,20 +1518,21 @@
             groupBox20.TabStop = false;
             groupBox20.Text = "Pattern Type";
             // 
-            // comboBox1
+            // dyn_pattern
             // 
-            comboBox1.FormattingEnabled = true;
-            comboBox1.Items.AddRange(new object[] { "ZEROS", "ONES", "PRNG" });
-            comboBox1.Location = new Point(6, 19);
-            comboBox1.Name = "comboBox1";
-            comboBox1.Size = new Size(143, 21);
-            comboBox1.TabIndex = 1;
+            dyn_pattern.FormattingEnabled = true;
+            dyn_pattern.Items.AddRange(new object[] { "ZEROS", "ONES", "PRNG" });
+            dyn_pattern.Location = new Point(6, 19);
+            dyn_pattern.Name = "dyn_pattern";
+            dyn_pattern.Size = new Size(143, 21);
+            dyn_pattern.TabIndex = 1;
+            dyn_pattern.SelectedIndexChanged += comboBox1_SelectedIndexChanged;
             // 
             // groupBox19
             // 
             groupBox19.Controls.Add(label14);
-            groupBox19.Controls.Add(textBox1);
-            groupBox19.Controls.Add(trackBar1);
+            groupBox19.Controls.Add(dyn_trigger_box);
+            groupBox19.Controls.Add(dyn_trigger_bar);
             groupBox19.Location = new Point(6, 73);
             groupBox19.Name = "groupBox19";
             groupBox19.Size = new Size(298, 62);
@@ -1494,23 +1550,25 @@
             label14.TabIndex = 3;
             label14.Text = "%";
             // 
-            // textBox1
+            // dyn_trigger_box
             // 
-            textBox1.Location = new Point(220, 19);
-            textBox1.Name = "textBox1";
-            textBox1.Size = new Size(48, 20);
-            textBox1.TabIndex = 2;
+            dyn_trigger_box.Location = new Point(220, 19);
+            dyn_trigger_box.Name = "dyn_trigger_box";
+            dyn_trigger_box.Size = new Size(48, 20);
+            dyn_trigger_box.TabIndex = 2;
+            dyn_trigger_box.TextChanged += dyn_trigger_box_TextChanged;
             // 
-            // trackBar1
+            // dyn_trigger_bar
             // 
-            trackBar1.AutoSize = false;
-            trackBar1.LargeChange = 25;
-            trackBar1.Location = new Point(6, 18);
-            trackBar1.Maximum = 100;
-            trackBar1.Name = "trackBar1";
-            trackBar1.Size = new Size(208, 30);
-            trackBar1.SmallChange = 5;
-            trackBar1.TabIndex = 0;
+            dyn_trigger_bar.AutoSize = false;
+            dyn_trigger_bar.LargeChange = 25;
+            dyn_trigger_bar.Location = new Point(6, 18);
+            dyn_trigger_bar.Maximum = 100;
+            dyn_trigger_bar.Name = "dyn_trigger_bar";
+            dyn_trigger_bar.Size = new Size(208, 30);
+            dyn_trigger_bar.SmallChange = 5;
+            dyn_trigger_bar.TabIndex = 0;
+            dyn_trigger_bar.Scroll += dyn_trigger_bar_Scroll;
             // 
             // tabPage4
             // 
@@ -1678,7 +1736,6 @@
             groupBox6.ResumeLayout(false);
             groupBox5.ResumeLayout(false);
             groupBox2.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)dataGridView1).EndInit();
             groupBox4.ResumeLayout(false);
             groupBox4.PerformLayout();
             sideB.ResumeLayout(false);
@@ -1707,34 +1764,36 @@
             groupBox7.ResumeLayout(false);
             groupBox7.PerformLayout();
             tabPage3.ResumeLayout(false);
+            groupBox37.ResumeLayout(false);
             groupBox33.ResumeLayout(false);
-            groupBox34.ResumeLayout(false);
-            groupBox34.PerformLayout();
-            groupBox35.ResumeLayout(false);
+            groupBox30.ResumeLayout(false);
+            groupBox38.ResumeLayout(false);
+            groupBox38.PerformLayout();
             groupBox36.ResumeLayout(false);
             groupBox36.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)trackBar2).EndInit();
             groupBox25.ResumeLayout(false);
+            groupBox39.ResumeLayout(false);
+            groupBox39.PerformLayout();
             groupBox32.ResumeLayout(false);
-            groupBox31.ResumeLayout(false);
-            groupBox31.PerformLayout();
-            groupBox30.ResumeLayout(false);
-            groupBox30.PerformLayout();
             groupBox29.ResumeLayout(false);
             groupBox29.PerformLayout();
             groupBox28.ResumeLayout(false);
             groupBox28.PerformLayout();
+            groupBox35.ResumeLayout(false);
+            groupBox35.PerformLayout();
             groupBox27.ResumeLayout(false);
             groupBox27.PerformLayout();
             groupBox26.ResumeLayout(false);
             groupBox26.PerformLayout();
             groupBox18.ResumeLayout(false);
+            groupBox34.ResumeLayout(false);
+            groupBox34.PerformLayout();
             groupBox24.ResumeLayout(false);
             groupBox24.PerformLayout();
             groupBox20.ResumeLayout(false);
             groupBox19.ResumeLayout(false);
             groupBox19.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)trackBar1).EndInit();
+            ((System.ComponentModel.ISupportInitialize)dyn_trigger_bar).EndInit();
             tabPage4.ResumeLayout(false);
             groupBox21.ResumeLayout(false);
             groupBox17.ResumeLayout(false);
@@ -1764,7 +1823,7 @@
         private TextBox ip_address;
         private GroupBox groupBox4;
         private GroupBox groupBox3;
-        private CheckBox enableChipSelection;
+        private CheckBox chip_isolation;
         private GroupBox sideA;
         private Label label4;
         private Panel dram0;
@@ -1811,7 +1870,7 @@
         private Label label3;
         private ToolStripStatusLabel beamInd;
         private ContextMenuStrip contextMenuStrip2;
-        private ComboBox chip_capacity;
+        private ComboBox selection_size;
         private PictureBox pictureBox1;
         private PictureBox pictureBox3;
         private PictureBox pictureBox2;
@@ -1826,16 +1885,15 @@
         private Panel panel2;
         private Panel panel1;
         private ToolStripStatusLabel loadedInd;
-        private DataGridView dataGridView1;
         private ToolStripStatusLabel calInd;
         private ToolStripStatusLabel onlineInd;
         private ToolStripStatusLabel uiInd;
         private ToolStripStatusLabel plInd;
-        private ComboBox chipOrg;
+        private ComboBox sample_size;
         private Label label13;
         private GroupBox groupBox14;
         private GroupBox groupBox15;
-        private TextBox textBox1;
+        private TextBox dyn_trigger_box;
         private ComboBox viewerMode;
         private TabPage tabPage3;
         private TabPage tabPage4;
@@ -1859,36 +1917,43 @@
         private GroupBox groupBox16;
         private GroupBox groupBox7;
         private GroupBox groupBox18;
-        private TrackBar trackBar1;
+        private TrackBar dyn_trigger_bar;
         private GroupBox groupBox19;
         private GroupBox groupBox20;
         private GroupBox groupBox24;
-        private CheckBox checkBox1;
-        private ComboBox comboBox1;
+        private CheckBox dyn_beam;
+        private ComboBox dyn_pattern;
         private Label label14;
         private GroupBox groupBox25;
-        private GroupBox groupBox31;
-        private TextBox textBox7;
-        private GroupBox groupBox30;
-        private TextBox textBox6;
         private GroupBox groupBox29;
-        private TextBox textBox5;
+        private TextBox dynBytes;
         private GroupBox groupBox28;
-        private TextBox textBox4;
+        private TextBox dynUntilSEFI;
         private GroupBox groupBox27;
-        private TextBox textBox3;
+        private TextBox dynExposureTime;
         private GroupBox groupBox26;
-        private TextBox textBox2;
+        private TextBox dynTotalTime;
         private GroupBox groupBox32;
         private RichTextBox richTextBox2;
         private GroupBox groupBox33;
-        private GroupBox groupBox34;
-        private CheckBox checkBox2;
         private GroupBox groupBox35;
-        private ComboBox comboBox2;
+        private Label label16;
+        private ComboBox chip_org;
+        private RichTextBox address_information;
+        private GroupBox groupBox37;
+        private TextBox dynStage;
+        private GroupBox groupBox39;
+        private TextBox dynSEFI;
         private GroupBox groupBox36;
-        private Label label15;
-        private TextBox textBox8;
-        private TrackBar trackBar2;
+        private TextBox dynBitErrors;
+        private GroupBox groupBox34;
+        private TextBox dyn_bps;
+        private Button dyn_execute;
+        private ScottPlot.WinForms.FormsPlot dynPlot;
+        private GroupBox groupBox30;
+        private RichTextBox richTextBox3;
+        private GroupBox groupBox38;
+        private TextBox dynRatePercent;
+        private TextBox dynRateTime;
     }
 }
