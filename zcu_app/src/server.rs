@@ -27,7 +27,7 @@ use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use bincode::Options;
 use serde::de::DeserializeOwned;
 
-use crate::types::{ConfigCmd, DumpCmd, DynamicCmd, VerifyCmd, WriteCmd};
+use crate::types::{ConfigCmd, DumpCmd, DynamicCmd, UUIDCmd, VerifyCmd, WriteCmd};
 use crate::config::*;
 
 // --- framing helpers -------------------------------------------------------
@@ -118,7 +118,7 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
     println!("[+] Client connected: {}", peer);
 
     // The settings used in the last verify operation (needed for differential dump)
-    let mut last_verify_parameters: VerifyCmd = VerifyCmd { pattern: 0, seed: 0};
+    let mut last_verify_parameters: VerifyCmd = VerifyCmd { pattern: 0, seed: 0, uuid: [0,0,0] };
 
     loop {
         // --- SYNC ---
@@ -220,6 +220,18 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
                     crate::commands::dynamic_command(&mut stream, c);
                 }
                 Err(e) => eprintln!("[!] {}: invalid Dynamic payload: {}", peer, e),
+            },
+
+            CMD_UUID => match parse_payload::<UUIDCmd>(&payload) {
+                Ok(c) => {
+                    println!(
+                        "[{}] Dynamic {{ uuid: {}{}{} }}",
+                        peer, c.uuid[0], c.uuid[1], c.uuid[2]);
+
+                    //Execute command
+                    crate::commands::uuid_command(&mut stream, c);
+                }
+                Err(e) => eprintln!("[!] {}: invalid UUID payload: {}", peer, e),
             },
 
             CMD_INFO => {

@@ -17,6 +17,7 @@ pub struct WriteCmd {
 #[repr(C)]
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct VerifyCmd {
+    pub uuid: [u8; 3],
     pub pattern: u8,
     pub seed: u64,
 }
@@ -24,6 +25,9 @@ pub struct VerifyCmd {
 #[repr(C)]
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DynamicCmd {
+
+    //UUID
+    pub uuid: [u8; 3],
 
     //Pattern generation
     pub pattern: u8,
@@ -44,6 +48,13 @@ pub struct DumpCmd {
     pub offset_start: u32,
     pub num_pages: u32,
     pub comparison_mode: bool
+}
+
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct UUIDCmd {
+    pub uuid: [u8; 3],
 }
 
 // Configuration Structure
@@ -73,12 +84,21 @@ pub struct WriteRsp {
 #[repr(C)]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct VerifyRsp {
-    pub bytes_verified: u32,
     pub time_spent_ms: f32,
     pub percent_complete: f32,
+
+    //Current address
+    pub current_address: u32,
+    pub start_address: u32,
+    pub end_address: u32,
+
     // Verify specific statistics
-    pub num_errors: u64,
     pub num_correct: u64,
+    pub num_incorrect: u64, 
+
+    //Distribution of # bit errors 
+    pub adj_err_bins: [u64; 8],
+    pub err_bins: [u64; 8]
 }
 
 #[repr(C)]
@@ -104,6 +124,12 @@ pub struct DynamicRsp {
     pub error_rate: f32,
     pub error_rate_per_second: f32,
     pub error_rate_percent: f32,
+
+    //Info
+    pub pass_counter: u32,
+    pub current_address: u32,
+    pub start_address: u32,
+    pub end_address: u32,
 
     //Capture status
     pub exposure_started: bool,
@@ -135,5 +161,12 @@ pub struct InfoRsp {
 pub struct ResetRsp {
     pub success: bool,
 }
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct UUIDRsp {
+    pub success: bool,
+}
+
 
 
