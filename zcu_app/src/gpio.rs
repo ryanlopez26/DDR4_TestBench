@@ -59,7 +59,7 @@ pub enum GpioError {
     /// init() was already called successfully; the lines are already held.
     AlreadyInitialized,
     /// A read was attempted before init() acquired the lines.
-    NotInitialized,
+    //NotInitialized,
     /// Underlying gpio-cdev failure (chip open, line request, etc.).
     /// Only constructible when the `hardware` feature is enabled - the
     /// simulated backend never fails this way.
@@ -71,7 +71,7 @@ impl std::fmt::Display for GpioError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             GpioError::AlreadyInitialized => write!(f, "GPIO already initialized"),
-            GpioError::NotInitialized => write!(f, "GPIO not initialized; call init() first"),
+            //GpioError::NotInitialized => write!(f, "GPIO not initialized; call init() first"),
             #[cfg(feature = "hardware")]
             GpioError::Cdev(e) => write!(f, "gpio-cdev error: {e}"),
         }
