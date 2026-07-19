@@ -6,11 +6,3 @@ pub fn now() -> f32 {
         .expect("system clock is before UNIX epoch");
     dur.as_millis() as f32
 }
-
-pub fn get_uuid(uuid: [u8; 3]) -> Option<String> {
-    if uuid.iter().all(|&b| b.is_ascii_uppercase()) {
-        Some(String::from_utf8(uuid.to_vec()).unwrap())
-    } else {
-        None
-    }
-}

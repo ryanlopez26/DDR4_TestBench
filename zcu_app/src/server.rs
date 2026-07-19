@@ -118,7 +118,7 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
     println!("[+] Client connected: {}", peer);
 
     // The settings used in the last verify operation (needed for differential dump)
-    let mut last_verify_parameters: VerifyCmd = VerifyCmd { pattern: 0, seed: 0, uuid: [0,0,0] };
+    let mut last_verify_parameters: VerifyCmd = VerifyCmd { pattern: 0, seed: 0, uuid: 0};
 
     loop {
         // --- SYNC ---
@@ -227,7 +227,7 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
                     println!(
                         "[{}] UUID Validate {{ uuid: {} }}",
                         peer,
-                        String::from_utf8_lossy(&c.uuid)
+                        c.uuid
                     );
 
                     //Execute command

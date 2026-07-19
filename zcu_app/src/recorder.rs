@@ -1,28 +1,23 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use crate::utils;
 
+pub static LOGDIR: &str = "/mnt/zcuLogs";
 pub static DATALOG: Mutex<Vec<String>> = Mutex::new(Vec::new());
-pub static TAKEN_UUIDS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+pub static TAKEN_UUIDS: Mutex<Vec<u16>> = Mutex::new(Vec::new());
 
 pub fn init() -> std::io::Result<()> {
-    let mut log_dir: PathBuf = dirs::home_dir()
-        .ok_or_else(|| std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "could not determine home directory",
-        ))?;
-    log_dir.push("zcuLogs");
 
-    if !log_dir.exists() {
-        fs::create_dir_all(&log_dir)?;
+    if !PathBuf::from(LOGDIR).exists() {
+        fs::create_dir_all(LOGDIR)?;
         return Ok(());
     }
 
     let mut uuids = TAKEN_UUIDS.lock().unwrap();
 
-    for entry in fs::read_dir(&log_dir)? {
+    for entry in fs::read_dir(LOGDIR)? {
         let path = entry?.path();
 
         if !path.is_file() {
@@ -31,8 +26,13 @@ pub fn init() -> std::io::Result<()> {
 
         match path.extension().and_then(|e| e.to_str()) {
             Some("csv") => {
-                if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                    uuids.push(stem.to_string());
+                match path.file_stem() {
+                    Some(stem) => {
+                        uuids.push(stem.to_str().unwrap().parse::<u16>().unwrap());
+                    },
+                    None => {
+                        eprintln!("No file stem found!");
+                    },
                 }
             }
             Some("txt") => {
@@ -45,30 +45,19 @@ pub fn init() -> std::io::Result<()> {
     Ok(())
 }
 
-pub fn check_uuid(uuid: [u8; 3]) -> bool {
+pub fn check_uuid(uuid: u16) -> bool {
     
-    match utils::get_uuid(uuid) {
-        Some(uuid) => {
-
-            !TAKEN_UUIDS
-                .lock()
-                .unwrap()
-                .iter()
-                .any(|u| *u == uuid)
-
-        },
-        None => false,
-    }
+    !TAKEN_UUIDS
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|u| *u == uuid)
 
 }
 
-pub fn write_summary(uuid: String, entries: Vec<String>) -> std::io::Result<()> {
-    let mut log_path: PathBuf = dirs::home_dir()
-        .ok_or_else(|| std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "could not determine home directory",
-        ))?;
-    log_path.push("zcuLogs");
+pub fn write_summary(uuid: u16, entries: Vec<String>) -> std::io::Result<()> {
+
+    let mut log_path = PathBuf::from(LOGDIR);
     log_path.push(format!("{uuid}.txt"));
 
     fs::write(&log_path, entries.join("\n"))?;
@@ -84,13 +73,9 @@ pub fn clear() {
     DATALOG.lock().unwrap().clear();
 }
 
-pub fn write(uuid: String) -> std::io::Result<()> {
-    let mut log_path: PathBuf = dirs::home_dir()
-        .ok_or_else(|| std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "could not determine home directory",
-        ))?;
-    log_path.push("zcuLogs");
+pub fn write(uuid: u16) -> std::io::Result<()> {
+
+    let mut log_path = PathBuf::from(LOGDIR);
     log_path.push(format!("{uuid}.csv"));
 
     let mut datalog = DATALOG.lock().unwrap();

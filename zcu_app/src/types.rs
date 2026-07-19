@@ -17,7 +17,7 @@ pub struct WriteCmd {
 #[repr(C)]
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct VerifyCmd {
-    pub uuid: [u8; 3],
+    pub uuid: u16,
     pub pattern: u8,
     pub seed: u64,
 }
@@ -27,7 +27,7 @@ pub struct VerifyCmd {
 pub struct DynamicCmd {
 
     //UUID
-    pub uuid: [u8; 3],
+    pub uuid: u16,
 
     //Pattern generation
     pub pattern: u8,
@@ -54,7 +54,7 @@ pub struct DumpCmd {
 #[repr(C)]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct UUIDCmd {
-    pub uuid: [u8; 3],
+    pub uuid: u16,
 }
 
 // Configuration Structure

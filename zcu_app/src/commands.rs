@@ -88,8 +88,8 @@ pub fn config_command(stream: &mut TcpStream, cmd: ConfigCmd){
 pub fn uuid_command(stream: &mut TcpStream, cmd: UUIDCmd){
 
     crate::dbg_log!(
-        "uuid_command: incoming ConfigCmd uuid={}{}{}",
-        cmd.uuid[0], cmd.uuid[1], cmd.uuid[2]
+        "uuid_command: incoming ConfigCmd uuid={}",
+        cmd.uuid
     );
 
     //Check UUID
@@ -112,14 +112,6 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
 
     //Load configuration
     let config = CONFIG.read().unwrap();
-
-    //Get test UUID
-    let uuid = match utils::get_uuid(cmd.uuid) {
-        Some(u) => u,
-        None => {
-            return;
-        },
-    };
 
     //Init the pseudo-random generator with the provided seed
     crate::rand::set_seed(cmd.seed);
@@ -150,25 +142,44 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
     };
 
     //Create log
-    recorder::new(vec![
-        "Exposure Time (ms)",
-        "Total Time (ms)",
-        "Total Bytes",
-        "Error Rate",
-        "Error Rate (per second)",
-        "Error Rate (%)", 
-        "SEFI Threshold",
-        "Beam Signal",
-        "Controller Calibrated",
-        "Exposure Started",
-        "SEFI Detected",
-        "Time to SEFI",
-        "Test Completed",
-        "Pass Counter",
-        "Current Address",
-        "Start Address",
-        "End Address"
-    ]);
+    if config.enable_logging {
+        recorder::new(vec![
+            "Exposure Time (ms)",
+            "Total Time (ms)",
+            "Total Bytes",
+            "Error Rate",
+            "Error Rate (per second)",
+            "Error Rate (%)", 
+            "SEFI Threshold",
+            "Beam Signal",
+            "Controller Calibrated",
+            "Exposure Started",
+            "SEFI Detected",
+            "Time to SEFI",
+            "Test Completed",
+            "Pass Counter",
+            "Current Address",
+            "Start Address",
+            "End Address",
+            "adj_err[0]", 
+            "adj_err[1]",
+            "adj_err[2]",
+            "adj_err[3]",
+            "adj_err[4]",
+            "adj_err[5]",
+            "adj_err[6]",
+            "adj_err[7]",
+            "num_err[0]", 
+            "num_err[1]",
+            "num_err[2]",
+            "num_err[3]",
+            "num_err[4]",
+            "num_err[5]",
+            "num_err[6]",
+            "num_err[7]",
+            "num_err[8]"
+        ]);
+    }
 
     crate::dbg_log!(
         "dynamic_command: seed={}, pattern={}, wait_for_beam={}, sample_size_in_bytes={}, trigger_threshold={}, chip_size_bytes={}, address_multiplier={}",
@@ -204,6 +215,27 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
                 rsp.pl_clock = gpio::get_pl_clock_signal();
                 rsp.fpga_loaded = gpio::get_fpga_loaded_status();
                 rsp.total_time_ms = first_start_instant.elapsed().unwrap().as_millis() as f32;
+
+                //Log if enabled
+                if config.enable_logging {
+
+                    recorder::log(
+                        vec![
+                            format!("{}", rsp.exposure_time_ms),
+                            format!("{}", rsp.total_time_ms),
+                            format!("{}", rsp.total_bytes),
+                            format!("{}", rsp.error_rate),
+                            format!("{}", rsp.error_rate_per_second),
+                            format!("{}", rsp.error_rate_percent),
+                            format!("{}", cmd.trigger_threshold),
+                            format!("{}", rsp.beam_signal),
+                            format!("{}", rsp.controller_calibrated),
+                            format!("{}", rsp.exposure_started),
+                            
+                        ]
+                    );
+
+                }
 
                 let payload = crate::server::codec().serialize(&rsp).unwrap();
 
@@ -428,26 +460,46 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
                     }
 
                     //Create log
-                    recorder::log(vec![
-                        rsp.exposure_time_ms.to_string(),
-                        rsp.total_time_ms.to_string(),
-                        rsp.total_bytes.to_string(),
-                        rsp.error_rate.to_string(),
-                        rsp.error_rate_per_second.to_string(),
-                        rsp.error_rate_percent.to_string(), 
-                        cmd.trigger_threshold.to_string(),
-                        rsp.beam_signal.to_string(),
-                        rsp.controller_calibrated.to_string(),
-                        rsp.exposure_started.to_string(),
-                        rsp.sefi_detected.to_string(),
-                        rsp.time_to_sefi.to_string(),
-                        rsp.test_completed.to_string(),
-                        rsp.pass_counter.to_string(),
-                        rsp.current_address.to_string(),
-                        rsp.start_address.to_string(),
-                        rsp.end_address.to_string()
-                    ]);
+                    if config.enable_logging {
 
+                        recorder::log(vec![
+                            rsp.exposure_time_ms.to_string(),
+                            rsp.total_time_ms.to_string(),
+                            rsp.total_bytes.to_string(),
+                            rsp.error_rate.to_string(),
+                            rsp.error_rate_per_second.to_string(),
+                            rsp.error_rate_percent.to_string(), 
+                            cmd.trigger_threshold.to_string(),
+                            rsp.beam_signal.to_string(),
+                            rsp.controller_calibrated.to_string(),
+                            rsp.exposure_started.to_string(),
+                            rsp.sefi_detected.to_string(),
+                            rsp.time_to_sefi.to_string(),
+                            rsp.test_completed.to_string(),
+                            rsp.pass_counter.to_string(),
+                            rsp.current_address.to_string(),
+                            rsp.start_address.to_string(),
+                            rsp.end_address.to_string(),
+                            rsp.adj_err_bins[0].to_string(), 
+                            rsp.adj_err_bins[1].to_string(),
+                            rsp.adj_err_bins[2].to_string(),
+                            rsp.adj_err_bins[3].to_string(),
+                            rsp.adj_err_bins[4].to_string(),
+                            rsp.adj_err_bins[5].to_string(),
+                            rsp.adj_err_bins[6].to_string(),
+                            rsp.adj_err_bins[7].to_string(),
+                            rsp.err_bins[0].to_string(),
+                            rsp.err_bins[1].to_string(),
+                            rsp.err_bins[2].to_string(),
+                            rsp.err_bins[3].to_string(),
+                            rsp.err_bins[4].to_string(),
+                            rsp.err_bins[5].to_string(),
+                            rsp.err_bins[6].to_string(),
+                            rsp.err_bins[7].to_string(),
+                            rsp.err_bins[8].to_string()
+                        ]);
+
+                    }
                     
                     //Reset timer for next update
                     last_update_instant = SystemTime::now();
@@ -458,15 +510,19 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
             //Check if the test is over
             if rsp.test_completed {
 
-                //Commit log file
-                recorder::write(uuid.clone()).unwrap();
+                if config.enable_logging {
+                    
+                    //Commit log file
+                    recorder::write(cmd.uuid).unwrap();
 
-                //Generate test summary file
-                recorder::write_summary(uuid, vec![
-                    format!("{:?}", config),
-                    format!("{:?}", cmd),
-                    format!("{:?}", rsp),
-                ]).unwrap();
+                    //Generate test summary file
+                    recorder::write_summary(cmd.uuid, vec![
+                        format!("{:?}", config),
+                        format!("{:?}", cmd),
+                        format!("{:?}", rsp),
+                    ]).unwrap();
+
+                }
 
                 //End test
                 return;
@@ -633,14 +689,6 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
     //Load configuration
     let config = CONFIG.read().unwrap();
 
-    //Get uuid for log
-    let uuid = match utils::get_uuid(cmd.uuid) {
-        Some(u) => u,
-        None => {
-            return;
-        },
-    };
-
     crate::dbg_log!(
         "verify_command: seed={}, pattern={}, chip_size_bytes={}, address_multiplier={}",
         cmd.seed, cmd.pattern, config.chip_size_bytes, config.address_multiplier
@@ -654,7 +702,7 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
     }
 
     //Setup timers
-    let mut start_time = SystemTime::now();
+    let start_time = SystemTime::now();
     let mut time_since_last_update = SystemTime::now();
 
     //Init the pseudo-random generator with the provided seed
@@ -674,6 +722,7 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
      };
 
     // Setup log
+    if config.enable_logging {
     recorder::new(vec!["Time (ms)", 
         "Start Address",
         "End Address",
@@ -699,6 +748,7 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
         "num_err[7]",
         "num_err[8]"
         ]);
+    }
 
     //Current address iterator
     let mut i: u32 = 0;
@@ -734,6 +784,7 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
             }
             
             //Create log entry
+            if config.enable_logging {
             recorder::log(vec![rsp.time_spent_ms.to_string(), 
                 format!("{:#010X}", rsp.start_address), 
                 format!("{:#010X}", rsp.end_address),
@@ -759,6 +810,7 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
                 rsp.err_bins[7].to_string(),
                 rsp.err_bins[8].to_string()
                 ]);
+            }
 
             //Reset timer for next update
             time_since_last_update = SystemTime::now();
@@ -766,15 +818,19 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
             //If we are done, exit
             if done {
 
+                if config.enable_logging {
+
                 //Commit log file
-                recorder::write(uuid.clone()).unwrap();
+                recorder::write(cmd.uuid).unwrap();
 
                 //Generate test summary file
-                recorder::write_summary(uuid, vec![
+                recorder::write_summary(cmd.uuid, vec![
                     format!("{:?}", config),
                     format!("{:?}", cmd),
                     format!("{:?}", rsp),
                 ]).unwrap();
+                
+                }
 
                 return;
             }
@@ -879,8 +935,7 @@ pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd, v_cmd: &VerifyCmd){
     let config = CONFIG.read().unwrap();
 
     //Setup timers
-    let start_time = SystemTime::now();
-    let mut time_since_last_update = SystemTime::now();
+    let time_since_start = SystemTime::now();
 
     //Get base page address
     let base_address = cmd.offset_start - (cmd.offset_start % PAGE_SIZE as u32); // Align down to page boundary
@@ -963,7 +1018,7 @@ pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd, v_cmd: &VerifyCmd){
         let rsp = DumpRsp {
             num_errors: num_errors,
             address: page_address,
-            time_spent_ms: time_since_last_update.elapsed().unwrap().as_millis() as f32,
+            time_spent_ms: time_since_start.elapsed().unwrap().as_millis() as f32,
             //Raw bytes are appended to this (3 byte pages)
         };
 
