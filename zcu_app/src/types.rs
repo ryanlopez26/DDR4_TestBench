@@ -163,12 +163,6 @@ pub struct InfoRsp {
 
 #[repr(C)]
 #[derive(Debug, Deserialize, Serialize)]
-pub struct ResetRsp {
-    pub success: bool,
-}
-
-#[repr(C)]
-#[derive(Debug, Deserialize, Serialize)]
 pub struct UUIDRsp {
     pub success: bool,
 }

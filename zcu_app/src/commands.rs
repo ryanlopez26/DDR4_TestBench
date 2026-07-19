@@ -674,7 +674,6 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
 
     if let Err(e) = send_response(stream, CMD_WRITE, payload) {
         eprintln!("[!] Failed to send progress update: {}", e);
-        return;
     }
     
 }
@@ -1013,7 +1012,7 @@ pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd, v_cmd: &VerifyCmd){
 
         //Send page data in response
         let rsp = DumpRsp {
-            num_errors: num_errors,
+            num_errors,
             address: page_address,
             time_spent_ms: time_since_start.elapsed().unwrap().as_millis() as f32,
             //Raw bytes are appended to this (3 byte pages)

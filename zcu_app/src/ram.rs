@@ -103,7 +103,7 @@ mod backend {
         }
 
         // Store the pointer. If another thread raced us and won, unmap ours.
-        if let Err(_) = MAPPING.set(Mapping(ptr as *mut u8)) {
+        if MAPPING.set(Mapping(ptr as *mut u8)).is_err() {
             unsafe { libc::munmap(ptr, PL_DDR4_SIZE) };
         }
         Ok(())

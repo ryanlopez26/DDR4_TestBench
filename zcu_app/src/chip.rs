@@ -34,7 +34,7 @@ impl std::error::Error for ChipError {}
 /// All validation happens here so `read` and `write` can't diverge.
 fn map_offset(config: &ConfigCmd, offset: u32) -> Result<u32, ChipError> {
     let bbpc = config.bus_bytes_per_chip as u32;
-    let bus  = config.bus_size_in_bytes  as u32;
+    let bus  = config.bus_size_in_bytes;
     let chip = config.chip_index as u32;
 
     // --- Structural validation of the config ----------------------------
@@ -44,7 +44,7 @@ fn map_offset(config: &ConfigCmd, offset: u32) -> Result<u32, ChipError> {
     if bus == 0 {
         return Err(ChipError::InvalidConfig("bus_size_in_bytes must be > 0"));
     }
-    if bus % bbpc != 0 {
+    if !bus.is_multiple_of(bbpc) {
         return Err(ChipError::InvalidConfig(
             "bus_size_in_bytes must be a multiple of bus_bytes_per_chip",
         ));

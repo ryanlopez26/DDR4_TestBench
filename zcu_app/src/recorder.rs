@@ -48,9 +48,7 @@ pub fn check_uuid(uuid: u16) -> bool {
     
     !TAKEN_UUIDS
         .lock()
-        .unwrap()
-        .iter()
-        .any(|u| *u == uuid)
+        .unwrap().contains(&uuid)
 
 }
 
