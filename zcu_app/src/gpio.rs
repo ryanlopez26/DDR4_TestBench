@@ -325,10 +325,10 @@ mod backend {
         matches!(lines().pl_clock.get_value(), Ok(1))
     }
 
-    /// Non-panicking variant of `get_pl_clock_signal`.
-    pub fn try_get_pl_clock_signal() -> Result<bool, GpioError> {
-        Ok(try_lines()?.pl_clock.get_value()? == 1)
-    }
+    // /// Non-panicking variant of `get_pl_clock_signal`.
+    // pub fn try_get_pl_clock_signal() -> Result<bool, GpioError> {
+    //     Ok(try_lines()?.pl_clock.get_value()? == 1)
+    // }
 
     // -------------------------------------------------------------------
     // FPGA Loaded Status (input, EMIO bit 4 / line 82)
