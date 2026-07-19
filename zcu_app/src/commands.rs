@@ -768,7 +768,7 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
 
             crate::dbg_log!(
                 "verify_command: progress offset={}, {:.1}% complete, errors={}, correct={}",
-                i, percent_complete, rsp.num_errors, rsp.num_correct
+                i, percent_complete, rsp.num_incorrect, rsp.num_correct
             );
 
             //Update bytes verified and percent complete in response structure
