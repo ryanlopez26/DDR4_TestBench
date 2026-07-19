@@ -68,6 +68,7 @@ pub struct ConfigCmd {
     pub chip_size_bytes: u32,
     pub enable_chip_select: bool,
     pub address_multiplier: u32,
+    pub enable_logging: bool
 }
 
 
@@ -98,7 +99,7 @@ pub struct VerifyRsp {
 
     //Distribution of # bit errors 
     pub adj_err_bins: [u64; 8],
-    pub err_bins: [u64; 8]
+    pub err_bins: [u64; 9]
 }
 
 #[repr(C)]
@@ -124,6 +125,10 @@ pub struct DynamicRsp {
     pub error_rate: f32,
     pub error_rate_per_second: f32,
     pub error_rate_percent: f32,
+
+    //Distribution of # bit errors 
+    pub adj_err_bins: [u64; 8],
+    pub err_bins: [u64; 9],
 
     //Info
     pub pass_counter: u32,

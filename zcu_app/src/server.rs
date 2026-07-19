@@ -225,8 +225,10 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
             CMD_UUID => match parse_payload::<UUIDCmd>(&payload) {
                 Ok(c) => {
                     println!(
-                        "[{}] Dynamic {{ uuid: {}{}{} }}",
-                        peer, c.uuid[0], c.uuid[1], c.uuid[2]);
+                        "[{}] UUID Validate {{ uuid: {} }}",
+                        peer,
+                        String::from_utf8_lossy(&c.uuid)
+                    );
 
                     //Execute command
                     crate::commands::uuid_command(&mut stream, c);

@@ -26,6 +26,7 @@ pub static CONFIG: LazyLock<RwLock<ConfigCmd>> = LazyLock::new(|| {
         chip_size_bytes: 512 * 1024 * 1024, // 512 MiB default
         bus_size_in_bytes: 8,             // 8 bytes per bus word (x64)
         enable_chip_select: false,
-        address_multiplier: 1024
+        address_multiplier: 1024,
+        enable_logging: true
     })
 });

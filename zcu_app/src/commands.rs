@@ -46,6 +46,18 @@ pub fn config_command(stream: &mut TcpStream, cmd: ConfigCmd){
         cmd.chip_index, cmd.bus_bytes_per_chip, cmd.chip_size_bytes, cmd.bus_size_in_bytes, cmd.enable_chip_select, cmd.address_multiplier
     );
 
+    //Prevent invalid address multiplier
+    if cmd.address_multiplier == 0 {
+            
+        //Invalid status response 
+        let payload: Vec<u8> = vec![0];
+        send_response(stream, CMD_CONFIG, payload).unwrap();
+
+        //Failed
+        return;
+
+    }
+
     //Load new configuration settings
     {
         let mut config = CONFIG.write().unwrap();
@@ -85,6 +97,11 @@ pub fn uuid_command(stream: &mut TcpStream, cmd: UUIDCmd){
         success: recorder::check_uuid(cmd.uuid),
     };
 
+    crate::dbg_log!(
+        "uuid_command: success = {}",
+        rsp.success
+    );
+
     //Send ACK response
     send_response(stream, CMD_UUID, crate::server::codec().serialize(&rsp).unwrap()).unwrap();
     
@@ -97,7 +114,12 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
     let config = CONFIG.read().unwrap();
 
     //Get test UUID
-    let uuid = utils::get_uuid(cmd.uuid).unwrap();
+    let uuid = match utils::get_uuid(cmd.uuid) {
+        Some(u) => u,
+        None => {
+            return;
+        },
+    };
 
     //Init the pseudo-random generator with the provided seed
     crate::rand::set_seed(cmd.seed);
@@ -105,6 +127,8 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
     //Response structure
     let mut rsp = DynamicRsp {
         exposure_time_ms: 0.0,
+        adj_err_bins: [0, 0, 0, 0, 0, 0, 0, 0],
+        err_bins: [0, 0, 0, 0, 0, 0, 0, 0, 0],
         total_time_ms: 0.0,
         total_bytes: 0,
         error_rate: 0.0,
@@ -256,12 +280,57 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
                                 "[!] Error at address (expected: {:#x}, actual: {:#x}): {:#x}",
                                 v, actual, i
                             );
-                            let differing_bits = (actual ^ v).count_ones() as u64;
 
+                            let diff_mask        = actual ^ v;
+                            let diff_bits: usize = (diff_mask).count_ones() as usize;
+                            let adj_bits         = diff_mask & (diff_mask >> 1);
+
+                            //Collect statistics
+                            rsp.err_bins[diff_bits] += 1;
+                            
+                            //Detect multi-bit upset
+                            if diff_bits > 1 {
+
+                                //Counter 
+                                let mut c: usize = 0;
+
+                                //We need to count more carefully, this is CPU intensive though :(
+                                for i in 0..8 {
+                                    
+                                    //Check if bit is set
+                                    if adj_bits & (1 << i) != 0 {
+                                        
+                                        //Bit is set
+                                        c += 1;
+
+                                    } else {
+                                        
+                                        //Bit is not set
+
+                                        //Commit result if there is one
+                                        if c > 0 { 
+                                            rsp.adj_err_bins[c] += 1; 
+                                            c = 0;
+                                        }
+                                    }
+                                    
+                                }
+                                
+                                //Commit just in case any pending result
+                                if c > 0 { 
+                                    rsp.adj_err_bins[c] += 1; 
+                                }
+
+                            } else {
+                                //Optimization trick to prevent extensive check
+                                rsp.adj_err_bins[0] += 1;
+                            }
 
                             //Rate calculation
                             bits_sampled += 8;
-                            bits_errored += differing_bits;
+                            bits_errored += diff_bits as u64;
+
+
 
                         } else {
                             bits_sampled += 8;
@@ -282,13 +351,13 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
             // Perform rate calculation
             {
                 if bits_sampled > cmd.sample_size_in_bytes as u64 * 8 {
-                    rsp.error_rate_per_second = (last_sample_instant.elapsed().unwrap().as_millis() as f32 / bits_sampled as f32) * 1000.0; // Errors per second
+                    rsp.error_rate_per_second = (bits_errored as f32 * 1000.0) / (last_sample_instant.elapsed().unwrap().as_millis() as f32); // Errors per second
                     rsp.error_rate_percent = bits_errored as f32 / bits_sampled as f32;
                     rsp.error_rate = bits_errored as f32;
 
                     crate::dbg_log!(
                         "dynamic_command: sample window closed error_rate={:.4}, error_percent={:.4}, bits_errored={}",
-                        error_rate, error_percent, bits_errored
+                        rsp.error_rate, rsp.error_rate_percent, bits_errored
                     );
 
                     //Clear sampling vars
@@ -305,9 +374,14 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
                         //Record time this took to occur
                         rsp.time_to_sefi = exposure_start_instant.elapsed().unwrap().as_millis() as f32;
 
+                        //End test if beam detection is disabled
+                        if !cmd.wait_for_beam {
+                            rsp.test_completed = true;
+                        } 
+
                         crate::dbg_log!(
                             "dynamic_command: SEFI detected error_rate={:.4} > threshold={:.4}, time_to_sefi={}ms",
-                            error_rate, cmd.trigger_threshold, time_to_sefi.as_millis()
+                            rsp.error_rate, cmd.trigger_threshold, rsp.time_to_sefi.as_millis()
                         );
                     }
                 }
@@ -560,7 +634,12 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
     let config = CONFIG.read().unwrap();
 
     //Get uuid for log
-    let uuid = utils::get_uuid(cmd.uuid).unwrap();
+    let uuid = match utils::get_uuid(cmd.uuid) {
+        Some(u) => u,
+        None => {
+            return;
+        },
+    };
 
     crate::dbg_log!(
         "verify_command: seed={}, pattern={}, chip_size_bytes={}, address_multiplier={}",
@@ -588,7 +667,7 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
         num_correct: 0,
         num_incorrect: 0,
         adj_err_bins: [0, 0, 0, 0, 0, 0, 0, 0],
-        err_bins: [0, 0, 0, 0, 0, 0, 0, 0],
+        err_bins: [0, 0, 0, 0, 0, 0, 0, 0, 0],
         current_address: 0x00000000,
         start_address: 0x00000000,
         end_address: config.chip_size_bytes,
@@ -618,6 +697,7 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
         "num_err[5]",
         "num_err[6]",
         "num_err[7]",
+        "num_err[8]"
         ]);
 
     //Current address iterator
@@ -676,7 +756,8 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
                 rsp.err_bins[4].to_string(),
                 rsp.err_bins[5].to_string(),
                 rsp.err_bins[6].to_string(),
-                rsp.err_bins[7].to_string()
+                rsp.err_bins[7].to_string(),
+                rsp.err_bins[8].to_string()
                 ]);
 
             //Reset timer for next update
@@ -720,14 +801,18 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
                     );
                     
                     let diff_mask        = actual ^ expected;
-                    let diff_bits       = (diff_mask).count_ones();
+                    let diff_bits: usize = (diff_mask).count_ones() as usize;
                     let adj_bits         = diff_mask & (diff_mask >> 1);
 
+                    //Overall metrics
+                    rsp.num_correct += 8 - diff_bits as u64;
+                    rsp.num_incorrect += diff_bits as u64;
+
                     //Collect statistics
-                    rsp.err_bins[diff_bits as usize] += 1;
+                    rsp.err_bins[diff_bits] += 1;
                     
                     //Detect multi-bit upset
-                    if adj_bits != 0 {
+                    if diff_bits > 1 {
 
                         //Counter 
                         let mut c: usize = 0;
@@ -759,6 +844,9 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
                             rsp.adj_err_bins[c] += 1; 
                         }
 
+                    } else {
+                        //Optimization trick to prevent extensive check
+                        rsp.adj_err_bins[0] += 1;
                     }
 
                 } else {

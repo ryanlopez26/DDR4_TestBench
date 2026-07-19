@@ -50,7 +50,7 @@ pub fn check_uuid(uuid: [u8; 3]) -> bool {
     match utils::get_uuid(uuid) {
         Some(uuid) => {
 
-            TAKEN_UUIDS
+            !TAKEN_UUIDS
                 .lock()
                 .unwrap()
                 .iter()
