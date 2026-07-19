@@ -41,6 +41,9 @@ pub fn init() -> std::io::Result<()> {
         }
     }
 
+    //Empty the log
+    clear();
+
     Ok(())
 }
 
@@ -62,10 +65,6 @@ pub fn write_summary(uuid: u16, entries: Vec<String>) -> std::io::Result<()> {
     Ok(())
 }
 
-pub fn record(entry: String) {
-    DATALOG.lock().unwrap().push(entry);
-}
-
 pub fn clear() {
     DATALOG.lock().unwrap().clear();
 }
@@ -80,6 +79,9 @@ pub fn write(uuid: u16) -> std::io::Result<()> {
     datalog.clear();
 
     TAKEN_UUIDS.lock().unwrap().push(uuid);
+
+    //Empty the log
+    clear();
 
     Ok(())
 }

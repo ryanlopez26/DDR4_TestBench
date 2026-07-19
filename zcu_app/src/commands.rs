@@ -302,7 +302,7 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
                     }};
                 
                 //Write test value to byte
-                chip::write(&config, i, v);
+                chip::write(&config, i, v).unwrap();
 
                 //Read back and verify the value
                 match crate::chip::read(&config, i) {

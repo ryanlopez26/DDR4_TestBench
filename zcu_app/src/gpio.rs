@@ -205,9 +205,9 @@ mod backend {
             .expect("gpio::init() must be called before using any gpio:: function")
     }
 
-    fn try_lines() -> Result<&'static GpioLines, GpioError> {
-        GPIO_LINES.get().ok_or(GpioError::NotInitialized)
-    }
+    // fn try_lines() -> Result<&'static GpioLines, GpioError> {
+    //     GPIO_LINES.get().ok_or(GpioError::NotInitialized)
+    // }
 
     // -------------------------------------------------------------------
     // Beam Signal (input, EMIO bit 0 / line 78)
@@ -235,13 +235,13 @@ mod backend {
         matches!(lines().beam.get_value(), Ok(1))
     }
 
-    /// Non-panicking variant of `get_beam_signal`.
-    ///
-    /// Returns `Ok(true)` / `Ok(false)` on a successful read, `Err` if the line
-    /// was never initialized or the read ioctl failed.
-    pub fn try_get_beam_signal() -> Result<bool, GpioError> {
-        Ok(try_lines()?.beam.get_value()? == 1)
-    }
+    // /// Non-panicking variant of `get_beam_signal`.
+    // ///
+    // /// Returns `Ok(true)` / `Ok(false)` on a successful read, `Err` if the line
+    // /// was never initialized or the read ioctl failed.
+    // pub fn try_get_beam_signal() -> Result<bool, GpioError> {
+    //     Ok(try_lines()?.beam.get_value()? == 1)
+    // }
 
     // -------------------------------------------------------------------
     // Calibration Signal (input, EMIO bit 1 / line 79)
@@ -265,10 +265,10 @@ mod backend {
         matches!(lines().calibration.get_value(), Ok(1))
     }
 
-    /// Non-panicking variant of `get_calibration_signal`.
-    pub fn try_get_calibration_signal() -> Result<bool, GpioError> {
-        Ok(try_lines()?.calibration.get_value()? == 1)
-    }
+    // /// Non-panicking variant of `get_calibration_signal`.
+    // pub fn try_get_calibration_signal() -> Result<bool, GpioError> {
+    //     Ok(try_lines()?.calibration.get_value()? == 1)
+    // }
 
     // -------------------------------------------------------------------
     // UI Clock Signal (input, EMIO bit 2 / line 80)
@@ -295,10 +295,10 @@ mod backend {
         matches!(lines().ui_clock.get_value(), Ok(1))
     }
 
-    /// Non-panicking variant of `get_ui_clock_signal`.
-    pub fn try_get_ui_clock_signal() -> Result<bool, GpioError> {
-        Ok(try_lines()?.ui_clock.get_value()? == 1)
-    }
+    // /// Non-panicking variant of `get_ui_clock_signal`.
+    // pub fn try_get_ui_clock_signal() -> Result<bool, GpioError> {
+    //     Ok(try_lines()?.ui_clock.get_value()? == 1)
+    // }
 
     // -------------------------------------------------------------------
     // PL Clock Signal (input, EMIO bit 3 / line 81)
@@ -352,10 +352,10 @@ mod backend {
         matches!(lines().fpga_loaded.get_value(), Ok(1))
     }
 
-    /// Non-panicking variant of `get_fpga_loaded_status`.
-    pub fn try_get_fpga_loaded_status() -> Result<bool, GpioError> {
-        Ok(try_lines()?.fpga_loaded.get_value()? == 1)
-    }
+    // /// Non-panicking variant of `get_fpga_loaded_status`.
+    // pub fn try_get_fpga_loaded_status() -> Result<bool, GpioError> {
+    //     Ok(try_lines()?.fpga_loaded.get_value()? == 1)
+    // }
 }
 
 // =========================================================================

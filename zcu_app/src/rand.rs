@@ -33,10 +33,10 @@ pub fn set_seed(seed: u64) {
     SEED.store(seed, Ordering::Relaxed);
 }
 
-/// Get the current seed.
-pub fn get_seed() -> u64 {
-    SEED.load(Ordering::Relaxed)
-}
+// /// Get the current seed.
+// pub fn get_seed() -> u64 {
+//     SEED.load(Ordering::Relaxed)
+// }
 
 /// Return the pseudo-random byte for `addr` under the current seed.
 ///

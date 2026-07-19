@@ -9,7 +9,6 @@ mod chip;
 mod vram;
 mod gpio;
 mod recorder;
-mod utils;
 
 fn main() {
     
