@@ -1,4 +1,6 @@
 using ScottPlot;
+using ScottPlot.Colormaps;
+using ScottPlot.Plottables;
 using ScottPlot.WinForms;
 using System.ComponentModel;
 using System.Data;
@@ -9,13 +11,20 @@ using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Swift;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 using Color = System.Drawing.Color;
+using String = System.String;
 
 namespace DDR4_TestingApp
 {
     public partial class MainForm : Form
     {
+        // with your other viewer constants (DATA_VIEWER_ROW_SIZE, etc.)
+        const uint MEM_VIEWER_ROWS = 21;
+
+        // with your other fields — last-seen rate per row; null = never visited
+        private readonly float?[] _memBandRate = new float?[MEM_VIEWER_ROWS];
 
         // Data viewer settings
         const uint DATA_VIEWER_ROW_SIZE = 16;
@@ -40,8 +49,14 @@ namespace DDR4_TestingApp
         private DateTime endTime = DateTime.Now;
 
         //Data arrays for dynamic plot
-        private readonly List<float> dataX = new();
-        private readonly List<float> dataY = new();
+        private readonly List<float> dynDataX = new();
+        private readonly List<float> dynDataY = new();
+
+        // Static bar plots — populated from VerifyRsp update packets
+        private ScottPlot.Plottables.BarPlot barPlot1;   // bit error bins      (plot1)
+        private ScottPlot.Plottables.BarPlot barPlot2;   // adjacent error bins (plot2)
+        private ScottPlot.Plottables.BarPlot dynbarPlot2;   // bit error bins      (plot1)
+        private ScottPlot.Plottables.BarPlot dynbarPlot3;   // adjacent error bins (plot2)
 
         enum BeamState
         {
@@ -55,44 +70,66 @@ namespace DDR4_TestingApp
 
         private BeamState bms = BeamState.Manual;
 
-
         public MainForm()
         {
+            InitializeComponent();
 
-            _statusTimer.Interval = 20;          // milliseconds — 4x per second
+            // ===== Data connections =====
+            var sp = dynPlot.Plot.Add.Scatter(dynDataX, dynDataY);
+            sp.LineWidth = 2;
+            sp.LineColor = Colors.Blue;
+
+            // Bars start empty; they're filled on each VerifyRsp update packet.
+            barPlot1 = plot1.Plot.Add.Bars(Array.Empty<double>());
+            barPlot2 = plot2.Plot.Add.Bars(Array.Empty<double>());
+            dynbarPlot2 = plot1.Plot.Add.Bars(Array.Empty<double>());
+            dynbarPlot3 = plot2.Plot.Add.Bars(Array.Empty<double>());
+
+            // ===== Dynamic plot =====
+            dynPlot.Plot.Axes.SetLimitsX(0, 60);
+            dynPlot.Plot.Axes.SetLimitsY(0, 1);
+            dynPlot.Plot.Axes.Title.Label.IsVisible = false;
+            dynPlot.Dock = DockStyle.Fill;
+
+            Array.Clear(_memBandRate);
+
+            // ===== Static plots =====
+            plot1.Plot.Axes.SetLimitsX(0, 10);
+            plot1.Plot.Axes.Title.Label.IsVisible = false;
+            plot1.Dock = DockStyle.Fill;
+
+            plot2.Plot.Axes.SetLimitsX(0, 10);
+            plot2.Plot.Axes.Title.Label.IsVisible = false;
+            plot2.Dock = DockStyle.Fill;
+
+            dynPlot2.Plot.Axes.SetLimitsX(0, 10);
+            dynPlot2.Plot.Axes.Title.Label.IsVisible = false;
+            dynPlot2.Dock = DockStyle.Fill;
+
+            dynPlot3.Plot.Axes.SetLimitsX(0, 10);
+            dynPlot3.Plot.Axes.Title.Label.IsVisible = false;
+            dynPlot3.Dock = DockStyle.Fill;
+
+            plot1.Plot.Axes.SetupMultiplierNotation(plot1.Plot.Axes.Left);
+            plot2.Plot.Axes.SetupMultiplierNotation(plot2.Plot.Axes.Left);
+            dynPlot2.Plot.Axes.SetupMultiplierNotation(plot2.Plot.Axes.Left);
+            dynPlot3.Plot.Axes.SetupMultiplierNotation(plot2.Plot.Axes.Left);
+
+            dynPlot.Refresh();
+            plot1.Refresh();
+            plot2.Refresh();
+            dynPlot2.Refresh();
+            dynPlot3.Refresh();
+
+            // ===== Timers last  =====
+            _statusTimer.Interval = 20;    // 50 Hz
             _statusTimer.Tick += statusUpdate_Tick;
             _statusTimer.Start();
 
-            _uiTimer.Interval = 100;          // milliseconds — 4x per second
+            _uiTimer.Interval = 100;       // 10 Hz
             _uiTimer.Tick += UiTimer_Tick;
             _uiTimer.Start();
-
-            InitializeComponent();
-
-            //Setup scaling for dynamic test plot
-
-            var sp = dynPlot.Plot.Add.Scatter(dataX, dataY);
-            sp.LineWidth = 2;              // connecting line thickness in pixels
-            sp.LineColor = Colors.Blue;    // optional
-            //dynPlot.Plot.XLabel("Time [ms]");
-            //dynPlot.Plot.YLabel("Error [%]");
-
-            // Just one axis
-            dynPlot.Plot.Axes.SetLimitsX(0, 60);
-            dynPlot.Plot.Axes.SetLimitsY(0, 1);    // e.g. error rate pinned to 0–100%
-            dynPlot.Plot.Axes.Title.Label.IsVisible = false;
-            //dynPlot.Plot.Axes.Bottom.Label.IsVisible = false;
-            //dynPlot.Plot.Axes.Left.Label.IsVisible = false;
-            dynPlot.Dock = DockStyle.Fill;
-
-
-            dynPlot.Refresh();          // always call Refresh() after changing the plot
-
         }
-
-
-
-
 
 
         private void UpdateDramPanels(uint ramOrg, uint selectedChip)
@@ -127,10 +164,51 @@ namespace DDR4_TestingApp
             }
         }
 
+        // Push a set of values into a bar plot. If the bar count is unchanged, the existing
+        // Bar objects are mutated in place (Bar is a reference type, so edits persist);
+        // otherwise the plottable is rebuilt. Returns the (possibly new) BarPlot so the
+        // caller can reassign its field. Must run on the UI thread.
+        private static ScottPlot.Plottables.BarPlot UpdateBars(
+            ScottPlot.WinForms.FormsPlot pane,
+            ScottPlot.Plottables.BarPlot barPlot,
+            double[] values)
+        {
+            if (barPlot.Bars.Count == values.Length)
+            {
+                for (int i = 0; i < values.Length; i++)
+                {
+                    barPlot.Bars[i].Value = values[i];
+                   // barPlot.Bars[i].Label = values[i].ToString();
+                }
+            }
+            else
+            {
+                pane.Plot.Remove(barPlot);
+                barPlot = pane.Plot.Add.Bars(values);
+                //foreach (var bar in barPlot.Bars)
+                //    bar.Label = bar.Value.ToString();
+            }
+
+            // Fit both axes so the bars fill the plot area:
+            //   X spans exactly the bins (half-unit margin each side, so bars sit snug),
+            //   Y runs from 0 (baseline) to just above the tallest bar.
+            int n = values.Length;
+            double max = n > 0 ? values.Max() : 0;
+            pane.Plot.Axes.SetLimitsX(-0.5, n > 0 ? n - 0.5 : 0.5);
+            pane.Plot.Axes.SetLimitsY(0, max > 0 ? max * 1.1 : 1);
+
+            pane.Refresh();
+            return barPlot;
+
+        }
+
         private async void UiTimer_Tick(object? sender, EventArgs e)
         {
             // --- Status indicator ---
             bool connected = TcpManager.Status == TcpManager.ConnectionStatus.Connected;
+
+            //Attempt to verify a valid ID
+            UUID.update();
 
             //Attempt to update information
             Info.update();
@@ -185,11 +263,9 @@ namespace DDR4_TestingApp
                 stopwatch.Stop();
                 TimeSpan timeSpan = stopwatch.Elapsed;
 
-                // 5. Print the results
-                dataViewerStats.Text = $"Fetched {DATA_VIEWER_RENDER_SIZE} bytes in {timeSpan.TotalMilliseconds} ms";
 
 
-                
+
 
 
 
@@ -233,6 +309,33 @@ namespace DDR4_TestingApp
                 if (Info.sys.Value.FpgaLoaded) { loadedInd.BackColor = Color.Green; }
                 else { loadedInd.BackColor = Color.Red; }
 
+            }
+
+            // Update UUID display
+            if (UUID.uuid is null)
+            {
+                showUUID.Text = "- - -";
+                showUUID.BackColor = Color.LightGray;
+            }
+            else
+            {
+                showUUID.Text = UUID.GetReadable();
+
+                //Change color based on status
+                if (UUID._fetchingUUID)
+                {
+                    showUUID.BackColor = Color.Yellow;
+                }
+
+                //In use
+                if (UUID.used)
+                {
+                    showUUID.BackColor = Color.LightBlue;
+                }
+                else
+                {
+                    showUUID.BackColor = Color.LightGreen;
+                }
             }
         }
 
@@ -362,7 +465,7 @@ namespace DDR4_TestingApp
             Config.sys.ChipIndex = 7;
         }
 
-        private async void verifyButton_Click(object sender, EventArgs e)
+        private async void verifyButton_Click_1(object sender, EventArgs e)
         {
             if (TcpManager.Status != TcpManager.ConnectionStatus.Connected)
             {
@@ -375,9 +478,17 @@ namespace DDR4_TestingApp
 
             uint taskDelay = 0;
 
+            //Ensure a UUID is present
+            if (UUID.uuid is null)
+            {
+                MessageBox.Show("No valid UUID ready");
+                return;
+            }
+
 
             var cmd = new VerifyCmd
             {
+                Uuid = UUID.uuid,
                 Pattern = (byte)verifyMode.SelectedIndex,    // 0 = zeros, 1 = ones, 2 = pseudorandom
                 Seed = UInt32.Parse(prngSeed.Text),
             };
@@ -388,19 +499,26 @@ namespace DDR4_TestingApp
             {
 
                 // Compose summary
-                ulong total = rsp.NumCorrect + rsp.NumErrors;
-                double corruptedPercent = total > 0 ? (rsp.NumErrors * 100.0 / total) : 0.0;
+                ulong total = rsp.NumCorrect + rsp.NumIncorrect;
+                double corruptedPercent = total > 0 ? (rsp.NumIncorrect * 100.0 / total) : 0.0;
                 double seconds = rsp.TimeSpentMs / 1000.0;
 
                 verificationResults.Text =
                     $"Finished verification in {seconds:F2} seconds!\n\n" +
                     $"Correct bits:   {rsp.NumCorrect:N0}\n" +
-                    $"Incorrect bits: {rsp.NumErrors:N0}\n\n" +
+                    $"Incorrect bits: {rsp.NumIncorrect:N0}\n\n" +
                     $"{corruptedPercent:F2}% of the bits were corrupted.";
 
 
                 Program.taskProgress = (int)rsp.PercentComplete;
-                Program.taskInfo = $"{rsp.BytesVerified:N0} bytes  ({rsp.PercentComplete:F1}%)  {(rsp.TimeSpentMs / 1000):F0}s";
+
+                // Render the bar plots from this update packet.
+                double[] bitBins = rsp.ErrBins?.Select(v => (double)v).ToArray() ?? Array.Empty<double>();
+                double[] adjBins = rsp.AdjErrBins?.Select(v => (double)v).ToArray() ?? Array.Empty<double>();
+
+                barPlot1 = UpdateBars(plot1, barPlot1, bitBins);
+                barPlot2 = UpdateBars(plot2, barPlot2, adjBins);
+
 
             });
 
@@ -414,25 +532,38 @@ namespace DDR4_TestingApp
                 VerifyRsp final = await TcpManager.SendVerifyAsync(cmd, progress, cts.Token);
 
                 // Compose summary
-                ulong total = final.NumCorrect + final.NumErrors;
-                double corruptedPercent = total > 0 ? (final.NumErrors * 100.0 / total) : 0.0;
+                ulong total = final.NumCorrect + final.NumIncorrect;
+                double corruptedPercent = total > 0 ? (final.NumIncorrect * 100.0 / total) : 0.0;
                 double seconds = final.TimeSpentMs / 1000.0;
 
                 verificationResults.Text =
                     $"Finished verification in {seconds:F2} seconds!\n\n" +
                     $"Correct bits:   {final.NumCorrect:N0}\n" +
-                    $"Incorrect bits: {final.NumErrors:N0}\n\n" +
+                    $"Incorrect bits: {final.NumIncorrect:N0}\n\n" +
                     $"{corruptedPercent:F2}% of the bits were corrupted.";
+
+                // Render the authoritative final response (mirrors the summary-text handling above).
+                double[] bitBinsFinal = final.ErrBins?.Select(v => (double)v).ToArray() ?? Array.Empty<double>();
+                double[] adjBinsFinal = final.AdjErrBins?.Select(v => (double)v).ToArray() ?? Array.Empty<double>();
+
+                barPlot1 = UpdateBars(plot1, barPlot1, bitBinsFinal);
+                barPlot2 = UpdateBars(plot2, barPlot2, adjBinsFinal);
 
                 Program.taskInfo = $"Verify complete in {seconds:F1}s";
             }
             catch (OperationCanceledException)
             {
                 Program.taskInfo = "Verify cancelled.";
+
+                //Consume the UUID
+                UUID.used = true;
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Verify failed: {ex.Message}");
+
+                //Consume the UUID
+                UUID.used = true;
             }
             finally
             {
@@ -445,6 +576,9 @@ namespace DDR4_TestingApp
                 }
                 bms = BeamState.Finished;
                 verifyButton.Enabled = true;
+
+                //Consume the UUID
+                UUID.used = true;
             }
         }
 
@@ -766,28 +900,11 @@ namespace DDR4_TestingApp
         private void resetFPGA_Click(object sender, EventArgs e)
         {
 
-            ResetCmd r = new ResetCmd { ControllerReset = false, FpgaReset = true };
-
-            Program.taskName = "RESET";
-            Program.taskProgress = 0;
-
-            TcpManager.SendResetAsync(r).GetAwaiter();
-
-            Program.taskName = "RESET";
-            Program.taskProgress = 100;
         }
 
         private void resetController_Click(object sender, EventArgs e)
         {
-            ResetCmd r = new ResetCmd { ControllerReset = true, FpgaReset = false };
 
-            Program.taskName = "RESET";
-            Program.taskProgress = 0;
-
-            TcpManager.SendResetAsync(r).GetAwaiter();
-
-            Program.taskName = "RESET";
-            Program.taskProgress = 100;
         }
 
         private void chip_org_SelectedIndexChanged(object sender, EventArgs e)
@@ -820,12 +937,22 @@ namespace DDR4_TestingApp
             Program.taskProgress = 50;
 
             //Clear all previous data
-            dataX.Clear();
-            dataY.Clear();
+            dynDataX.Clear();
+            dynDataY.Clear();
+
+            //Ensure a UUID is present
+            if (UUID.uuid is null)
+            {
+                MessageBox.Show("No valid UUID ready");
+                return;
+            }
 
 
             var cmd = new DynamicCmd
             {
+                //Update UUID
+                Uuid = UUID.uuid,
+
                 // Pattern generation
                 Pattern = (byte)dyn_pattern.SelectedIndex,
                 Seed = UInt32.Parse(prngSeed.Text),
@@ -853,16 +980,16 @@ namespace DDR4_TestingApp
                 }
 
                 //Add data to collection
-                dataX.Add(rsp.ExposureTimeMs);
+                dynDataX.Add(rsp.ExposureTimeMs);
 
                 if (!double.IsNaN(rsp.ErrorRatePercent) && !double.IsInfinity(rsp.ErrorRatePercent))
-                    dataY.Add(rsp.ErrorRatePercent);
+                    dynDataY.Add(rsp.ErrorRatePercent);
 
                 double cutoff = rsp.ExposureTimeMs - 10000;
-                while (dataX.Count > 0 && dataX[0] < cutoff)
+                while (dynDataX.Count > 0 && dynDataX[0] < cutoff)
                 {
-                    dataX.RemoveAt(0);
-                    dataY.RemoveAt(0);
+                    dynDataX.RemoveAt(0);
+                    dynDataY.RemoveAt(0);
                 }
 
                 dynPlot.Plot.Axes.AutoScaleX();   // now fits only the retained window
@@ -914,32 +1041,51 @@ namespace DDR4_TestingApp
                 dynRateTime.Text = rsp.ErrorRatePerSecond.ToString() + " errors/sec";
                 dynRatePercent.Text = rsp.ErrorRatePercent.ToString();
 
+                // Render the bar plots from this update packet.
+                double[] bitBins = rsp.ErrBins?.Select(v => (double)v).ToArray() ?? Array.Empty<double>();
+                double[] adjBins = rsp.AdjErrBins?.Select(v => (double)v).ToArray() ?? Array.Empty<double>();
+
+                dynbarPlot2 = UpdateBars(dynPlot2, dynbarPlot2, bitBins);
+                dynbarPlot3 = UpdateBars(dynPlot3, dynbarPlot3, adjBins);
+
+
                 //Render Memory Viewer
                 {
-                    uint rows = 21;
-                    String txt = "";
+                    const uint rows = MEM_VIEWER_ROWS;            // class const, = 21
 
                     uint start_addr = 0;
                     uint end_addr = Config.sys.ChipSizeBytes;
-                    uint step = (uint)(end_addr - start_addr) / rows;
+                    uint step = (end_addr - start_addr) / rows;   // bytes represented by one row
+                    if (step == 0) step = 1;                      // guard: chip smaller than the row count
 
-                    //Render rows
-                    for(int i = 0; i < rows; i++)
+                    // --- Where the device currently is ---
+                    // If DynamicRsp reports the address under test, use it directly, e.g.:
+                    //     uint currentAddr = rsp.CurrentAddress;
+                    // The fallback below only works if the scan walks the chip linearly and wraps.
+                    uint currentAddr = end_addr > 0 ? (uint)(rsp.TotalBytes % end_addr) : 0;
+                    uint currentRow = Math.Min((currentAddr - start_addr) / step, rows - 1);
+
+                    // --- Record this row's rate so it persists after the cursor moves off it ---
+                    // err_per_thousand is the per-thousand rate already computed just above.
+                    if (!float.IsNaN(err_per_thousand) && !float.IsInfinity(err_per_thousand))
+                        _memBandRate[currentRow] = err_per_thousand;
+
+                    // --- Build the table ---
+                    String txt = "";
+                    for (uint b = 0; b < rows; b++)
                     {
+                        uint rowAddr = start_addr + b * step;
 
-                        //Check if cursor should be rendered
+                        string cursor = (b == currentRow) ? "===>" : "    ";        // col 1: cursor / blank (same width)
+                        string rate = _memBandRate[b].HasValue                      // col 2: last-seen rate, 3 digits
+                            ? ((uint)Math.Min(_memBandRate[b].Value, 999f)).ToString("000")
+                            : "---";                                                //         dashes if never visited
+                        string addr = Tools.ToHexString(rowAddr);                   // col 3: this row's address
 
-                        txt += "  --->  |        | 0x00000000 ";
-
-
-
+                        txt += $"  {cursor}  | {rate} | {addr} " + Environment.NewLine;
                     }
 
-
-                    
-
-
-
+                    memoryViewer.Text = txt;   // point this at your viewer control (see note)
                 }
 
             });
@@ -956,20 +1102,23 @@ namespace DDR4_TestingApp
             catch (OperationCanceledException)
             {
                 Program.taskInfo = "Verify cancelled.";
+                UUID.used = true;
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Verify failed: {ex.Message}");
+                UUID.used = true;
             }
             finally
             {
+                UUID.used = true;
 
                 //Task complete
                 Program.taskProgress = 100;
 
                 //Fill in info
                 dynStage.Text = "DONE";
-                   
+
             }
         }
 
@@ -1012,5 +1161,11 @@ namespace DDR4_TestingApp
             // Propagate to bar (clamped to valid range as a guard)
             dyn_trigger_bar.Value = Math.Clamp((int)(dyn_trigger_threshold * 100), 0, 100);
         }
+
+        private void groupBox10_Enter(object sender, EventArgs e)
+        {
+
+        }
+
     }
 }

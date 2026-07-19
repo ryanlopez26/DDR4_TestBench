@@ -20,6 +20,7 @@ namespace DDR4_TestingApp
             ChipSizeBytes           = 1 * 1024 * 1024 * 1024,
             EnableChipSelect        = false,
             AddressMultiplier       = 0x0,
+            EnableLogging           = false,
         };
 
         static public async void apply()
