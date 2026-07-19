@@ -90,7 +90,7 @@ pub fn write(config: &ConfigCmd, offset: u32, value: u8) -> Result<(), ChipError
     if config.enable_chip_select {true_offset = map_offset(config, offset)?;}
     
     //Check if simulated mode is enabled
-    if(crate::config::SIMULATION_MODE) {
+    if crate::config::SIMULATION_MODE {
         crate::vram::write(true_offset, value);
     } else {
         crate::ram::write(true_offset, value);
@@ -110,7 +110,7 @@ pub fn read(config: &ConfigCmd, offset: u32) -> Result<u8, ChipError> {
     
     Ok(    
         //Check if simulated mode is enabled
-        if(crate::config::SIMULATION_MODE) {
+        if crate::config::SIMULATION_MODE {
             crate::vram::read(true_offset)
         } else {
             crate::ram::read(true_offset)

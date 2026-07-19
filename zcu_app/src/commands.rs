@@ -1,11 +1,11 @@
 // ======================= Performs the commands ========================
 
 use std::net::TcpStream;
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 
 use bincode::Options;
 
-use crate::{chip, gpio, recorder, types::*, utils};
+use crate::{chip, gpio, recorder, types::*};
 
 use crate::server::send_response;
 use crate::config::*;
@@ -413,7 +413,7 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
 
                         crate::dbg_log!(
                             "dynamic_command: SEFI detected error_rate={:.4} > threshold={:.4}, time_to_sefi={}ms",
-                            rsp.error_rate, cmd.trigger_threshold, rsp.time_to_sefi.as_millis()
+                            rsp.error_rate, cmd.trigger_threshold, rsp.time_to_sefi
                         );
                     }
                 }
@@ -445,6 +445,7 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
             {
                 if last_update_instant.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS || rsp.test_completed {
                     
+
                     //Update response structure
                     rsp.beam_signal = gpio::get_beam_signal();
                     rsp.controller_calibrated = gpio::get_calibration_signal();
@@ -532,10 +533,6 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
         }
     };
 
-    crate::dbg_log!(
-        "dynamic_command: done total_errors={}, total_correct={}, total_bytes={}, sefi_detected={}",
-        total_errors, total_correct, total_correct + total_errors, sefi_detected
-    );
 
 }
 
@@ -1032,6 +1029,6 @@ pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd, v_cmd: &VerifyCmd){
 
     }
 
-    crate::dbg_log!("dump_command: complete, {} pages dumped in {}ms", cmd.num_pages, start_time.elapsed().unwrap().as_millis());
+    crate::dbg_log!("dump_command: complete, {} pages dumped in {}ms", cmd.num_pages, time_since_start.elapsed().unwrap().as_millis());
 
 }

@@ -1,8 +1,7 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Mutex;
 
-use crate::utils;
 
 pub static LOGDIR: &str = "/mnt/zcuLogs";
 pub static DATALOG: Mutex<Vec<String>> = Mutex::new(Vec::new());
