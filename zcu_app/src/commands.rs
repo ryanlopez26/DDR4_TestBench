@@ -137,7 +137,7 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
         fpga_loaded: gpio::get_fpga_loaded_status(),
         pass_counter: 0,
         start_address: 0x00000000,
-        end_address: 0x00000000,
+        end_address: config.chip_size_bytes,
         current_address: 0x00000000,
     };
 
@@ -263,34 +263,28 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
     let mut bits_sampled: u64 = 0;
     let mut bits_errored: u64 = 0;
 
-    //Debug-only pass counter (how many full chip sweeps we complete)
-    #[cfg(feature = "debug")]
-    let mut pass_count: u64 = 0;
 
-    
     //Exposure present - Perform test
     loop {
-
-        #[cfg(feature = "debug")]
-        {
-            pass_count += 1;
-            crate::dbg_log!("dynamic_command: starting chip sweep #{}", pass_count);
-        }
 
         //Iterate over chip
         for i in (0..config.chip_size_bytes).step_by(config.address_multiplier as usize) {
 
             // Perform write and verify operation
             {
+
+                //Update current address
+                rsp.current_address += 1;
+
                 //Value to test
                 let v = match cmd.pattern {
                     0 => {
                         // Zero mode
-                        0
+                        0x00
                     },
                     1 => {
                         // All ones
-                        1
+                        0xFF
                     },
                     2 => {
                         // Random
@@ -531,6 +525,10 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
                     
 
         }
+   
+        //Increment pass count
+        rsp.pass_counter += 1;
+
     };
 
 
