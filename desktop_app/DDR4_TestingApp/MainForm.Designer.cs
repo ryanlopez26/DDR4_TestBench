@@ -40,6 +40,7 @@
             loadedInd = new ToolStripStatusLabel();
             uiInd = new ToolStripStatusLabel();
             plInd = new ToolStripStatusLabel();
+            showUUID = new ToolStripStatusLabel();
             mainPane = new TabControl();
             tabPage1 = new TabPage();
             groupBox6 = new GroupBox();
@@ -101,6 +102,10 @@
             label19 = new Label();
             label3 = new Label();
             tabPage2 = new TabPage();
+            groupBox31 = new GroupBox();
+            verifyButton = new Button();
+            groupBox10 = new GroupBox();
+            verifyMode = new ComboBox();
             groupBox14 = new GroupBox();
             DataViewerScrollDown = new Button();
             DataViewerScrollUp = new Button();
@@ -109,17 +114,17 @@
             prngSeed = new TextBox();
             genSeed = new Button();
             groupBox9 = new GroupBox();
+            groupBox41 = new GroupBox();
+            plot2 = new ScottPlot.WinForms.FormsPlot();
+            groupBox40 = new GroupBox();
+            plot1 = new ScottPlot.WinForms.FormsPlot();
             groupBox12 = new GroupBox();
             verificationResults = new RichTextBox();
-            verifyButton = new Button();
-            groupBox10 = new GroupBox();
-            verifyMode = new ComboBox();
             groupBox8 = new GroupBox();
             writeButton = new Button();
             writeModeLabel = new GroupBox();
             writeMode = new ComboBox();
             groupBox15 = new GroupBox();
-            dataViewerStats = new Label();
             groupBox16 = new GroupBox();
             viewerMode = new ComboBox();
             groupBox7 = new GroupBox();
@@ -128,8 +133,6 @@
             groupBox37 = new GroupBox();
             dynPlot = new ScottPlot.WinForms.FormsPlot();
             groupBox33 = new GroupBox();
-            groupBox30 = new GroupBox();
-            richTextBox3 = new RichTextBox();
             groupBox38 = new GroupBox();
             dynRatePercent = new TextBox();
             groupBox36 = new GroupBox();
@@ -139,7 +142,7 @@
             groupBox39 = new GroupBox();
             dynSEFI = new TextBox();
             groupBox32 = new GroupBox();
-            richTextBox2 = new RichTextBox();
+            memoryViewer = new RichTextBox();
             groupBox29 = new GroupBox();
             dynBytes = new TextBox();
             groupBox28 = new GroupBox();
@@ -177,6 +180,10 @@
             dumpPath = new TextBox();
             contextMenuStrip1 = new ContextMenuStrip(components);
             contextMenuStrip2 = new ContextMenuStrip(components);
+            groupBox30 = new GroupBox();
+            dynPlot3 = new ScottPlot.WinForms.FormsPlot();
+            groupBox42 = new GroupBox();
+            dynPlot2 = new ScottPlot.WinForms.FormsPlot();
             ((System.ComponentModel.ISupportInitialize)captureInfoBindingSource).BeginInit();
             statusStrip1.SuspendLayout();
             mainPane.SuspendLayout();
@@ -193,11 +200,14 @@
             ((System.ComponentModel.ISupportInitialize)pictureBox2).BeginInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
             tabPage2.SuspendLayout();
+            groupBox31.SuspendLayout();
+            groupBox10.SuspendLayout();
             groupBox14.SuspendLayout();
             groupBox11.SuspendLayout();
             groupBox9.SuspendLayout();
+            groupBox41.SuspendLayout();
+            groupBox40.SuspendLayout();
             groupBox12.SuspendLayout();
-            groupBox10.SuspendLayout();
             groupBox8.SuspendLayout();
             writeModeLabel.SuspendLayout();
             groupBox15.SuspendLayout();
@@ -206,7 +216,6 @@
             tabPage3.SuspendLayout();
             groupBox37.SuspendLayout();
             groupBox33.SuspendLayout();
-            groupBox30.SuspendLayout();
             groupBox38.SuspendLayout();
             groupBox36.SuspendLayout();
             groupBox25.SuspendLayout();
@@ -228,11 +237,13 @@
             groupBox17.SuspendLayout();
             groupBox23.SuspendLayout();
             groupBox22.SuspendLayout();
+            groupBox30.SuspendLayout();
+            groupBox42.SuspendLayout();
             SuspendLayout();
             // 
             // statusStrip1
             // 
-            statusStrip1.Items.AddRange(new ToolStripItem[] { taskName, taskProgress, beamInd, calInd, onlineInd, loadedInd, uiInd, plInd });
+            statusStrip1.Items.AddRange(new ToolStripItem[] { taskName, taskProgress, beamInd, calInd, onlineInd, loadedInd, uiInd, plInd, showUUID });
             statusStrip1.Location = new Point(0, 511);
             statusStrip1.Name = "statusStrip1";
             statusStrip1.Padding = new Padding(1, 0, 12, 0);
@@ -251,7 +262,7 @@
             // 
             taskProgress.AutoSize = false;
             taskProgress.Name = "taskProgress";
-            taskProgress.Size = new Size(250, 16);
+            taskProgress.Size = new Size(200, 16);
             // 
             // beamInd
             // 
@@ -307,6 +318,17 @@
             plInd.Name = "plInd";
             plInd.Size = new Size(22, 17);
             plInd.Text = "PL";
+            // 
+            // showUUID
+            // 
+            showUUID.AutoSize = false;
+            showUUID.BackColor = SystemColors.ActiveBorder;
+            showUUID.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            showUUID.Margin = new Padding(10, 3, 0, 2);
+            showUUID.Name = "showUUID";
+            showUUID.Padding = new Padding(5, 0, 5, 0);
+            showUUID.Size = new Size(50, 17);
+            showUUID.Text = "A A A";
             // 
             // mainPane
             // 
@@ -927,7 +949,7 @@
             // label19
             // 
             label19.AutoSize = true;
-            label19.Location = new Point(36, 70);
+            label19.Location = new Point(36, 71);
             label19.Name = "label19";
             label19.Size = new Size(133, 13);
             label19.TabIndex = 9;
@@ -946,6 +968,7 @@
             // 
             // tabPage2
             // 
+            tabPage2.Controls.Add(groupBox31);
             tabPage2.Controls.Add(groupBox14);
             tabPage2.Controls.Add(groupBox11);
             tabPage2.Controls.Add(groupBox9);
@@ -959,6 +982,50 @@
             tabPage2.Text = "Static Tools";
             tabPage2.UseVisualStyleBackColor = true;
             tabPage2.Click += tabPage2_Click;
+            // 
+            // groupBox31
+            // 
+            groupBox31.Controls.Add(verifyButton);
+            groupBox31.Controls.Add(groupBox10);
+            groupBox31.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            groupBox31.Location = new Point(6, 121);
+            groupBox31.Name = "groupBox31";
+            groupBox31.Size = new Size(316, 71);
+            groupBox31.TabIndex = 9;
+            groupBox31.TabStop = false;
+            groupBox31.Text = "Verify Tool";
+            // 
+            // verifyButton
+            // 
+            verifyButton.Font = new Font("Segoe UI", 9F);
+            verifyButton.Location = new Point(143, 22);
+            verifyButton.Name = "verifyButton";
+            verifyButton.Size = new Size(168, 41);
+            verifyButton.TabIndex = 4;
+            verifyButton.Text = "Verify";
+            verifyButton.UseVisualStyleBackColor = true;
+            verifyButton.Click += verifyButton_Click_1;
+            // 
+            // groupBox10
+            // 
+            groupBox10.Controls.Add(verifyMode);
+            groupBox10.Font = new Font("Segoe UI", 9F);
+            groupBox10.Location = new Point(6, 17);
+            groupBox10.Name = "groupBox10";
+            groupBox10.Size = new Size(133, 46);
+            groupBox10.TabIndex = 3;
+            groupBox10.TabStop = false;
+            groupBox10.Text = "Verify Mode";
+            groupBox10.Enter += groupBox10_Enter;
+            // 
+            // verifyMode
+            // 
+            verifyMode.FormattingEnabled = true;
+            verifyMode.Items.AddRange(new object[] { "ZEROS", "ONES", "PRNG" });
+            verifyMode.Location = new Point(5, 19);
+            verifyMode.Name = "verifyMode";
+            verifyMode.Size = new Size(122, 23);
+            verifyMode.TabIndex = 0;
             // 
             // groupBox14
             // 
@@ -1036,76 +1103,81 @@
             // 
             // groupBox9
             // 
+            groupBox9.Controls.Add(groupBox41);
+            groupBox9.Controls.Add(groupBox40);
             groupBox9.Controls.Add(groupBox12);
-            groupBox9.Controls.Add(verifyButton);
-            groupBox9.Controls.Add(groupBox10);
             groupBox9.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             groupBox9.Location = new Point(328, 6);
             groupBox9.Name = "groupBox9";
             groupBox9.Size = new Size(349, 256);
             groupBox9.TabIndex = 3;
             groupBox9.TabStop = false;
-            groupBox9.Text = "Verify Tool";
+            groupBox9.Text = "Verification Results";
+            // 
+            // groupBox41
+            // 
+            groupBox41.Controls.Add(plot2);
+            groupBox41.Font = new Font("Segoe UI", 9F);
+            groupBox41.Location = new Point(177, 139);
+            groupBox41.Name = "groupBox41";
+            groupBox41.Size = new Size(166, 111);
+            groupBox41.TabIndex = 10;
+            groupBox41.TabStop = false;
+            groupBox41.Text = "Group Sizes of Bit Errors";
+            // 
+            // plot2
+            // 
+            plot2.Location = new Point(6, 22);
+            plot2.Name = "plot2";
+            plot2.Size = new Size(154, 83);
+            plot2.TabIndex = 5;
+            // 
+            // groupBox40
+            // 
+            groupBox40.Controls.Add(plot1);
+            groupBox40.Font = new Font("Segoe UI", 9F);
+            groupBox40.Location = new Point(5, 139);
+            groupBox40.Name = "groupBox40";
+            groupBox40.Size = new Size(166, 111);
+            groupBox40.TabIndex = 7;
+            groupBox40.TabStop = false;
+            groupBox40.Text = "# Bit Errors per Byte";
+            // 
+            // plot1
+            // 
+            plot1.Location = new Point(6, 22);
+            plot1.Name = "plot1";
+            plot1.Size = new Size(154, 83);
+            plot1.TabIndex = 5;
             // 
             // groupBox12
             // 
             groupBox12.Controls.Add(verificationResults);
             groupBox12.Font = new Font("Segoe UI", 9F);
-            groupBox12.Location = new Point(5, 70);
+            groupBox12.Location = new Point(5, 17);
             groupBox12.Name = "groupBox12";
-            groupBox12.Size = new Size(338, 180);
+            groupBox12.Size = new Size(338, 122);
             groupBox12.TabIndex = 3;
             groupBox12.TabStop = false;
-            groupBox12.Text = "Verification Results";
+            groupBox12.Text = "Overview";
             // 
             // verificationResults
             // 
             verificationResults.Font = new Font("Consolas", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
             verificationResults.Location = new Point(5, 20);
             verificationResults.Name = "verificationResults";
-            verificationResults.Size = new Size(333, 154);
+            verificationResults.Size = new Size(333, 96);
             verificationResults.TabIndex = 0;
-            verificationResults.Text = "";
-            // 
-            // verifyButton
-            // 
-            verifyButton.Font = new Font("Segoe UI", 9F);
-            verifyButton.Location = new Point(175, 23);
-            verifyButton.Name = "verifyButton";
-            verifyButton.Size = new Size(168, 41);
-            verifyButton.TabIndex = 2;
-            verifyButton.Text = "Verify";
-            verifyButton.UseVisualStyleBackColor = true;
-            verifyButton.Click += verifyButton_Click;
-            // 
-            // groupBox10
-            // 
-            groupBox10.Controls.Add(verifyMode);
-            groupBox10.Font = new Font("Segoe UI", 9F);
-            groupBox10.Location = new Point(5, 19);
-            groupBox10.Name = "groupBox10";
-            groupBox10.Size = new Size(133, 46);
-            groupBox10.TabIndex = 1;
-            groupBox10.TabStop = false;
-            groupBox10.Text = "Verify Mode";
-            // 
-            // verifyMode
-            // 
-            verifyMode.FormattingEnabled = true;
-            verifyMode.Items.AddRange(new object[] { "ZEROS", "ONES", "PRNG" });
-            verifyMode.Location = new Point(5, 19);
-            verifyMode.Name = "verifyMode";
-            verifyMode.Size = new Size(122, 23);
-            verifyMode.TabIndex = 0;
+            verificationResults.Text = "Finished verification in 0.00 seconds!\n\nCorrect bits:   0\nIncorrect bits: 0\n\n000.00% of the bits were corrupted.";
             // 
             // groupBox8
             // 
             groupBox8.Controls.Add(writeButton);
             groupBox8.Controls.Add(writeModeLabel);
             groupBox8.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            groupBox8.Location = new Point(5, 62);
+            groupBox8.Location = new Point(5, 56);
             groupBox8.Name = "groupBox8";
-            groupBox8.Size = new Size(317, 78);
+            groupBox8.Size = new Size(317, 66);
             groupBox8.TabIndex = 0;
             groupBox8.TabStop = false;
             groupBox8.Text = "Write Tool";
@@ -1113,7 +1185,7 @@
             // writeButton
             // 
             writeButton.Font = new Font("Segoe UI", 9F);
-            writeButton.Location = new Point(144, 24);
+            writeButton.Location = new Point(144, 22);
             writeButton.Name = "writeButton";
             writeButton.Size = new Size(167, 41);
             writeButton.TabIndex = 2;
@@ -1125,7 +1197,7 @@
             // 
             writeModeLabel.Controls.Add(writeMode);
             writeModeLabel.Font = new Font("Segoe UI", 9F);
-            writeModeLabel.Location = new Point(5, 19);
+            writeModeLabel.Location = new Point(5, 16);
             writeModeLabel.Name = "writeModeLabel";
             writeModeLabel.Size = new Size(134, 46);
             writeModeLabel.TabIndex = 1;
@@ -1143,32 +1215,21 @@
             // 
             // groupBox15
             // 
-            groupBox15.Controls.Add(dataViewerStats);
             groupBox15.Controls.Add(groupBox16);
             groupBox15.Controls.Add(groupBox7);
             groupBox15.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            groupBox15.Location = new Point(6, 146);
+            groupBox15.Location = new Point(6, 190);
             groupBox15.Name = "groupBox15";
-            groupBox15.Size = new Size(316, 110);
+            groupBox15.Size = new Size(316, 69);
             groupBox15.TabIndex = 2;
             groupBox15.TabStop = false;
             groupBox15.Text = "Data Viewer Settings";
-            // 
-            // dataViewerStats
-            // 
-            dataViewerStats.AutoSize = true;
-            dataViewerStats.Font = new Font("Segoe UI", 9F, FontStyle.Italic);
-            dataViewerStats.Location = new Point(15, 82);
-            dataViewerStats.Name = "dataViewerStats";
-            dataViewerStats.Size = new Size(241, 15);
-            dataViewerStats.TabIndex = 9;
-            dataViewerStats.Text = "(120ms ago): Fetched 1KB Memory in 1020ms";
             // 
             // groupBox16
             // 
             groupBox16.Controls.Add(viewerMode);
             groupBox16.Font = new Font("Segoe UI", 9F);
-            groupBox16.Location = new Point(215, 27);
+            groupBox16.Location = new Point(215, 17);
             groupBox16.Name = "groupBox16";
             groupBox16.Size = new Size(95, 46);
             groupBox16.TabIndex = 8;
@@ -1188,7 +1249,7 @@
             // 
             groupBox7.Controls.Add(viewerAddress);
             groupBox7.Font = new Font("Segoe UI", 9F);
-            groupBox7.Location = new Point(9, 27);
+            groupBox7.Location = new Point(9, 17);
             groupBox7.Name = "groupBox7";
             groupBox7.Size = new Size(200, 46);
             groupBox7.TabIndex = 7;
@@ -1201,7 +1262,7 @@
             viewerAddress.Name = "viewerAddress";
             viewerAddress.Size = new Size(188, 23);
             viewerAddress.TabIndex = 5;
-            viewerAddress.Text = "00000000";
+            viewerAddress.Text = "0x00000000";
             viewerAddress.TextChanged += viewerAddress_TextChanged;
             viewerAddress.LostFocus += viewerAddress_TextChanged_1;
             // 
@@ -1240,48 +1301,31 @@
             // groupBox33
             // 
             groupBox33.Controls.Add(groupBox30);
+            groupBox33.Controls.Add(groupBox42);
             groupBox33.Controls.Add(groupBox38);
             groupBox33.Controls.Add(groupBox36);
-            groupBox33.Location = new Point(6, 204);
+            groupBox33.Location = new Point(6, 154);
             groupBox33.Name = "groupBox33";
-            groupBox33.Size = new Size(312, 138);
+            groupBox33.Size = new Size(312, 188);
             groupBox33.TabIndex = 4;
             groupBox33.TabStop = false;
             groupBox33.Text = "Validation Metrics";
             // 
-            // groupBox30
-            // 
-            groupBox30.Controls.Add(richTextBox3);
-            groupBox30.Location = new Point(167, 15);
-            groupBox30.Name = "groupBox30";
-            groupBox30.Size = new Size(139, 116);
-            groupBox30.TabIndex = 8;
-            groupBox30.TabStop = false;
-            groupBox30.Text = "Error ";
-            // 
-            // richTextBox3
-            // 
-            richTextBox3.Location = new Point(6, 17);
-            richTextBox3.Name = "richTextBox3";
-            richTextBox3.Size = new Size(127, 90);
-            richTextBox3.TabIndex = 0;
-            richTextBox3.Text = "";
-            // 
             // groupBox38
             // 
             groupBox38.Controls.Add(dynRatePercent);
-            groupBox38.Location = new Point(5, 90);
+            groupBox38.Location = new Point(232, 15);
             groupBox38.Name = "groupBox38";
-            groupBox38.Size = new Size(156, 41);
+            groupBox38.Size = new Size(74, 41);
             groupBox38.TabIndex = 5;
             groupBox38.TabStop = false;
-            groupBox38.Text = "Error Rate Percent";
+            groupBox38.Text = "Error %";
             // 
             // dynRatePercent
             // 
             dynRatePercent.Location = new Point(6, 15);
             dynRatePercent.Name = "dynRatePercent";
-            dynRatePercent.Size = new Size(144, 20);
+            dynRatePercent.Size = new Size(58, 20);
             dynRatePercent.TabIndex = 2;
             // 
             // groupBox36
@@ -1290,23 +1334,23 @@
             groupBox36.Controls.Add(dynBitErrors);
             groupBox36.Location = new Point(6, 15);
             groupBox36.Name = "groupBox36";
-            groupBox36.Size = new Size(155, 72);
+            groupBox36.Size = new Size(220, 41);
             groupBox36.TabIndex = 3;
             groupBox36.TabStop = false;
             groupBox36.Text = "Error Rate";
             // 
             // dynRateTime
             // 
-            dynRateTime.Location = new Point(6, 45);
+            dynRateTime.Location = new Point(130, 15);
             dynRateTime.Name = "dynRateTime";
-            dynRateTime.Size = new Size(143, 20);
+            dynRateTime.Size = new Size(84, 20);
             dynRateTime.TabIndex = 3;
             // 
             // dynBitErrors
             // 
-            dynBitErrors.Location = new Point(6, 19);
+            dynBitErrors.Location = new Point(6, 15);
             dynBitErrors.Name = "dynBitErrors";
-            dynBitErrors.Size = new Size(143, 20);
+            dynBitErrors.Size = new Size(118, 20);
             dynBitErrors.TabIndex = 2;
             dynBitErrors.TextChanged += textBox8_TextChanged;
             // 
@@ -1345,7 +1389,7 @@
             // 
             // groupBox32
             // 
-            groupBox32.Controls.Add(richTextBox2);
+            groupBox32.Controls.Add(memoryViewer);
             groupBox32.Location = new Point(153, 21);
             groupBox32.Name = "groupBox32";
             groupBox32.Size = new Size(196, 308);
@@ -1353,13 +1397,16 @@
             groupBox32.TabStop = false;
             groupBox32.Text = "Address Space Viewer";
             // 
-            // richTextBox2
+            // memoryViewer
             // 
-            richTextBox2.Location = new Point(6, 17);
-            richTextBox2.Name = "richTextBox2";
-            richTextBox2.Size = new Size(184, 285);
-            richTextBox2.TabIndex = 0;
-            richTextBox2.Text = "";
+            memoryViewer.Location = new Point(6, 17);
+            memoryViewer.Name = "memoryViewer";
+            memoryViewer.ReadOnly = true;
+            memoryViewer.ScrollBars = RichTextBoxScrollBars.None;
+            memoryViewer.Size = new Size(184, 285);
+            memoryViewer.TabIndex = 0;
+            memoryViewer.Text = "";
+            memoryViewer.WordWrap = false;
             // 
             // groupBox29
             // 
@@ -1455,7 +1502,7 @@
             groupBox18.Controls.Add(groupBox19);
             groupBox18.Location = new Point(6, 6);
             groupBox18.Name = "groupBox18";
-            groupBox18.Size = new Size(312, 192);
+            groupBox18.Size = new Size(312, 142);
             groupBox18.TabIndex = 0;
             groupBox18.TabStop = false;
             groupBox18.Text = "Dynamic Test Settings";
@@ -1463,9 +1510,9 @@
             // dyn_execute
             // 
             dyn_execute.Font = new Font("Segoe UI", 9F);
-            dyn_execute.Location = new Point(173, 144);
+            dyn_execute.Location = new Point(226, 24);
             dyn_execute.Name = "dyn_execute";
-            dyn_execute.Size = new Size(131, 45);
+            dyn_execute.Size = new Size(78, 45);
             dyn_execute.TabIndex = 6;
             dyn_execute.Text = "Execute";
             dyn_execute.UseVisualStyleBackColor = true;
@@ -1474,26 +1521,26 @@
             // groupBox34
             // 
             groupBox34.Controls.Add(dyn_bps);
-            groupBox34.Location = new Point(6, 141);
+            groupBox34.Location = new Point(226, 69);
             groupBox34.Name = "groupBox34";
-            groupBox34.Size = new Size(155, 48);
+            groupBox34.Size = new Size(78, 62);
             groupBox34.TabIndex = 5;
             groupBox34.TabStop = false;
-            groupBox34.Text = "Bytes per Rate Sample";
+            groupBox34.Text = "Bytes/     Sample";
             // 
             // dyn_bps
             // 
-            dyn_bps.Location = new Point(6, 19);
+            dyn_bps.Location = new Point(7, 30);
             dyn_bps.Name = "dyn_bps";
-            dyn_bps.Size = new Size(138, 20);
+            dyn_bps.Size = new Size(63, 20);
             dyn_bps.TabIndex = 2;
             // 
             // groupBox24
             // 
             groupBox24.Controls.Add(dyn_beam);
-            groupBox24.Location = new Point(167, 19);
+            groupBox24.Location = new Point(117, 19);
             groupBox24.Name = "groupBox24";
-            groupBox24.Size = new Size(137, 48);
+            groupBox24.Size = new Size(107, 48);
             groupBox24.TabIndex = 3;
             groupBox24.TabStop = false;
             groupBox24.Text = "Beam Detection";
@@ -1501,7 +1548,7 @@
             // dyn_beam
             // 
             dyn_beam.AutoSize = true;
-            dyn_beam.Location = new Point(37, 21);
+            dyn_beam.Location = new Point(12, 21);
             dyn_beam.Name = "dyn_beam";
             dyn_beam.Size = new Size(68, 17);
             dyn_beam.TabIndex = 0;
@@ -1513,7 +1560,7 @@
             groupBox20.Controls.Add(dyn_pattern);
             groupBox20.Location = new Point(6, 19);
             groupBox20.Name = "groupBox20";
-            groupBox20.Size = new Size(155, 48);
+            groupBox20.Size = new Size(105, 48);
             groupBox20.TabIndex = 2;
             groupBox20.TabStop = false;
             groupBox20.Text = "Pattern Type";
@@ -1524,7 +1571,7 @@
             dyn_pattern.Items.AddRange(new object[] { "ZEROS", "ONES", "PRNG" });
             dyn_pattern.Location = new Point(6, 19);
             dyn_pattern.Name = "dyn_pattern";
-            dyn_pattern.Size = new Size(143, 21);
+            dyn_pattern.Size = new Size(88, 21);
             dyn_pattern.TabIndex = 1;
             dyn_pattern.SelectedIndexChanged += comboBox1_SelectedIndexChanged;
             // 
@@ -1533,9 +1580,9 @@
             groupBox19.Controls.Add(label14);
             groupBox19.Controls.Add(dyn_trigger_box);
             groupBox19.Controls.Add(dyn_trigger_bar);
-            groupBox19.Location = new Point(6, 73);
+            groupBox19.Location = new Point(6, 69);
             groupBox19.Name = "groupBox19";
-            groupBox19.Size = new Size(298, 62);
+            groupBox19.Size = new Size(214, 62);
             groupBox19.TabIndex = 1;
             groupBox19.TabStop = false;
             groupBox19.Text = "SEFI Trigger Threshold (%)";
@@ -1544,7 +1591,7 @@
             // 
             label14.AutoSize = true;
             label14.Font = new Font("Consolas", 12F, FontStyle.Bold);
-            label14.Location = new Point(274, 20);
+            label14.Location = new Point(183, 21);
             label14.Name = "label14";
             label14.Size = new Size(18, 19);
             label14.TabIndex = 3;
@@ -1552,9 +1599,9 @@
             // 
             // dyn_trigger_box
             // 
-            dyn_trigger_box.Location = new Point(220, 19);
+            dyn_trigger_box.Location = new Point(141, 23);
             dyn_trigger_box.Name = "dyn_trigger_box";
-            dyn_trigger_box.Size = new Size(48, 20);
+            dyn_trigger_box.Size = new Size(36, 20);
             dyn_trigger_box.TabIndex = 2;
             dyn_trigger_box.TextChanged += dyn_trigger_box_TextChanged;
             // 
@@ -1565,7 +1612,7 @@
             dyn_trigger_bar.Location = new Point(6, 18);
             dyn_trigger_bar.Maximum = 100;
             dyn_trigger_bar.Name = "dyn_trigger_bar";
-            dyn_trigger_bar.Size = new Size(208, 30);
+            dyn_trigger_bar.Size = new Size(129, 30);
             dyn_trigger_bar.SmallChange = 5;
             dyn_trigger_bar.TabIndex = 0;
             dyn_trigger_bar.Scroll += dyn_trigger_bar_Scroll;
@@ -1718,6 +1765,42 @@
             contextMenuStrip2.Name = "contextMenuStrip2";
             contextMenuStrip2.Size = new Size(61, 4);
             // 
+            // groupBox30
+            // 
+            groupBox30.Controls.Add(dynPlot3);
+            groupBox30.Font = new Font("Segoe UI", 9F);
+            groupBox30.Location = new Point(155, 57);
+            groupBox30.Name = "groupBox30";
+            groupBox30.Size = new Size(151, 125);
+            groupBox30.TabIndex = 12;
+            groupBox30.TabStop = false;
+            groupBox30.Text = "Group Sizes of Bit Errors";
+            // 
+            // dynPlot3
+            // 
+            dynPlot3.Location = new Point(6, 22);
+            dynPlot3.Name = "dynPlot3";
+            dynPlot3.Size = new Size(139, 97);
+            dynPlot3.TabIndex = 5;
+            // 
+            // groupBox42
+            // 
+            groupBox42.Controls.Add(dynPlot2);
+            groupBox42.Font = new Font("Segoe UI", 9F);
+            groupBox42.Location = new Point(5, 57);
+            groupBox42.Name = "groupBox42";
+            groupBox42.Size = new Size(148, 125);
+            groupBox42.TabIndex = 11;
+            groupBox42.TabStop = false;
+            groupBox42.Text = "# Bit Errors per Byte";
+            // 
+            // dynPlot2
+            // 
+            dynPlot2.Location = new Point(6, 22);
+            dynPlot2.Name = "dynPlot2";
+            dynPlot2.Size = new Size(138, 97);
+            dynPlot2.TabIndex = 5;
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(6F, 13F);
@@ -1750,23 +1833,24 @@
             ((System.ComponentModel.ISupportInitialize)pictureBox2).EndInit();
             ((System.ComponentModel.ISupportInitialize)pictureBox1).EndInit();
             tabPage2.ResumeLayout(false);
+            groupBox31.ResumeLayout(false);
+            groupBox10.ResumeLayout(false);
             groupBox14.ResumeLayout(false);
             groupBox11.ResumeLayout(false);
             groupBox11.PerformLayout();
             groupBox9.ResumeLayout(false);
+            groupBox41.ResumeLayout(false);
+            groupBox40.ResumeLayout(false);
             groupBox12.ResumeLayout(false);
-            groupBox10.ResumeLayout(false);
             groupBox8.ResumeLayout(false);
             writeModeLabel.ResumeLayout(false);
             groupBox15.ResumeLayout(false);
-            groupBox15.PerformLayout();
             groupBox16.ResumeLayout(false);
             groupBox7.ResumeLayout(false);
             groupBox7.PerformLayout();
             tabPage3.ResumeLayout(false);
             groupBox37.ResumeLayout(false);
             groupBox33.ResumeLayout(false);
-            groupBox30.ResumeLayout(false);
             groupBox38.ResumeLayout(false);
             groupBox38.PerformLayout();
             groupBox36.ResumeLayout(false);
@@ -1801,6 +1885,8 @@
             groupBox23.PerformLayout();
             groupBox22.ResumeLayout(false);
             groupBox22.PerformLayout();
+            groupBox30.ResumeLayout(false);
+            groupBox42.ResumeLayout(false);
             ResumeLayout(false);
             PerformLayout();
         }
@@ -1858,9 +1944,6 @@
         private GroupBox groupBox11;
         private Button genSeed;
         private GroupBox groupBox9;
-        private Button verifyButton;
-        private GroupBox groupBox10;
-        private ComboBox verifyMode;
         private TextBox prngSeed;
         private GroupBox groupBox12;
         private RichTextBox verificationResults;
@@ -1913,7 +1996,6 @@
         private TextBox viewerAddress;
         private Button DataViewerScrollDown;
         private Button DataViewerScrollUp;
-        private Label dataViewerStats;
         private GroupBox groupBox16;
         private GroupBox groupBox7;
         private GroupBox groupBox18;
@@ -1934,7 +2016,7 @@
         private GroupBox groupBox26;
         private TextBox dynTotalTime;
         private GroupBox groupBox32;
-        private RichTextBox richTextBox2;
+        private RichTextBox memoryViewer;
         private GroupBox groupBox33;
         private GroupBox groupBox35;
         private Label label16;
@@ -1950,10 +2032,21 @@
         private TextBox dyn_bps;
         private Button dyn_execute;
         private ScottPlot.WinForms.FormsPlot dynPlot;
-        private GroupBox groupBox30;
-        private RichTextBox richTextBox3;
         private GroupBox groupBox38;
         private TextBox dynRatePercent;
         private TextBox dynRateTime;
+        private ToolStripStatusLabel showUUID;
+        private ScottPlot.WinForms.FormsPlot plot1;
+        private GroupBox groupBox31;
+        private Button verifyButton;
+        private GroupBox groupBox10;
+        private ComboBox verifyMode;
+        private GroupBox groupBox41;
+        private ScottPlot.WinForms.FormsPlot plot2;
+        private GroupBox groupBox40;
+        private GroupBox groupBox30;
+        private ScottPlot.WinForms.FormsPlot dynPlot3;
+        private GroupBox groupBox42;
+        private ScottPlot.WinForms.FormsPlot dynPlot2;
     }
 }

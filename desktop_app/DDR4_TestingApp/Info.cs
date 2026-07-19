@@ -27,7 +27,7 @@ namespace DDR4_TestingApp
             // ~100 ms + RTT, so if the timer ticks faster than that we'd otherwise
             // pile up overlapping requests. The flag drops ticks that arrive while
             // a fetch is still going.
-            if (!_infoFetchInProgress)
+            if (!_infoFetchInProgress && !UUID._fetchingUUID)
             {
                 
 

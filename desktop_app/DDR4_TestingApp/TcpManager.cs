@@ -1,6 +1,21 @@
-// TcpManager.cs — C# client for the Rust VCU TCP server.
+// TcpManager.cs — C# client for the Rust ZCU104 DDR4-tester TCP server.
 //
-// Protocol (matches server.rs / commands.rs / types.rs):
+// Rewritten to match the current server (types.rs / commands.rs / server.rs /
+// config.rs). Notable changes vs. the previous client:
+//   * VerifyCmd and DynamicCmd now carry a 3-byte `uuid` field FIRST.
+//   * VerifyRsp is a completely different, larger struct (address range,
+//     num_correct/num_incorrect, and two bit-error histograms — AdjErrBins
+//     x8 and ErrBins x9).
+//   * DynamicRsp gained pass_counter + current/start/end address (4 x u32), and
+//     now ALSO carries the AdjErrBins x8 / ErrBins x9 histograms (inserted between
+//     error_rate_percent and pass_counter), making its payload 192 bytes.
+//   * ConfigCmd gained a trailing `enable_logging` bool — Config payload is 16 bytes.
+//   * New UUID command (0x07) with UUIDRsp { success }.
+//   * The Reset command (0x07 in the old build) has been REMOVED from the
+//     server — server.rs has no CMD_RESET dispatch arm, so it is dropped here.
+//     (ResetRsp still exists in types.rs but nothing produces it.)
+//
+// Protocol framing (all framing integers big-endian / network byte order):
 //
 //     [SYNC u32 BE = 0xDEADBEEF]
 //     [CMD  u8 ]
@@ -8,47 +23,47 @@
 //     [PAYLOAD ... LEN bytes]
 //     [TERM u32 BE = 0xCAFEBABE]
 //
-// Payloads are bincode-encoded with big-endian fixed-width integers, so
-// every multi-byte field on the wire is plain big-endian with no length
-// prefixes or padding.
+// Payloads are bincode with big-endian fixed-width integers (fixint), so every
+// multi-byte field is plain big-endian with no length prefixes or padding.
+// bool -> 1 byte (0/1); [u8;3] -> 3 bytes; [u64;8] -> 64 bytes. The server uses
+// reject_trailing_bytes(), so payload length must match the struct EXACTLY.
 //
-// Commands:
-//   0x01 Write   -> WriteCmd    { u8 pattern, u64 seed }                        9 bytes
-//   0x02 Verify  -> VerifyCmd   { u8 pattern, u64 seed }                        9 bytes
-//   0x03 Dump    -> DumpCmd     { u32 offset_start, u32 num_pages, bool cmp }   9 bytes
-//   0x04 Config  -> ConfigCmd   { u8 chip_index, u8 bus_bytes_per_chip,
-//                                 u32 bus_size_in_bytes, u32 chip_size_bytes,
-//                                 bool enable_chip_select,
-//                                 u32 address_multiplier }                    15 bytes
-//   0x05 Dynamic -> DynamicCmd  { u8 pattern, u64 seed, u32 sample_size_in_bytes,
-//                                 bool wait_for_beam, f32 trigger_threshold } 18 bytes
+// Commands (values from config.rs):
+//   0x01 Write   -> WriteCmd   { u8 pattern, u64 seed }                       9 bytes
+//   0x02 Verify  -> VerifyCmd  { [u8;3] uuid, u8 pattern, u64 seed }         12 bytes
+//   0x03 Dump    -> DumpCmd    { u32 offset_start, u32 num_pages, bool cmp }  9 bytes
+//   0x04 Config  -> ConfigCmd  { u8 chip_index, u8 bus_bytes_per_chip,
+//                                u32 bus_size_in_bytes, u32 chip_size_bytes,
+//                                bool enable_chip_select, u32 address_multiplier,
+//                                bool enable_logging }                       16 bytes
+//   0x05 Dynamic -> DynamicCmd { [u8;3] uuid, u8 pattern, u64 seed,
+//                                u32 sample_size_in_bytes, bool wait_for_beam,
+//                                f32 trigger_threshold }                     21 bytes
 //   0x06 Info    -> (empty payload) — server replies with InfoRsp
-//   0x07 Reset   -> ResetCmd    { bool fpga_reset, bool controller_reset }     2 bytes
-//                   <- ResetRsp { bool success }                              1 byte
+//   0x07 UUID    -> UUIDCmd    { [u8;3] uuid }                                3 bytes
+//                   <- UUIDRsp { bool success }                              1 byte
 //
-// Responses re-use the same framing.
-//   - Write / Verify: periodic progress frames; the caller waits until
-//     percent_complete reaches 100.
-//   - Dump: one frame per page (fixed 16-byte header + raw page bytes).
-//   - Config: a single 1-byte ACK payload (contents not meaningful).
-//   - Dynamic: periodic progress frames with NO completion signal — per
-//     commands.rs, the server loops for as long as the beam is asserted
-//     (or forever, if wait_for_beam is false, until a SEFI is detected).
-//     The caller must cancel to stop receiving frames.
-//   - Reset: commands.rs's reset_command() now sends back a ResetRsp
-//     { success } once the requested line pulses finish (up to ~1.5 s if
-//     both fpga_reset and controller_reset are set — each pulses low/high/
-//     low with 250 ms holds), so this call blocks until that completes.
-//     NOTE: gpio.rs's EMIO map was recently changed to five read-only
-//     channels (beam, calibration, UI clock, PL clock, FPGA-loaded status)
-//     with no FPGA-reset/controller-reset output lines anymore. Unless
-//     reset_command() has been repointed at some other mechanism, this
-//     command currently has no hardware backing — flagging it here rather
-//     than removing it, since the client can't tell which is true from
-//     this side of the wire.
-//   - Info: single InfoRsp reply { beam_signal, controller_calibrated,
-//     ui_clock, pl_clock, fpga_loaded } — one bool per gpio.rs EMIO
-//     channel.
+// Response streaming (from commands.rs):
+//   - Config : one CMD_CONFIG frame, 1-byte ACK payload (contents ignored).
+//   - Write  : periodic CMD_WRITE progress frames; a final frame is sent with
+//              percent_complete == 100. Caller waits for percent >= 100.
+//   - Verify : periodic CMD_VERIFY progress frames; a final frame is sent when
+//              the sweep finishes (percent >= 100). Caller waits for percent >= 100.
+//   - Dump   : exactly num_pages CMD_DUMP frames, each a 16-byte header plus
+//              PAGE_SIZE (1024) raw bytes.
+//   - Dynamic: periodic CMD_DYNAMIC frames. The server sets test_completed ONLY
+//              when wait_for_beam == true and the beam drops. See RunDynamicAsync
+//              for the wait_for_beam == false caveat (no server-side completion).
+//   - UUID   : one CMD_UUID frame, UUIDRsp { success }.
+//   - Info   : one CMD_INFO frame, InfoRsp { five EMIO signal bits }.
+//
+// !!! UUID CONSTRAINT !!!
+// utils::get_uuid() on the server only accepts a uuid whose three bytes are all
+// ASCII UPPERCASE letters (A–Z); verify_command and dynamic_command call
+// get_uuid(uuid).unwrap(), which PANICS (killing the server) on anything else.
+// SendVerifyAsync/RunDynamicAsync therefore validate the uuid client-side and
+// throw ArgumentException before sending. SendUuidAsync (the availability check)
+// does NOT require uppercase, matching the server's non-panicking check_uuid path.
 
 using System;
 using System.Buffers.Binary;
@@ -70,6 +85,7 @@ namespace DDR4_TestingApp
         public uint ChipSizeBytes;
         public bool EnableChipSelect;
         public uint AddressMultiplier;
+        public bool EnableLogging;   // maps to Rust ConfigCmd.enable_logging (server-side logging on/off)
     }
 
     public struct WriteCmd
@@ -80,40 +96,39 @@ namespace DDR4_TestingApp
 
     public struct VerifyCmd
     {
-        public byte Pattern;
+        public byte[] Uuid;    // exactly 3 bytes; must be ASCII uppercase A–Z (see header)
+        public byte Pattern;   // 0 = zeros, 1 = ones, 2 = pseudorandom
         public ulong Seed;
     }
 
     public struct DumpCmd
     {
-        public uint OffsetStart;
+        public uint OffsetStart;   // server aligns this down to a PAGE_SIZE boundary
         public uint NumPages;
-        public bool ComparisonMode;
+        public bool ComparisonMode; // true => pages contain expected^actual (XOR of the pattern)
     }
 
     public struct DynamicCmd
     {
+        public byte[] Uuid;    // exactly 3 bytes; must be ASCII uppercase A–Z (see header)
+
         // Pattern generation
         public byte Pattern;   // 0 = zeros, 1 = ones, 2 = pseudorandom
         public ulong Seed;
 
         // Test configuration
-        public uint SampleSizeInBytes; // window (in bytes) over which error_rate/error_percent are computed
-        public bool WaitForBeam;       // block sending test writes until BeamSignal reads high
+        public uint SampleSizeInBytes; // rate window: error stats recompute every this-many bytes
+        public bool WaitForBeam;       // block the exposure until BeamSignal reads high
 
-        // SEFI threshold
-        public float TriggerThreshold; // error_rate above this marks SefiDetected
+        // SEFI threshold — compared against DynamicRsp.ErrorRatePercent, which is a
+        // FRACTION (bits_errored / bits_sampled, range 0..1), NOT a 0..100 percentage.
+        // e.g. 0.05f trips a SEFI at a 5% bit-error rate over the window.
+        public float TriggerThreshold;
     }
 
-    public struct ResetCmd
+    public struct UUIDCmd
     {
-        public bool FpgaReset;
-        public bool ControllerReset;
-    }
-
-    public struct ResetRsp
-    {
-        public bool Success;
+        public byte[] Uuid;    // exactly 3 bytes
     }
 
     public struct WriteRsp
@@ -125,19 +140,35 @@ namespace DDR4_TestingApp
 
     public struct VerifyRsp
     {
-        public uint BytesVerified;
         public float TimeSpentMs;
         public float PercentComplete;
-        public ulong NumErrors;
+
+        // Address range of the sweep
+        public uint CurrentAddress;
+        public uint StartAddress;
+        public uint EndAddress;
+
+        // NOTE: NumCorrect counts correct *bits* (+8 per fully-clean byte).
+        // NumIncorrect is currently never incremented server-side (always 0 as of
+        // the present commands.rs) — use ErrBins for the real error distribution.
         public ulong NumCorrect;
+        public ulong NumIncorrect;
+
+        // Histograms over bytes that differed:
+        //   ErrBins[k]    = number of mismatched bytes with exactly k flipped bits
+        //                   (length 9, indices 0..8; index 8 = fully-flipped byte)
+        //   AdjErrBins[k] = number of runs of k adjacent flipped bits
+        //                   (length 8, indices 0..7; index 0 unused)
+        public ulong[] AdjErrBins; // 8 entries
+        public ulong[] ErrBins;    // 9 entries
     }
 
     public struct DumpPage
     {
         public float TimeSpentMs;
-        public ulong NumErrors;
+        public ulong NumErrors;   // count of chip READ failures on this page (not bit diffs)
         public uint Address;
-        public byte[] Data;     // PAGE_SIZE bytes (1024 by default)
+        public byte[] Data;       // PAGE_SIZE bytes (1024)
     }
 
     public struct DynamicRsp
@@ -147,22 +178,36 @@ namespace DDR4_TestingApp
         public float TotalTimeMs;
         public float TimeToSefi;
 
-        // Error statistics (NOTE: despite the name, TotalBytes on the wire is
-        // accumulated in *bits*, not bytes — commands.rs sums per-byte popcount
-        // differences directly into this field)
+        // Error statistics
+        // NOTE: TotalBytes is a byte count (commands.rs does total_bytes += 1 per
+        // byte tested). ErrorRate is the errored-bit count over the last window;
+        // ErrorRatePercent is a fraction (errored/sampled bits, 0..1). See the bug
+        // report re: ErrorRatePerSecond — its server-side formula looks incorrect.
         public ulong TotalBytes;
-        public float ErrorRate;          // errors over the sample window
-        public float ErrorRatePerSecond; // errors normalized to wall-clock time
-        public float ErrorRatePercent;   // error rate expressed as a percentage
+        public float ErrorRate;
+        public float ErrorRatePerSecond;
+        public float ErrorRatePercent;
+
+        // Bit-error histograms over the sample window (same layout as VerifyRsp):
+        //   AdjErrBins[k] = runs of k adjacent flipped bits   (length 8; index 0 unused)
+        //   ErrBins[k]    = bytes with exactly k flipped bits (length 9; indices 0..8)
+        public ulong[] AdjErrBins; // 8 entries
+        public ulong[] ErrBins;    // 9 entries
+
+        // Progress / addressing
+        public uint PassCounter;
+        public uint CurrentAddress;
+        public uint StartAddress;
+        public uint EndAddress;
 
         // Capture status
         public bool ExposureStarted;
         public bool SefiDetected;
         public bool TestCompleted;
 
-        // Signal status — one bool per gpio.rs EMIO channel (all five are
-        // read-only inputs: beam, calibration/controller-calibrated, UI clock,
-        // PL clock, FPGA-loaded).
+        // Signal status — one bool per gpio.rs EMIO channel (all five read-only
+        // inputs: beam, calibration/controller-calibrated, UI clock, PL clock,
+        // FPGA-loaded).
         public bool BeamSignal;
         public bool ControllerCalibrated;
         public bool UiClock;
@@ -179,11 +224,18 @@ namespace DDR4_TestingApp
         public bool FpgaLoaded;
     }
 
+    public struct UUIDRsp
+    {
+        // From uuid_command -> recorder::check_uuid: true means the uuid is ALREADY
+        // present in the log directory (i.e. taken), false means unused/invalid.
+        public bool Success;
+    }
+
     // ============================== TcpManager ==============================
 
     internal static class TcpManager
     {
-        // ---- Protocol constants ------------------------------------------------
+        // ---- Protocol constants (must match config.rs) ------------------------
         private const uint SYNC_MARKER = 0xDEAD_BEEF;
         private const uint TERM_MARKER = 0xCAFE_BABE;
 
@@ -193,7 +245,7 @@ namespace DDR4_TestingApp
         private const byte CMD_CONFIG = 0x04;
         private const byte CMD_DYNAMIC = 0x05;
         private const byte CMD_INFO = 0x06;
-        private const byte CMD_RESET = 0x07;
+        private const byte CMD_UUID = 0x07;
 
         public const int PAGE_SIZE = 1024;
 
@@ -220,7 +272,7 @@ namespace DDR4_TestingApp
 
         // ============================== Connect/Disconnect ==============================
 
-        /// <summary>Connect to the Rust VCU server. Replaces any existing connection.</summary>
+        /// <summary>Connect to the Rust ZCU server. Replaces any existing connection.</summary>
         public static async Task ConnectAsync(string host, int port = 8080,
                                               CancellationToken ct = default)
         {
@@ -250,7 +302,7 @@ namespace DDR4_TestingApp
 
         /// <summary>
         /// Send a Config command. Returns once the server has applied the new
-        /// geometry and ACKed.
+        /// geometry and ACKed (single 1-byte payload).
         /// </summary>
         public static async Task SendConfigAsync(ConfigCmd cfg,
                                                  CancellationToken ct = default)
@@ -263,7 +315,7 @@ namespace DDR4_TestingApp
                 var (cmd, _) = await ReadFrameAsync(ct).ConfigureAwait(false);
                 if (cmd != CMD_CONFIG)
                     throw new InvalidDataException(
-                        $"expected Config ACK (0x04), got 0x{cmd:X2}");
+                        $"expected Config ACK (0x{CMD_CONFIG:X2}), got 0x{cmd:X2}");
             }
             finally { sendLock.Release(); }
         }
@@ -298,14 +350,18 @@ namespace DDR4_TestingApp
         }
 
         /// <summary>
-        /// Send a Verify command. Streams progress and returns the final
-        /// response (including error/correct bit counts) when complete.
+        /// Send a Verify command. Streams progress and returns the final response
+        /// (address range, bit counts, and the two error histograms) when complete.
+        /// The uuid must be exactly 3 ASCII uppercase letters (A–Z) or the server
+        /// will panic — validated client-side here.
         /// </summary>
         public static async Task<VerifyRsp> SendVerifyAsync(
             VerifyCmd v,
             IProgress<VerifyRsp>? progress = null,
             CancellationToken ct = default)
         {
+            ValidateTestUuid(v.Uuid, "Verify");
+
             await sendLock.WaitAsync(ct).ConfigureAwait(false);
             try
             {
@@ -327,9 +383,9 @@ namespace DDR4_TestingApp
         }
 
         /// <summary>
-        /// Send a Dump command. One response frame is received per page;
-        /// each is reported via <paramref name="onPage"/> as it arrives and
-        /// also collected into the returned list.
+        /// Send a Dump command. One response frame is received per page; each is
+        /// reported via <paramref name="onPage"/> as it arrives and also collected
+        /// into the returned list.
         /// </summary>
         public static async Task<List<DumpPage>> SendDumpAsync(
             DumpCmd d,
@@ -360,28 +416,24 @@ namespace DDR4_TestingApp
 
         /// <summary>
         /// Send a Dynamic command and stream <see cref="DynamicRsp"/> progress
-        /// frames to <paramref name="progress"/> until the test completes,
-        /// returning the final frame.
+        /// frames to <paramref name="progress"/>, returning the final frame.
         ///
-        /// The new DynamicRsp carries a <see cref="DynamicRsp.TestCompleted"/>
-        /// flag (added in types.rs), so unlike before, this loop has a defined
-        /// end: it returns the first frame whose TestCompleted is set. Server-
-        /// side, with <c>d.WaitForBeam == true</c> the test runs while the beam
-        /// stays asserted and completes when it drops (or on SEFI); with
-        /// <c>d.WaitForBeam == false</c> it runs until a SEFI is detected.
-        /// Cancelling <paramref name="ct"/> remains a valid early exit and will
-        /// surface as an <see cref="OperationCanceledException"/> rather than a
-        /// return.
-        ///
-        /// NOTE: this assumes commands.rs actually sets test_completed on the
-        /// terminating frame. If the server never sets it, this behaves like the
-        /// old unbounded loop and only exits on cancellation/disconnect.
+        /// TERMINATION (per commands.rs): the server sets <c>test_completed</c>
+        /// ONLY when <c>WaitForBeam == true</c> and the beam signal drops low.
+        /// A detected SEFI does NOT end the run. With <c>WaitForBeam == false</c>
+        /// the server never sets <c>test_completed</c> at all, so this method will
+        /// stream frames indefinitely — the ONLY way to stop it in that mode is to
+        /// cancel <paramref name="ct"/> (which surfaces as OperationCanceledException).
+        /// The uuid must be exactly 3 ASCII uppercase letters (A–Z) or the server
+        /// will panic — validated client-side here.
         /// </summary>
         public static async Task<DynamicRsp> RunDynamicAsync(
             DynamicCmd d,
             IProgress<DynamicRsp> progress,
             CancellationToken ct = default)
         {
+            ValidateTestUuid(d.Uuid, "Dynamic");
+
             await sendLock.WaitAsync(ct).ConfigureAwait(false);
             try
             {
@@ -403,34 +455,24 @@ namespace DDR4_TestingApp
         }
 
         /// <summary>
-        /// Send a Reset command to pulse the FPGA and/or DDR4 controller reset
-        /// lines (see gpio.rs / commands.rs::reset_command), and wait for the
-        /// server's <see cref="ResetRsp"/> ACK.
-        ///
-        /// Each requested line is pulsed low/high/low with 250 ms holds on the
-        /// server side, so this can take up to ~1.5 s to return if both
-        /// <see cref="ResetCmd.FpgaReset"/> and <see cref="ResetCmd.ControllerReset"/>
-        /// are set.
-        ///
-        /// NOTE: gpio.rs's EMIO map is now five read-only channels with no
-        /// FPGA-reset/controller-reset output lines. Until reset_command() is
-        /// confirmed to drive reset through some other mechanism, calling this
-        /// may no longer do anything on the server side even though it still
-        /// returns a ResetRsp.
+        /// Send a UUID availability check. Returns the server's UUIDRsp; note that
+        /// <see cref="UUIDRsp.Success"/> == true means the uuid is ALREADY taken
+        /// (present in the log directory). This command does not require uppercase
+        /// bytes (the server's check_uuid path does not panic on invalid input).
         /// </summary>
-        public static async Task<ResetRsp> SendResetAsync(ResetCmd r, CancellationToken ct = default)
+        public static async Task<UUIDRsp> SendUuidAsync(UUIDCmd u, CancellationToken ct = default)
         {
             await sendLock.WaitAsync(ct).ConfigureAwait(false);
             try
             {
-                await WriteFrameAsync(CMD_RESET, EncodeReset(r), ct).ConfigureAwait(false);
+                await WriteFrameAsync(CMD_UUID, EncodeUuid(u), ct).ConfigureAwait(false);
 
                 var (cmd, payload) = await ReadFrameAsync(ct).ConfigureAwait(false);
-                if (cmd != CMD_RESET)
+                if (cmd != CMD_UUID)
                     throw new InvalidDataException(
-                        $"expected Reset response (0x07), got 0x{cmd:X2}");
+                        $"expected UUID response (0x{CMD_UUID:X2}), got 0x{cmd:X2}");
 
-                return DecodeResetRsp(payload);
+                return DecodeUuidRsp(payload);
             }
             finally { sendLock.Release(); }
         }
@@ -450,7 +492,7 @@ namespace DDR4_TestingApp
                 var (cmd, payload) = await ReadFrameAsync(ct).ConfigureAwait(false);
                 if (cmd != CMD_INFO)
                     throw new InvalidDataException(
-                        $"expected Info response (0x06), got 0x{cmd:X2}");
+                        $"expected Info response (0x{CMD_INFO:X2}), got 0x{cmd:X2}");
 
                 return DecodeInfoRsp(payload);
             }
@@ -526,17 +568,51 @@ namespace DDR4_TestingApp
             }
         }
 
+        // ============================== UUID helpers ==============================
+
+        /// <summary>Copy a 3-byte uuid into <paramref name="dst"/> (structural check only).</summary>
+        private static void WriteUuid(Span<byte> dst, byte[] uuid)
+        {
+            if (uuid is null || uuid.Length != 3)
+                throw new ArgumentException(
+                    $"UUID must be exactly 3 bytes (got {(uuid is null ? "null" : uuid.Length.ToString())})");
+            dst[0] = uuid[0];
+            dst[1] = uuid[1];
+            dst[2] = uuid[2];
+        }
+
+        /// <summary>
+        /// Validate a uuid destined for Verify/Dynamic. The server's utils::get_uuid()
+        /// only accepts three ASCII uppercase letters and then unwrap()s the result,
+        /// so anything else would crash the server. Fail fast client-side instead.
+        /// </summary>
+        private static void ValidateTestUuid(byte[] uuid, string cmdName)
+        {
+            if (uuid is null || uuid.Length != 3)
+                throw new ArgumentException(
+                    $"{cmdName}: UUID must be exactly 3 bytes (got {(uuid is null ? "null" : uuid.Length.ToString())})");
+            foreach (var b in uuid)
+                if (b < (byte)'A' || b > (byte)'Z')
+                    throw new ArgumentException(
+                        $"{cmdName}: UUID bytes must be ASCII uppercase letters A–Z " +
+                        $"(got 0x{b:X2}); the server would otherwise panic in get_uuid().unwrap()");
+        }
+
         // ============================== Encoders ==============================
 
         private static byte[] EncodeConfig(ConfigCmd c)
         {
-            var b = new byte[15];
+            // u8 chip_index, u8 bus_bytes_per_chip, u32 bus_size_in_bytes,
+            // u32 chip_size_bytes, bool enable_chip_select, u32 address_multiplier,
+            // bool enable_logging = 16 bytes
+            var b = new byte[16];
             b[0] = c.ChipIndex;
             b[1] = c.BusBytesPerChip;
             BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(2, 4), c.BusSizeInBytes);
             BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(6, 4), c.ChipSizeBytes);
             b[10] = Convert.ToByte(c.EnableChipSelect);
             BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(11, 4), c.AddressMultiplier);
+            b[15] = Convert.ToByte(c.EnableLogging);
             return b;
         }
 
@@ -550,9 +626,11 @@ namespace DDR4_TestingApp
 
         private static byte[] EncodeVerify(VerifyCmd c)
         {
-            var b = new byte[9];
-            b[0] = c.Pattern;
-            BinaryPrimitives.WriteUInt64BigEndian(b.AsSpan(1, 8), c.Seed);
+            // uuid[3] + pattern(1) + seed(8) = 12
+            var b = new byte[12];
+            WriteUuid(b.AsSpan(0, 3), c.Uuid);
+            b[3] = c.Pattern;
+            BinaryPrimitives.WriteUInt64BigEndian(b.AsSpan(4, 8), c.Seed);
             return b;
         }
 
@@ -567,27 +645,31 @@ namespace DDR4_TestingApp
 
         private static byte[] EncodeDynamic(DynamicCmd c)
         {
-            var b = new byte[18];
-            b[0] = c.Pattern;
-            BinaryPrimitives.WriteUInt64BigEndian(b.AsSpan(1, 8), c.Seed);
-            BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(9, 4), c.SampleSizeInBytes);
-            b[13] = Convert.ToByte(c.WaitForBeam);
-            BinaryPrimitives.WriteSingleBigEndian(b.AsSpan(14, 4), c.TriggerThreshold);
+            // uuid[3] + pattern(1) + seed(8) + sample(4) + wait(1) + threshold(4) = 21
+            var b = new byte[21];
+            WriteUuid(b.AsSpan(0, 3), c.Uuid);
+            b[3] = c.Pattern;
+            BinaryPrimitives.WriteUInt64BigEndian(b.AsSpan(4, 8), c.Seed);
+            BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(12, 4), c.SampleSizeInBytes);
+            b[16] = Convert.ToByte(c.WaitForBeam);
+            BinaryPrimitives.WriteSingleBigEndian(b.AsSpan(17, 4), c.TriggerThreshold);
             return b;
         }
 
-        private static byte[] EncodeReset(ResetCmd c)
+        private static byte[] EncodeUuid(UUIDCmd c)
         {
-            return new byte[] { Convert.ToByte(c.FpgaReset), Convert.ToByte(c.ControllerReset) };
+            var b = new byte[3];
+            WriteUuid(b.AsSpan(0, 3), c.Uuid);
+            return b;
         }
 
         // ============================== Decoders ==============================
 
         private static WriteRsp DecodeWriteRsp(byte[] p)
         {
-            if (p.Length < 12)
-                throw new InvalidDataException(
-                    $"short WriteRsp: {p.Length} bytes (need 12)");
+            const int need = 12;
+            if (p.Length < need)
+                throw new InvalidDataException($"short WriteRsp: {p.Length} bytes (need {need})");
             return new WriteRsp
             {
                 BytesWritten = BinaryPrimitives.ReadUInt32BigEndian(p.AsSpan(0, 4)),
@@ -598,26 +680,42 @@ namespace DDR4_TestingApp
 
         private static VerifyRsp DecodeVerifyRsp(byte[] p)
         {
-            if (p.Length < 28)
-                throw new InvalidDataException(
-                    $"short VerifyRsp: {p.Length} bytes (need 28)");
-            return new VerifyRsp
+            // f32 f32 u32 u32 u32 u64 u64 [u64;8] [u64;9]
+            //  4 + 4 + 4 + 4 + 4 + 8 + 8 + 64 + 72 = 172
+            const int need = 172;
+            if (p.Length < need)
+                throw new InvalidDataException($"short VerifyRsp: {p.Length} bytes (need {need})");
+
+            var rsp = new VerifyRsp
             {
-                BytesVerified = BinaryPrimitives.ReadUInt32BigEndian(p.AsSpan(0, 4)),
-                TimeSpentMs = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(4, 4)),
-                PercentComplete = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(8, 4)),
-                NumErrors = BinaryPrimitives.ReadUInt64BigEndian(p.AsSpan(12, 8)),
+                TimeSpentMs = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(0, 4)),
+                PercentComplete = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(4, 4)),
+                CurrentAddress = BinaryPrimitives.ReadUInt32BigEndian(p.AsSpan(8, 4)),
+                StartAddress = BinaryPrimitives.ReadUInt32BigEndian(p.AsSpan(12, 4)),
+                EndAddress = BinaryPrimitives.ReadUInt32BigEndian(p.AsSpan(16, 4)),
                 NumCorrect = BinaryPrimitives.ReadUInt64BigEndian(p.AsSpan(20, 8)),
+                NumIncorrect = BinaryPrimitives.ReadUInt64BigEndian(p.AsSpan(28, 8)),
+                AdjErrBins = new ulong[8],
+                ErrBins = new ulong[9],
             };
+
+            int off = 36;
+            for (int k = 0; k < 8; k++, off += 8)
+                rsp.AdjErrBins[k] = BinaryPrimitives.ReadUInt64BigEndian(p.AsSpan(off, 8));
+            for (int k = 0; k < 9; k++, off += 8)
+                rsp.ErrBins[k] = BinaryPrimitives.ReadUInt64BigEndian(p.AsSpan(off, 8));
+
+            return rsp;
         }
 
         private static DumpPage DecodeDumpPage(byte[] p)
         {
-            if (p.Length < 16)
+            const int header = 16;
+            if (p.Length < header)
                 throw new InvalidDataException(
-                    $"short DumpRsp: {p.Length} bytes (need >= 16)");
-            var data = new byte[p.Length - 16];
-            Buffer.BlockCopy(p, 16, data, 0, data.Length);
+                    $"short DumpRsp: {p.Length} bytes (need >= {header})");
+            var data = new byte[p.Length - header];
+            Buffer.BlockCopy(p, header, data, 0, data.Length);
             return new DumpPage
             {
                 TimeSpentMs = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(0, 4)),
@@ -629,10 +727,13 @@ namespace DDR4_TestingApp
 
         private static DynamicRsp DecodeDynamicRsp(byte[] p)
         {
-            if (p.Length < 40)
-                throw new InvalidDataException(
-                    $"short DynamicRsp: {p.Length} bytes (need 40)");
-            return new DynamicRsp
+            // f32 f32 f32 u64 f32 f32 f32 [u64;8] [u64;9] u32 u32 u32 u32 + 8 bools
+            //  4 + 4 + 4 + 8 + 4 + 4 + 4 +  64  +  72  + 4 + 4 + 4 + 4 + 8 = 192
+            const int need = 192;
+            if (p.Length < need)
+                throw new InvalidDataException($"short DynamicRsp: {p.Length} bytes (need {need})");
+
+            var rsp = new DynamicRsp
             {
                 ExposureTimeMs = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(0, 4)),
                 TotalTimeMs = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(4, 4)),
@@ -641,30 +742,38 @@ namespace DDR4_TestingApp
                 ErrorRate = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(20, 4)),
                 ErrorRatePerSecond = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(24, 4)),
                 ErrorRatePercent = BinaryPrimitives.ReadSingleBigEndian(p.AsSpan(28, 4)),
-                ExposureStarted = p[32] != 0,
-                SefiDetected = p[33] != 0,
-                TestCompleted = p[34] != 0,
-                BeamSignal = p[35] != 0,
-                ControllerCalibrated = p[36] != 0,
-                UiClock = p[37] != 0,
-                PlClock = p[38] != 0,
-                FpgaLoaded = p[39] != 0,
+                AdjErrBins = new ulong[8],
+                ErrBins = new ulong[9],
             };
-        }
 
-        private static ResetRsp DecodeResetRsp(byte[] p)
-        {
-            if (p.Length < 1)
-                throw new InvalidDataException(
-                    $"short ResetRsp: {p.Length} bytes (need 1)");
-            return new ResetRsp { Success = p[0] != 0 };
+            // Histograms: adj_err_bins[8] @ 32, err_bins[9] @ 96 (off ends at 168).
+            int off = 32;
+            for (int k = 0; k < 8; k++, off += 8)
+                rsp.AdjErrBins[k] = BinaryPrimitives.ReadUInt64BigEndian(p.AsSpan(off, 8));
+            for (int k = 0; k < 9; k++, off += 8)
+                rsp.ErrBins[k] = BinaryPrimitives.ReadUInt64BigEndian(p.AsSpan(off, 8));
+
+            rsp.PassCounter = BinaryPrimitives.ReadUInt32BigEndian(p.AsSpan(off, 4)); off += 4;      // 168
+            rsp.CurrentAddress = BinaryPrimitives.ReadUInt32BigEndian(p.AsSpan(off, 4)); off += 4;    // 172
+            rsp.StartAddress = BinaryPrimitives.ReadUInt32BigEndian(p.AsSpan(off, 4)); off += 4;      // 176
+            rsp.EndAddress = BinaryPrimitives.ReadUInt32BigEndian(p.AsSpan(off, 4)); off += 4;        // 180
+            rsp.ExposureStarted = p[off++] != 0;      // 184
+            rsp.SefiDetected = p[off++] != 0;         // 185
+            rsp.TestCompleted = p[off++] != 0;        // 186
+            rsp.BeamSignal = p[off++] != 0;           // 187
+            rsp.ControllerCalibrated = p[off++] != 0; // 188
+            rsp.UiClock = p[off++] != 0;              // 189
+            rsp.PlClock = p[off++] != 0;              // 190
+            rsp.FpgaLoaded = p[off++] != 0;           // 191
+
+            return rsp;
         }
 
         private static InfoRsp DecodeInfoRsp(byte[] p)
         {
-            if (p.Length < 5)
-                throw new InvalidDataException(
-                    $"short InfoRsp: {p.Length} bytes (need 5)");
+            const int need = 5;
+            if (p.Length < need)
+                throw new InvalidDataException($"short InfoRsp: {p.Length} bytes (need {need})");
             return new InfoRsp
             {
                 BeamSignal = p[0] != 0,
@@ -673,6 +782,13 @@ namespace DDR4_TestingApp
                 PlClock = p[3] != 0,
                 FpgaLoaded = p[4] != 0,
             };
+        }
+
+        private static UUIDRsp DecodeUuidRsp(byte[] p)
+        {
+            if (p.Length < 1)
+                throw new InvalidDataException($"short UUIDRsp: {p.Length} bytes (need 1)");
+            return new UUIDRsp { Success = p[0] != 0 };
         }
     }
 }
