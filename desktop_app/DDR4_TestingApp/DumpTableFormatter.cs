@@ -53,6 +53,37 @@ namespace DDR4_TestingApp
         }
 
         /// <summary>
+        /// Renders bytes you already have in hand - e.g. a page handed to a live
+        /// dump's IProgress&lt;DumpPage&gt; callback - as the same labeled hex table
+        /// as <see cref="WriteDumpHexTableAsync"/>, but WITHOUT issuing another dump.
+        /// Use this while streaming so you don't fire a second (serialized) dump at
+        /// the server just to redraw a page you were already given.
+        ///
+        /// Same threading contract as WriteDumpHexTableAsync (safe from any thread;
+        /// marshaled onto target's UI thread if needed), and target's Font must be
+        /// monospaced for the columns to line up.
+        /// </summary>
+        public static void RenderBytesHexTable(
+            RichTextBox target,
+            uint startAddress,
+            byte[] data,
+            uint unitSize,
+            uint rowSize)
+        {
+            if (target is null) throw new ArgumentNullException(nameof(target));
+            if (data is null) throw new ArgumentNullException(nameof(data));
+            if (unitSize == 0) throw new ArgumentOutOfRangeException(nameof(unitSize), "must be > 0");
+            if (rowSize == 0) throw new ArgumentOutOfRangeException(nameof(rowSize), "must be > 0");
+
+            List<HexTableSegment> segments = BuildHexTableSegments(startAddress, data, unitSize, rowSize);
+
+            if (target.InvokeRequired)
+                target.Invoke(new Action(() => RenderSegments(target, segments)));
+            else
+                RenderSegments(target, segments);
+        }
+
+        /// <summary>
         /// Same as <see cref="GenerateDumpHexTableAsync"/>, but renders
         /// directly into <paramref name="target"/> with the header row and
         /// every row's address label shown in bold, and data cells in the

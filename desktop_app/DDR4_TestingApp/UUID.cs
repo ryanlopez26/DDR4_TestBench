@@ -8,10 +8,12 @@ namespace DDR4_TestingApp
     {
             
         //Current UUID
-        public static byte[]? uuid = null;
+        private static UInt16? uuid = null;
         public static bool used = true;
-        public static bool in_use = false;
         public static bool _fetchingUUID = false;
+
+        //Marker of last checked
+        private static bool updated = false;
 
         /// <summary>
         /// Generate a random 3-byte identifier whose bytes are the UTF-8 (ASCII)
@@ -21,38 +23,39 @@ namespace DDR4_TestingApp
         /// </summary>
         public static void RandomUuid()
         {
-            uuid = new byte[3];
-            for (int i = 0; i < uuid.Length; i++)
-                uuid[i] = (byte)Random.Shared.Next('A', 'Z' + 1); // min inclusive, max exclusive → 65..90
+            // Random u16 id (0..65535) — matches the server's u16 uuid / {uuid}.csv naming.
+            uuid = (ushort)Random.Shared.Next(0, 65536); // min inclusive, max exclusive → 0..65535
 
-            //Mark as invalid
+            // Mark as invalid until a UUID check confirms it's free.
             used = true;
         }
 
-        /// <summary>
-        /// Render a byte[] as its UTF-8 text with a space between each byte's
-        /// character, e.g. { 0x51, 0x58, 0x4D } -> "Q X M". Inverse of RandomUuid
-        /// for display/logging a uuid.
-        /// </summary>
-        public static string GetReadable()
+        public static UInt16? GetUuid()
         {
-            if (uuid is null || uuid.Length == 0)
-                return string.Empty;
-
-            var sb = new StringBuilder(uuid.Length * 2);
-            for (int i = 0; i < uuid.Length; i++)
-            {
-                if (i > 0) sb.Append(' ');
-                sb.Append((char)uuid[i]);  // 0x00–0x7F: ASCII == single-byte UTF-8
-            }
-            return sb.ToString();
+            return uuid;
         }
 
-        public static async void update()
+        public static void SetUUID(UInt16 u)
         {
-            //Check if UUID was used
-            if(!used) return;
+            uuid = u;
+            updated = false;
+        }
 
+        public static void invalidate()
+        {
+            updated = false;
+        }
+
+        public static bool hasChecked()
+        {
+            return updated;
+        }
+
+
+        public static async void verifyUUID()
+        {
+            //Only check if needed
+            if(updated) return;
 
             if (TcpManager.Status != TcpManager.ConnectionStatus.Connected)
             {
@@ -72,9 +75,6 @@ namespace DDR4_TestingApp
                 //Attempt to generate and validate a new UUID
                 _fetchingUUID = true;
 
-                //Generate a new UUID
-                RandomUuid();
-
                 //Ensure it has a value
                 if (uuid is null)
                 {
@@ -89,7 +89,7 @@ namespace DDR4_TestingApp
                     //Create a UUID Cmd structure
                     var UUIDCmd = new UUIDCmd();
 
-                    UUIDCmd.Uuid = uuid;
+                    UUIDCmd.Uuid = uuid.Value;
 
                     UUIDRsp rsp = await TcpManager.SendUuidAsync(UUIDCmd, cts.Token);
 
@@ -104,14 +104,13 @@ namespace DDR4_TestingApp
                 {
                     System.Diagnostics.Debug.WriteLine($"Info fetch failed: {ex.GetType().Name}: {ex.Message}");
                     System.Diagnostics.Debug.WriteLine(ex.StackTrace);
-                    uuid = null;
                     used = true;
                     _fetchingUUID =false;
                 }
                 finally
                 {
+                    updated = true;
                     _fetchingUUID = false;
-                    in_use = false;
                 }
             }
         }

@@ -2,7 +2,8 @@
 //
 // Rewritten to match the current server (types.rs / commands.rs / server.rs /
 // config.rs). Notable changes vs. the previous client:
-//   * VerifyCmd and DynamicCmd now carry a 3-byte `uuid` field FIRST.
+//   * VerifyCmd/DynamicCmd/UUIDCmd carry the uuid as a u16 (was a 3-byte array),
+//     so Verify is now 11 bytes, Dynamic 20, UUID 2.
 //   * VerifyRsp is a completely different, larger struct (address range,
 //     num_correct/num_incorrect, and two bit-error histograms — AdjErrBins
 //     x8 and ErrBins x9).
@@ -25,22 +26,22 @@
 //
 // Payloads are bincode with big-endian fixed-width integers (fixint), so every
 // multi-byte field is plain big-endian with no length prefixes or padding.
-// bool -> 1 byte (0/1); [u8;3] -> 3 bytes; [u64;8] -> 64 bytes. The server uses
+// bool -> 1 byte (0/1); u16 -> 2 bytes; [u64;8] -> 64 bytes. The server uses
 // reject_trailing_bytes(), so payload length must match the struct EXACTLY.
 //
 // Commands (values from config.rs):
 //   0x01 Write   -> WriteCmd   { u8 pattern, u64 seed }                       9 bytes
-//   0x02 Verify  -> VerifyCmd  { [u8;3] uuid, u8 pattern, u64 seed }         12 bytes
+//   0x02 Verify  -> VerifyCmd  { u16 uuid, u8 pattern, u64 seed }            11 bytes
 //   0x03 Dump    -> DumpCmd    { u32 offset_start, u32 num_pages, bool cmp }  9 bytes
 //   0x04 Config  -> ConfigCmd  { u8 chip_index, u8 bus_bytes_per_chip,
 //                                u32 bus_size_in_bytes, u32 chip_size_bytes,
 //                                bool enable_chip_select, u32 address_multiplier,
 //                                bool enable_logging }                       16 bytes
-//   0x05 Dynamic -> DynamicCmd { [u8;3] uuid, u8 pattern, u64 seed,
+//   0x05 Dynamic -> DynamicCmd { u16 uuid, u8 pattern, u64 seed,
 //                                u32 sample_size_in_bytes, bool wait_for_beam,
-//                                f32 trigger_threshold }                     21 bytes
+//                                f32 trigger_threshold }                     20 bytes
 //   0x06 Info    -> (empty payload) — server replies with InfoRsp
-//   0x07 UUID    -> UUIDCmd    { [u8;3] uuid }                                3 bytes
+//   0x07 UUID    -> UUIDCmd    { u16 uuid }                                   2 bytes
 //                   <- UUIDRsp { bool success }                              1 byte
 //
 // Response streaming (from commands.rs):
@@ -51,19 +52,16 @@
 //              the sweep finishes (percent >= 100). Caller waits for percent >= 100.
 //   - Dump   : exactly num_pages CMD_DUMP frames, each a 16-byte header plus
 //              PAGE_SIZE (1024) raw bytes.
-//   - Dynamic: periodic CMD_DYNAMIC frames. The server sets test_completed ONLY
-//              when wait_for_beam == true and the beam drops. See RunDynamicAsync
-//              for the wait_for_beam == false caveat (no server-side completion).
-//   - UUID   : one CMD_UUID frame, UUIDRsp { success }.
+//   - Dynamic: periodic CMD_DYNAMIC frames. Termination: with wait_for_beam == true
+//              the server completes when the beam drops; with wait_for_beam == false
+//              it completes when a SEFI is detected (error_rate_percent > threshold).
+//              If neither occurs it streams forever — cancel to stop.
+//   - UUID   : one CMD_UUID frame, UUIDRsp { success } (success == uuid is AVAILABLE).
 //   - Info   : one CMD_INFO frame, InfoRsp { five EMIO signal bits }.
 //
-// !!! UUID CONSTRAINT !!!
-// utils::get_uuid() on the server only accepts a uuid whose three bytes are all
-// ASCII UPPERCASE letters (A–Z); verify_command and dynamic_command call
-// get_uuid(uuid).unwrap(), which PANICS (killing the server) on anything else.
-// SendVerifyAsync/RunDynamicAsync therefore validate the uuid client-side and
-// throw ArgumentException before sending. SendUuidAsync (the availability check)
-// does NOT require uppercase, matching the server's non-panicking check_uuid path.
+// UUID: the uuid is a plain u16 label that names the CSV/summary log files (see
+// recorder.rs). Call SendUuidAsync first to check availability — Success == true
+// means the id is free (no {uuid}.csv exists yet). No character/format constraints.
 
 using System;
 using System.Buffers.Binary;
@@ -96,8 +94,8 @@ namespace DDR4_TestingApp
 
     public struct VerifyCmd
     {
-        public byte[] Uuid;    // exactly 3 bytes; must be ASCII uppercase A–Z (see header)
-        public byte Pattern;   // 0 = zeros, 1 = ones, 2 = pseudorandom
+        public ushort Uuid;    // u16 log-file id (see recorder.rs)
+        public byte Pattern;   // 0 = zeros, 1 = ones (0xFF), 2 = pseudorandom
         public ulong Seed;
     }
 
@@ -110,7 +108,7 @@ namespace DDR4_TestingApp
 
     public struct DynamicCmd
     {
-        public byte[] Uuid;    // exactly 3 bytes; must be ASCII uppercase A–Z (see header)
+        public ushort Uuid;    // u16 log-file id (see recorder.rs)
 
         // Pattern generation
         public byte Pattern;   // 0 = zeros, 1 = ones, 2 = pseudorandom
@@ -128,7 +126,7 @@ namespace DDR4_TestingApp
 
     public struct UUIDCmd
     {
-        public byte[] Uuid;    // exactly 3 bytes
+        public ushort Uuid;    // u16 log-file id to check for availability
     }
 
     public struct WriteRsp
@@ -148,9 +146,8 @@ namespace DDR4_TestingApp
         public uint StartAddress;
         public uint EndAddress;
 
-        // NOTE: NumCorrect counts correct *bits* (+8 per fully-clean byte).
-        // NumIncorrect is currently never incremented server-side (always 0 as of
-        // the present commands.rs) — use ErrBins for the real error distribution.
+        // Per-bit tallies over the sweep; NumCorrect + NumIncorrect == 8 * bytes read
+        // (server does num_correct += 8 - diff_bits; num_incorrect += diff_bits per byte).
         public ulong NumCorrect;
         public ulong NumIncorrect;
 
@@ -194,7 +191,10 @@ namespace DDR4_TestingApp
         public ulong[] AdjErrBins; // 8 entries
         public ulong[] ErrBins;    // 9 entries
 
-        // Progress / addressing
+        // Progress / addressing.
+        // NOTE: as of the current commands.rs, dynamic_command never writes these
+        // four (they stay at their 0 init), so they always decode as 0. Kept for
+        // wire compatibility — don't rely on them until the server populates them.
         public uint PassCounter;
         public uint CurrentAddress;
         public uint StartAddress;
@@ -226,8 +226,8 @@ namespace DDR4_TestingApp
 
     public struct UUIDRsp
     {
-        // From uuid_command -> recorder::check_uuid: true means the uuid is ALREADY
-        // present in the log directory (i.e. taken), false means unused/invalid.
+        // From uuid_command -> recorder::check_uuid: true means the uuid is AVAILABLE
+        // (no {uuid}.csv exists yet), false means it's already taken.
         public bool Success;
     }
 
@@ -352,16 +352,12 @@ namespace DDR4_TestingApp
         /// <summary>
         /// Send a Verify command. Streams progress and returns the final response
         /// (address range, bit counts, and the two error histograms) when complete.
-        /// The uuid must be exactly 3 ASCII uppercase letters (A–Z) or the server
-        /// will panic — validated client-side here.
         /// </summary>
         public static async Task<VerifyRsp> SendVerifyAsync(
             VerifyCmd v,
             IProgress<VerifyRsp>? progress = null,
             CancellationToken ct = default)
         {
-            ValidateTestUuid(v.Uuid, "Verify");
-
             await sendLock.WaitAsync(ct).ConfigureAwait(false);
             try
             {
@@ -418,22 +414,18 @@ namespace DDR4_TestingApp
         /// Send a Dynamic command and stream <see cref="DynamicRsp"/> progress
         /// frames to <paramref name="progress"/>, returning the final frame.
         ///
-        /// TERMINATION (per commands.rs): the server sets <c>test_completed</c>
-        /// ONLY when <c>WaitForBeam == true</c> and the beam signal drops low.
-        /// A detected SEFI does NOT end the run. With <c>WaitForBeam == false</c>
-        /// the server never sets <c>test_completed</c> at all, so this method will
-        /// stream frames indefinitely — the ONLY way to stop it in that mode is to
-        /// cancel <paramref name="ct"/> (which surfaces as OperationCanceledException).
-        /// The uuid must be exactly 3 ASCII uppercase letters (A–Z) or the server
-        /// will panic — validated client-side here.
+        /// TERMINATION (per commands.rs): with <c>WaitForBeam == true</c> the server
+        /// completes (<c>test_completed</c>) when the beam signal drops low. With
+        /// <c>WaitForBeam == false</c> it completes when a SEFI is detected
+        /// (<c>error_rate_percent &gt; TriggerThreshold</c>). If neither happens the
+        /// server streams frames indefinitely — cancel <paramref name="ct"/> to stop
+        /// (which surfaces as OperationCanceledException).
         /// </summary>
         public static async Task<DynamicRsp> RunDynamicAsync(
             DynamicCmd d,
             IProgress<DynamicRsp> progress,
             CancellationToken ct = default)
         {
-            ValidateTestUuid(d.Uuid, "Dynamic");
-
             await sendLock.WaitAsync(ct).ConfigureAwait(false);
             try
             {
@@ -455,10 +447,9 @@ namespace DDR4_TestingApp
         }
 
         /// <summary>
-        /// Send a UUID availability check. Returns the server's UUIDRsp; note that
-        /// <see cref="UUIDRsp.Success"/> == true means the uuid is ALREADY taken
-        /// (present in the log directory). This command does not require uppercase
-        /// bytes (the server's check_uuid path does not panic on invalid input).
+        /// Send a UUID availability check. Returns the server's UUIDRsp;
+        /// <see cref="UUIDRsp.Success"/> == true means the uuid is AVAILABLE
+        /// (no {uuid}.csv exists yet), false means it's already taken.
         /// </summary>
         public static async Task<UUIDRsp> SendUuidAsync(UUIDCmd u, CancellationToken ct = default)
         {
@@ -568,36 +559,6 @@ namespace DDR4_TestingApp
             }
         }
 
-        // ============================== UUID helpers ==============================
-
-        /// <summary>Copy a 3-byte uuid into <paramref name="dst"/> (structural check only).</summary>
-        private static void WriteUuid(Span<byte> dst, byte[] uuid)
-        {
-            if (uuid is null || uuid.Length != 3)
-                throw new ArgumentException(
-                    $"UUID must be exactly 3 bytes (got {(uuid is null ? "null" : uuid.Length.ToString())})");
-            dst[0] = uuid[0];
-            dst[1] = uuid[1];
-            dst[2] = uuid[2];
-        }
-
-        /// <summary>
-        /// Validate a uuid destined for Verify/Dynamic. The server's utils::get_uuid()
-        /// only accepts three ASCII uppercase letters and then unwrap()s the result,
-        /// so anything else would crash the server. Fail fast client-side instead.
-        /// </summary>
-        private static void ValidateTestUuid(byte[] uuid, string cmdName)
-        {
-            if (uuid is null || uuid.Length != 3)
-                throw new ArgumentException(
-                    $"{cmdName}: UUID must be exactly 3 bytes (got {(uuid is null ? "null" : uuid.Length.ToString())})");
-            foreach (var b in uuid)
-                if (b < (byte)'A' || b > (byte)'Z')
-                    throw new ArgumentException(
-                        $"{cmdName}: UUID bytes must be ASCII uppercase letters A–Z " +
-                        $"(got 0x{b:X2}); the server would otherwise panic in get_uuid().unwrap()");
-        }
-
         // ============================== Encoders ==============================
 
         private static byte[] EncodeConfig(ConfigCmd c)
@@ -626,11 +587,11 @@ namespace DDR4_TestingApp
 
         private static byte[] EncodeVerify(VerifyCmd c)
         {
-            // uuid[3] + pattern(1) + seed(8) = 12
-            var b = new byte[12];
-            WriteUuid(b.AsSpan(0, 3), c.Uuid);
-            b[3] = c.Pattern;
-            BinaryPrimitives.WriteUInt64BigEndian(b.AsSpan(4, 8), c.Seed);
+            // uuid(u16, 2) + pattern(1) + seed(8) = 11
+            var b = new byte[11];
+            BinaryPrimitives.WriteUInt16BigEndian(b.AsSpan(0, 2), c.Uuid);
+            b[2] = c.Pattern;
+            BinaryPrimitives.WriteUInt64BigEndian(b.AsSpan(3, 8), c.Seed);
             return b;
         }
 
@@ -645,21 +606,22 @@ namespace DDR4_TestingApp
 
         private static byte[] EncodeDynamic(DynamicCmd c)
         {
-            // uuid[3] + pattern(1) + seed(8) + sample(4) + wait(1) + threshold(4) = 21
-            var b = new byte[21];
-            WriteUuid(b.AsSpan(0, 3), c.Uuid);
-            b[3] = c.Pattern;
-            BinaryPrimitives.WriteUInt64BigEndian(b.AsSpan(4, 8), c.Seed);
-            BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(12, 4), c.SampleSizeInBytes);
-            b[16] = Convert.ToByte(c.WaitForBeam);
-            BinaryPrimitives.WriteSingleBigEndian(b.AsSpan(17, 4), c.TriggerThreshold);
+            // uuid(u16, 2) + pattern(1) + seed(8) + sample(4) + wait(1) + threshold(4) = 20
+            var b = new byte[20];
+            BinaryPrimitives.WriteUInt16BigEndian(b.AsSpan(0, 2), c.Uuid);
+            b[2] = c.Pattern;
+            BinaryPrimitives.WriteUInt64BigEndian(b.AsSpan(3, 8), c.Seed);
+            BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(11, 4), c.SampleSizeInBytes);
+            b[15] = Convert.ToByte(c.WaitForBeam);
+            BinaryPrimitives.WriteSingleBigEndian(b.AsSpan(16, 4), c.TriggerThreshold);
             return b;
         }
 
         private static byte[] EncodeUuid(UUIDCmd c)
         {
-            var b = new byte[3];
-            WriteUuid(b.AsSpan(0, 3), c.Uuid);
+            // uuid(u16, 2) = 2
+            var b = new byte[2];
+            BinaryPrimitives.WriteUInt16BigEndian(b.AsSpan(0, 2), c.Uuid);
             return b;
         }
 

@@ -2,7 +2,7 @@ use std::sync::{LazyLock, RwLock};
 use crate::types::ConfigCmd;
 
 
-pub const SIMULATION_MODE: bool = false; // If true, the app will simulate read/write operations instead of performing real hardware access. Useful for testing and development without hardware.
+pub const SIMULATION_MODE: bool = true; // If true, the app will simulate read/write operations instead of performing real hardware access. Useful for testing and development without hardware.
 
 pub const SYNC_MARKER: u32 = 0xDEAD_BEEF;
 pub const TERM_MARKER: u32 = 0xCAFE_BABE;

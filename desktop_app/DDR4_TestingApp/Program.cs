@@ -14,6 +14,9 @@ namespace DDR4_TestingApp
         public static uint selection_size = 0;
         public static uint sample_size = 0;
 
+        // Program.cs
+        public static bool busy = false;   // true while a write/verify/dynamic/dump owns the connection
+
         [STAThread]
         static void Main()
         {
