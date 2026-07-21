@@ -23,6 +23,9 @@ namespace DDR4_TestingApp
         // with your other viewer constants (DATA_VIEWER_ROW_SIZE, etc.)
         const uint MEM_VIEWER_ROWS = 21;
 
+        // MainForm fields
+        private bool _viewerRefreshInProgress = false;
+
         // with your other fields — last-seen rate per row; null = never visited
         private readonly float?[] _memBandRate = new float?[MEM_VIEWER_ROWS];
 
@@ -58,18 +61,6 @@ namespace DDR4_TestingApp
         private ScottPlot.Plottables.BarPlot dynbarPlot2;   // bit error bins      (plot1)
         private ScottPlot.Plottables.BarPlot dynbarPlot3;   // adjacent error bins (plot2)
 
-        enum BeamState
-        {
-            Manual,
-            Armed,
-            Waiting,
-            Triggered,
-            SEFI,
-            Finished
-        };
-
-        private BeamState bms = BeamState.Manual;
-
         public MainForm()
         {
             InitializeComponent();
@@ -82,8 +73,8 @@ namespace DDR4_TestingApp
             // Bars start empty; they're filled on each VerifyRsp update packet.
             barPlot1 = plot1.Plot.Add.Bars(Array.Empty<double>());
             barPlot2 = plot2.Plot.Add.Bars(Array.Empty<double>());
-            dynbarPlot2 = plot1.Plot.Add.Bars(Array.Empty<double>());
-            dynbarPlot3 = plot2.Plot.Add.Bars(Array.Empty<double>());
+            dynbarPlot2 = dynPlot2.Plot.Add.Bars(Array.Empty<double>());   // was plot1
+            dynbarPlot3 = dynPlot3.Plot.Add.Bars(Array.Empty<double>());   // was plot2
 
             // ===== Dynamic plot =====
             dynPlot.Plot.Axes.SetLimitsX(0, 60);
@@ -112,8 +103,8 @@ namespace DDR4_TestingApp
 
             plot1.Plot.Axes.SetupMultiplierNotation(plot1.Plot.Axes.Left);
             plot2.Plot.Axes.SetupMultiplierNotation(plot2.Plot.Axes.Left);
-            dynPlot2.Plot.Axes.SetupMultiplierNotation(plot2.Plot.Axes.Left);
-            dynPlot3.Plot.Axes.SetupMultiplierNotation(plot2.Plot.Axes.Left);
+            dynPlot2.Plot.Axes.SetupMultiplierNotation(dynPlot2.Plot.Axes.Left);   // was plot2.Plot.Axes.Left
+            dynPlot3.Plot.Axes.SetupMultiplierNotation(dynPlot3.Plot.Axes.Left);   // was plot2.Plot.Axes.Left
 
             dynPlot.Refresh();
             plot1.Refresh();
@@ -178,7 +169,7 @@ namespace DDR4_TestingApp
                 for (int i = 0; i < values.Length; i++)
                 {
                     barPlot.Bars[i].Value = values[i];
-                   // barPlot.Bars[i].Label = values[i].ToString();
+                    // barPlot.Bars[i].Label = values[i].ToString();
                 }
             }
             else
@@ -207,11 +198,39 @@ namespace DDR4_TestingApp
             // --- Status indicator ---
             bool connected = TcpManager.Status == TcpManager.ConnectionStatus.Connected;
 
-            //Attempt to verify a valid ID
-            UUID.update();
+            // =============== UUID Management ===============
+
+            //Verify the UUID
+            if (!Program.busy)
+            {
+                UUID.verifyUUID();
+
+                //Check if auto manage 
+                if (autoManageUUID.Checked)
+                {
+                    if (UUID.GetUuid() is null)
+                    {
+                        //UUID initialize
+                        UUID.SetUUID(0);
+
+                    }
+                    else
+                    {
+                        if (UUID.used && UUID.hasChecked() && !UUID._fetchingUUID)
+                        {
+                            //Increment UUID to obtain an unused
+                            UUID.SetUUID(Convert.ToUInt16(UUID.GetUuid().Value + 1));
+                        }
+
+                    }
+
+                }
+            }
+
+            // ===============================================
 
             //Attempt to update information
-            Info.update();
+            if (!Program.busy) Info.update();
 
             //Update dynamic buttons
             if (captureDiff)
@@ -244,34 +263,26 @@ namespace DDR4_TestingApp
                 UpdateDramPanels(0, 0);
             }
 
-            // Attempt to Generate table
+            update_addrInfo();   // cheap label update — do it every tick, before any await
+
+            // Live data-viewer refresh: at most ONE dump in flight, and none while a
+            // foreground op owns the connection. Without these guards each 100ms tick
+            // queues another dump on the single serialized connection; they pile up
+            // during a long task, flood out at the end, and starve the UUID/Info pollers.
             uint? addr = Tools.ParseHex(viewerAddress.Text);
-
-            //Check to see if an address was provided
-            if (addr.HasValue)
+            if (addr.HasValue && connected && !Program.busy && !_viewerRefreshInProgress)
             {
-
-                Stopwatch stopwatch = Stopwatch.StartNew();
-
-                DumpTableFormatter.WriteDumpHexTableAsync(
-                  dataViewer,
-                  addr.Value,
-                  DATA_VIEWER_RENDER_SIZE,
-                  1,
-                  DATA_VIEWER_ROW_SIZE).GetAwaiter();
-
-                stopwatch.Stop();
-                TimeSpan timeSpan = stopwatch.Elapsed;
-
-
-
-
-
-
-
+                _viewerRefreshInProgress = true;
+                try
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    await DumpTableFormatter.WriteDumpHexTableAsync(
+                        dataViewer, addr.Value, DATA_VIEWER_RENDER_SIZE, 1, DATA_VIEWER_ROW_SIZE, cts.Token);
+                }
+                catch (OperationCanceledException) { /* skip this cycle; retry next tick */ }
+                catch (Exception) { /* transient background-refresh error; ignore */ }
+                finally { _viewerRefreshInProgress = false; }
             }
-
-            update_addrInfo();
 
         }
 
@@ -312,30 +323,34 @@ namespace DDR4_TestingApp
             }
 
             // Update UUID display
-            if (UUID.uuid is null)
+            if (UUID.GetUuid() is null)
             {
-                showUUID.Text = "- - -";
+                showUUID.Text = "---";
                 showUUID.BackColor = Color.LightGray;
             }
             else
             {
-                showUUID.Text = UUID.GetReadable();
+                showUUID.Text = $"{UUID.GetUuid()}";
 
                 //Change color based on status
                 if (UUID._fetchingUUID)
                 {
                     showUUID.BackColor = Color.Yellow;
                 }
-
-                //In use
-                if (UUID.used)
-                {
-                    showUUID.BackColor = Color.LightBlue;
-                }
                 else
                 {
-                    showUUID.BackColor = Color.LightGreen;
+                    //In use
+                    if (UUID.used)
+                    {
+                        showUUID.BackColor = Color.LightBlue;
+                    }
+                    else
+                    {
+                        showUUID.BackColor = Color.LightGreen;
+                    }
                 }
+
+
             }
         }
 
@@ -400,6 +415,8 @@ namespace DDR4_TestingApp
 
             writeButton.Enabled = false;
 
+            Program.busy = true;
+
             try
             {
                 WriteRsp final = await TcpManager.SendWriteAsync(cmd, progress, cts.Token);
@@ -416,7 +433,7 @@ namespace DDR4_TestingApp
             finally
             {
                 writeButton.Enabled = true;
-                bms = BeamState.Finished;
+                Program.busy = false;
             }
         }
 
@@ -479,7 +496,7 @@ namespace DDR4_TestingApp
             uint taskDelay = 0;
 
             //Ensure a UUID is present
-            if (UUID.uuid is null)
+            if (UUID.GetUuid() is null)
             {
                 MessageBox.Show("No valid UUID ready");
                 return;
@@ -488,11 +505,11 @@ namespace DDR4_TestingApp
 
             var cmd = new VerifyCmd
             {
-                Uuid = UUID.uuid,
+                Uuid = UUID.GetUuid().Value,
                 Pattern = (byte)verifyMode.SelectedIndex,    // 0 = zeros, 1 = ones, 2 = pseudorandom
                 Seed = UInt32.Parse(prngSeed.Text),
             };
-            bms = BeamState.Armed;
+
             bool prevBeam = false;
 
             var progress = new Progress<VerifyRsp>(rsp =>
@@ -526,6 +543,8 @@ namespace DDR4_TestingApp
             EventHandler cancelHandler = (_, _) => cts.Cancel();
 
             verifyButton.Enabled = false;
+
+            Program.busy = true;
 
             try
             {
@@ -574,11 +593,12 @@ namespace DDR4_TestingApp
                     //Test ended with active beam
                     endTime = DateTime.Now;
                 }
-                bms = BeamState.Finished;
+
                 verifyButton.Enabled = true;
 
                 //Consume the UUID
-                UUID.used = true;
+                UUID.invalidate();
+                Program.busy = false;
             }
         }
 
@@ -590,152 +610,14 @@ namespace DDR4_TestingApp
 
 
         }
-
-        private void selectSaveLocation_Click(object sender, EventArgs e)
-        {
-            dumpPath.Text = Tools.SelectFolder(dumpPath.Text);
-        }
-
-        private async void dumpButton_Click(object sender, EventArgs e)
-        {
-            if (TcpManager.Status != TcpManager.ConnectionStatus.Connected || !Info.sys.HasValue)
-            {
-                MessageBox.Show("Not connected.");
-                return;
-            }
-
-            // Parse inputs — offset accepts "0x..." hex or decimal, num pages is decimal.
-            uint offset, numPages;
-            try
-            {
-                offset = 0;
-                numPages = Config.sys.ChipSizeBytes / TcpManager.PAGE_SIZE;
-            }
-            catch (Exception)
-            {
-                MessageBox.Show("Offset must be hex (0x...) or decimal; pages must be a positive integer.");
-                return;
-            }
-
-            if (numPages == 0)
-            {
-                MessageBox.Show("Page count must be at least 1.");
-                return;
-            }
-
-            Program.taskName = "DUMP";
-
-            var cmd = new DumpCmd { OffsetStart = offset, NumPages = numPages, ComparisonMode = captureDiff };
-
-            int pagesReceived = 0;
-            var progress = new Progress<DumpPage>(page =>
-            {
-                pagesReceived++;
-                Program.taskProgress = Math.Clamp((int)(pagesReceived * 100L / numPages), 0, 100);
-                Program.taskInfo = $"Page {pagesReceived}/{numPages} @ 0x{page.Address:X8}";
-
-            });
-
-            using var cts = new CancellationTokenSource();
-            EventHandler cancelHandler = (_, _) => cts.Cancel();
-
-            dumpButton.Enabled = false;
-
-            try
-            {
-                var pages = await TcpManager.SendDumpAsync(cmd, progress, cts.Token);
-
-                // Write the raw bytes to disk in the workspace.
-                string filename = dumpFileName.Text + ".bin";
-                string path = Path.Combine(dumpPath.Text, filename);
-
-                using (var fs = File.Create(path))
-                {
-                    foreach (var page in pages)
-                        fs.Write(page.Data, 0, page.Data.Length);
-                }
-
-                // Summary + small hex preview of the first page.
-                uint totalErrors = (uint)pages.Sum(p => (long)p.NumErrors);
-                long totalBytes = pages.Sum(p => (long)p.Data.Length);
-
-                if (pages.Count > 0)
-                {
-                    int previewLen = Math.Min(256, pages[0].Data.Length);
-                }
-
-                Program.taskInfo = $"Dumped {totalBytes:N0} bytes ({pages.Count} pages)";
-            }
-            catch (OperationCanceledException)
-            {
-                Program.taskInfo = "Dump cancelled.";
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Dump failed: {ex.Message}");
-            }
-            finally
-            {
-                dumpButton.Enabled = true;
-            }
-        }
-
         private void enableChipSelection_CheckedChanged(object sender, EventArgs e)
         {
             Config.sys.EnableChipSelect = chip_isolation.Checked;
         }
 
-        private void chipSizeBox_TextChanged(object sender, EventArgs e)
-        {
-
-        }
-
         private void applyConfiguration_Click(object sender, EventArgs e)
         {
             Config.apply();
-        }
-
-
-        private void label3_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void tabPage2_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void captureModeRaw_Click(object sender, EventArgs e)
-        {
-            captureDiff = false;
-        }
-
-        private void captureModeDiff_Click(object sender, EventArgs e)
-        {
-            captureDiff = true;
-        }
-
-        private void setBeamArm_Click(object sender, EventArgs e)
-        {
-            enableBeamTrigger = true;
-            bms = BeamState.Armed;
-        }
-
-        private void setBeamOff_Click(object sender, EventArgs e)
-        {
-            enableBeamTrigger = false;
-            bms = BeamState.Manual;
-        }
-
-        private void SetSEFIArm_Click(object sender, EventArgs e)
-        {
-            enableSEFI = true;
-        }
-
-        private void setSEFIOff_Click(object sender, EventArgs e)
-        {
-            enableSEFI = false;
         }
 
         private void chip_capacity_SelectedIndexChanged(object sender, EventArgs e)
@@ -780,16 +662,6 @@ namespace DDR4_TestingApp
 
             Program.selection_size = sb;
 
-
-        }
-
-        private void tabPage1_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void formsPlot1_Load(object sender, EventArgs e)
-        {
 
         }
 
@@ -859,11 +731,6 @@ namespace DDR4_TestingApp
 
         }
 
-        private void viewerAddress_TextChanged(object sender, EventArgs e)
-        {
-
-        }
-
         private void DataViewerScrollUp_Click(object sender, EventArgs e)
         {
             //Attempt to parse address
@@ -892,21 +759,6 @@ namespace DDR4_TestingApp
             }
         }
 
-        private void tabPage3_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void resetFPGA_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void resetController_Click(object sender, EventArgs e)
-        {
-
-        }
-
         private void chip_org_SelectedIndexChanged(object sender, EventArgs e)
         {
             switch (chip_org.SelectedIndex)
@@ -918,11 +770,6 @@ namespace DDR4_TestingApp
                     Config.sys.BusBytesPerChip = 2;
                     break;
             }
-        }
-
-        private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
-        {
-
         }
 
         private async void dyn_execute_Click(object sender, EventArgs e)
@@ -941,7 +788,7 @@ namespace DDR4_TestingApp
             dynDataY.Clear();
 
             //Ensure a UUID is present
-            if (UUID.uuid is null)
+            if (UUID.GetUuid() is null)
             {
                 MessageBox.Show("No valid UUID ready");
                 return;
@@ -951,7 +798,7 @@ namespace DDR4_TestingApp
             var cmd = new DynamicCmd
             {
                 //Update UUID
-                Uuid = UUID.uuid,
+                Uuid = UUID.GetUuid().Value,
 
                 // Pattern generation
                 Pattern = (byte)dyn_pattern.SelectedIndex,
@@ -1094,6 +941,7 @@ namespace DDR4_TestingApp
             EventHandler cancelHandler = (_, _) => cts.Cancel();
 
             verifyButton.Enabled = false;
+            Program.busy = true;
 
             try
             {
@@ -1102,29 +950,25 @@ namespace DDR4_TestingApp
             catch (OperationCanceledException)
             {
                 Program.taskInfo = "Verify cancelled.";
-                UUID.used = true;
+
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Verify failed: {ex.Message}");
-                UUID.used = true;
+
             }
             finally
             {
-                UUID.used = true;
-
                 //Task complete
                 Program.taskProgress = 100;
 
                 //Fill in info
                 dynStage.Text = "DONE";
 
+                UUID.invalidate();
+                Program.busy = false;
+
             }
-        }
-
-        private void textBox8_TextChanged(object sender, EventArgs e)
-        {
-
         }
 
         private void dyn_trigger_bar_Scroll(object sender, EventArgs e)
@@ -1162,10 +1006,165 @@ namespace DDR4_TestingApp
             dyn_trigger_bar.Value = Math.Clamp((int)(dyn_trigger_threshold * 100), 0, 100);
         }
 
-        private void groupBox10_Enter(object sender, EventArgs e)
+        private void enableLogs_CheckedChanged(object sender, EventArgs e)
         {
-
+            Config.sys.EnableLogging = enableLogs.Checked;
         }
 
+        private void setUUID_Click(object sender, EventArgs e)
+        {
+            // Disable auto management
+            autoManageUUID.Checked = false;
+
+            // Fall back to 0 if the box isn't a valid u16
+            // (non-numeric, empty, negative, or > 65535 all land here).
+            if (!UInt16.TryParse(inputUUID.Text, out ushort uuid))
+            {
+                inputUUID.BackColor = Color.LightCoral;
+            }
+            else
+            {
+                UUID.SetUUID(uuid);
+                inputUUID.BackColor = Color.LightGreen;
+            }
+        }
+
+        private void selectSaveLocation_Click_1(object sender, EventArgs e)
+        {
+            dumpPath.Text = Tools.SelectFolder(dumpPath.Text);
+        }
+
+        private void captureModeRaw_Click_1(object sender, EventArgs e)
+        {
+            captureDiff = false;
+        }
+
+        private void captureModeDiff_Click(object sender, EventArgs e)
+        {
+            captureDiff = true;
+        }
+
+        private async void dumpButton_Click_1(object sender, EventArgs e)
+        {
+            if (TcpManager.Status != TcpManager.ConnectionStatus.Connected || !Info.sys.HasValue)
+            {
+                MessageBox.Show("Not connected.");
+                return;
+            }
+
+            // currentDumpPage layout — matches DumpTableFormatter's canonical view
+            // (1 byte per cell, 16 cells per row).
+            const uint UnitSize = 1;
+            const uint RowSize = 16;
+
+            // Whole-chip dump from offset 0. uint/uint (PAGE_SIZE is int, hence the cast).
+            uint offset = 0;
+            uint numPages = Config.sys.ChipSizeBytes / (uint)TcpManager.PAGE_SIZE;
+            if (numPages == 0)
+            {
+                MessageBox.Show("Page count is 0 — is ChipSizeBytes configured?");
+                return;
+            }
+
+            Program.taskName = "DUMP";
+            var cmd = new DumpCmd { OffsetStart = offset, NumPages = numPages, ComparisonMode = captureDiff };
+
+            // The server streams one page at a time and can emit hundreds of thousands
+            // of them for a full-chip dump, so throttle the expensive per-page redraw to
+            // ~100ms while still counting every page. The final page is drawn
+            // deterministically after the await, so throttling can't drop it.
+            int pagesReceived = 0;
+            long bytesReceived = 0;
+            long errorsSeen = 0;
+            var opClock = System.Diagnostics.Stopwatch.StartNew();
+            long lastRedrawMs = -1000;
+            const long RedrawThrottleMs = 100;
+
+            var progress = new Progress<DumpPage>(page =>
+            {
+                pagesReceived++;
+                bytesReceived += page.Data.Length;
+                errorsSeen += (long)page.NumErrors;
+                Program.taskProgress = Math.Clamp((int)(pagesReceived * 100L / numPages), 0, 100);
+
+                // Cheap single-line update every page.
+                currentDumpAddress.Text = $"0x{page.Address:X8}";
+
+                // Expensive multi-line status + full-page table, throttled.
+                if (opClock.ElapsedMilliseconds - lastRedrawMs >= RedrawThrottleMs)
+                {
+                    lastRedrawMs = opClock.ElapsedMilliseconds;
+                    dumpStatus.Text = BuildDumpStatus("Dumping", pagesReceived, numPages,
+                                                      page.Address, bytesReceived, errorsSeen, opClock.Elapsed);
+                    DumpTableFormatter.RenderBytesHexTable(currentDumpPage, page.Address, page.Data, UnitSize, RowSize);
+                }
+            });
+
+            // Nothing currently triggers cancellation — hook cts.Cancel() to a cancel
+            // button if/when you add one (this is what the old unused cancelHandler was for).
+            using var cts = new CancellationTokenSource();
+
+            dumpButton.Enabled = false;
+            Program.busy = true;
+            try
+            {
+                var pages = await TcpManager.SendDumpAsync(cmd, progress, cts.Token);
+
+                // Persist raw bytes to disk.
+                string path = Path.Combine(dumpPath.Text, dumpFileName.Text + ".bin");
+                using (var fs = File.Create(path))
+                    foreach (var page in pages)
+                        fs.Write(page.Data, 0, page.Data.Length);
+
+                long totalBytes = pages.Sum(p => (long)p.Data.Length);
+                long totalErrors = pages.Sum(p => (long)p.NumErrors);
+
+                // Deterministic final render of the last page (don't rely on the
+                // throttled callback having drawn it).
+                if (pages.Count > 0)
+                {
+                    DumpPage last = pages[pages.Count - 1];
+                    currentDumpAddress.Text = $"0x{last.Address:X8}";
+                    DumpTableFormatter.RenderBytesHexTable(currentDumpPage, last.Address, last.Data, UnitSize, RowSize);
+                }
+
+                Program.taskProgress = 100;
+                dumpStatus.Text =
+                    $"Dump complete.\n" +
+                    $"Pages:   {pages.Count:N0} / {numPages:N0}\n" +
+                    $"Bytes:   {totalBytes:N0}\n" +
+                    $"Errors:  {totalErrors:N0}\n" +
+                    $"Elapsed: {opClock.Elapsed:hh\\:mm\\:ss}\n" +
+                    $"Saved:   {path}";
+            }
+            catch (OperationCanceledException)
+            {
+                dumpStatus.Text = $"Dump cancelled after {pagesReceived:N0}/{numPages:N0} pages.";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Dump failed: {ex.Message}");
+                dumpStatus.Text = $"Dump failed: {ex.Message}";
+            }
+            finally
+            {
+                dumpButton.Enabled = true;
+                Program.busy = false;
+            }
+        }
+
+        // Multi-line detail block for dumpStatus.
+        private static string BuildDumpStatus(
+            string state, int pages, uint totalPages, uint address, long bytes, long errors, TimeSpan elapsed)
+        {
+            int percent = totalPages == 0 ? 0 : (int)Math.Clamp(pages * 100L / totalPages, 0, 100);
+            return
+                $"{state}...\n" +
+                $"Pages:   {pages:N0} / {totalPages:N0} ({percent}%)\n" +
+                $"Address: 0x{address:X8}\n" +
+                $"Bytes:   {bytes:N0}\n" +
+                $"Errors:  {errors:N0}\n" +
+                $"Elapsed: {elapsed:hh\\:mm\\:ss}";
+        }
     }
 }

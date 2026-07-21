@@ -36,7 +36,7 @@ namespace DDR4_TestingApp
                 {
                     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
                     sys = await TcpManager.SendInfoAsync(cts.Token);
-                    Console.WriteLine("Info fetch!");
+                    //Console.WriteLine("Info fetch!");
                 }
                 catch (Exception ex)
                 {
