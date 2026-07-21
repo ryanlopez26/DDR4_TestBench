@@ -29,7 +29,9 @@ use crate::config::*;
 #[macro_export]
 macro_rules! dbg_log {
     ($($arg:tt)*) => {
-        eprintln!("[dbg] {}", format_args!($($arg)*));
+        // `file!():line!()` makes every line traceable back to its call site,
+        // which matters once these are interleaved across commands/threads.
+        eprintln!("[dbg {}:{}] {}", file!(), line!(), format_args!($($arg)*));
     };
 }
 
@@ -42,13 +44,17 @@ macro_rules! dbg_log {
 pub fn config_command(stream: &mut TcpStream, cmd: ConfigCmd){
 
     crate::dbg_log!(
-        "config_command: incoming ConfigCmd chip_index={}, bus_bytes_per_chip={}, chip_size_bytes={}, bus_size_in_bytes={}, enable_chip_select={}, address_multiplier={}",
-        cmd.chip_index, cmd.bus_bytes_per_chip, cmd.chip_size_bytes, cmd.bus_size_in_bytes, cmd.enable_chip_select, cmd.address_multiplier
+        "config_command: incoming ConfigCmd chip_index={}, bus_bytes_per_chip={}, chip_size_bytes={} ({:#x}), bus_size_in_bytes={}, enable_chip_select={}, address_multiplier={}, enable_logging={}",
+        cmd.chip_index, cmd.bus_bytes_per_chip, cmd.chip_size_bytes, cmd.chip_size_bytes, cmd.bus_size_in_bytes, cmd.enable_chip_select, cmd.address_multiplier, cmd.enable_logging
     );
 
     //Prevent invalid address multiplier
     if cmd.address_multiplier == 0 {
-            
+
+        crate::dbg_log!(
+            "config_command: REJECTED address_multiplier==0 (would make step_by(0) panic); config left unchanged, sending failure ACK"
+        );
+
         //Invalid status response 
         let payload: Vec<u8> = vec![0];
         send_response(stream, CMD_CONFIG, payload).unwrap();
@@ -67,13 +73,14 @@ pub fn config_command(stream: &mut TcpStream, cmd: ConfigCmd){
         config.bus_size_in_bytes = cmd.bus_size_in_bytes;
         config.enable_chip_select = cmd.enable_chip_select;
         config.address_multiplier = cmd.address_multiplier;
+        config.enable_logging = cmd.enable_logging;
 
-        // NOTE: address_multiplier is NOT set from ConfigCmd here. Every loop
-        // reads config.address_multiplier; if nothing else assigns it, it holds
-        // its default. Logging it so the stale/default value is visible.
+        // Log the full config as actually applied, so the active geometry the
+        // loops will read is visible (this handler DID just write every field).
         crate::dbg_log!(
-            "config_command: post-apply CONFIG chip_size_bytes={}, address_multiplier={} (address_multiplier is NOT written by this handler)",
-            config.chip_size_bytes, config.address_multiplier
+            "config_command: applied CONFIG chip_index={}, bus_bytes_per_chip={}, chip_size_bytes={} ({:#x}), bus_size_in_bytes={}, enable_chip_select={}, address_multiplier={}, enable_logging={}",
+            config.chip_index, config.bus_bytes_per_chip, config.chip_size_bytes, config.chip_size_bytes,
+            config.bus_size_in_bytes, config.enable_chip_select, config.address_multiplier, config.enable_logging
         );
     }
 
@@ -88,7 +95,7 @@ pub fn config_command(stream: &mut TcpStream, cmd: ConfigCmd){
 pub fn uuid_command(stream: &mut TcpStream, cmd: UUIDCmd){
 
     crate::dbg_log!(
-        "uuid_command: incoming ConfigCmd uuid={}",
+        "uuid_command: incoming UUIDCmd uuid={}",
         cmd.uuid
     );
 
@@ -98,8 +105,8 @@ pub fn uuid_command(stream: &mut TcpStream, cmd: UUIDCmd){
     };
 
     crate::dbg_log!(
-        "uuid_command: success = {}",
-        rsp.success
+        "uuid_command: uuid={} available={} (true = not yet used; a log file for it does not exist)",
+        cmd.uuid, rsp.success
     );
 
     //Send ACK response
@@ -182,8 +189,8 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
     }
 
     crate::dbg_log!(
-        "dynamic_command: seed={}, pattern={}, wait_for_beam={}, sample_size_in_bytes={}, trigger_threshold={}, chip_size_bytes={}, address_multiplier={}",
-        cmd.seed, cmd.pattern, cmd.wait_for_beam, cmd.sample_size_in_bytes, cmd.trigger_threshold, config.chip_size_bytes, config.address_multiplier
+        "dynamic_command: uuid={}, seed={:#018X}, pattern={}, wait_for_beam={}, sample_size_in_bytes={}, trigger_threshold={}, chip_size_bytes={} ({:#x}), address_multiplier={}",
+        cmd.uuid, cmd.seed, cmd.pattern, cmd.wait_for_beam, cmd.sample_size_in_bytes, cmd.trigger_threshold, config.chip_size_bytes, config.chip_size_bytes, config.address_multiplier
     );
 
     if config.address_multiplier == 0 {
@@ -215,6 +222,11 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
                 rsp.pl_clock = gpio::get_pl_clock_signal();
                 rsp.fpga_loaded = gpio::get_fpga_loaded_status();
                 rsp.total_time_ms = first_start_instant.elapsed().unwrap().as_millis() as f32;
+
+                crate::dbg_log!(
+                    "dynamic_command: still waiting for beam ({}ms elapsed) beam={}, calibrated={}, ui_clock={}, pl_clock={}, fpga_loaded={}",
+                    rsp.total_time_ms, rsp.beam_signal, rsp.controller_calibrated, rsp.ui_clock, rsp.pl_clock, rsp.fpga_loaded
+                );
 
                 //Log if enabled
                 if config.enable_logging {
@@ -302,9 +314,9 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
                 match crate::chip::read(&config, i) {
                     Ok(actual) => {
                         if actual != v {
-                            eprintln!(
-                                "[!] Error at address (expected: {:#x}, actual: {:#x}): {:#x}",
-                                v, actual, i
+                            crate::dbg_log!(
+                                "dynamic_command: mismatch at offset {:#x} expected={:#04X}, actual={:#04X}",
+                                i, v, actual
                             );
 
                             let diff_mask        = actual ^ v;
@@ -365,7 +377,7 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
                     Err(e) => {
                         bits_sampled += 8;
                         bits_errored += 8;
-                        eprintln!("[!] Error reading from chip at offset {}: {:?}", i, e);
+                        crate::dbg_log!("dynamic_command: chip read error at offset {:#x}: {:?} (counted as 8 errored bits)", i, e);
                     }
                 };
 
@@ -382,8 +394,8 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
                     rsp.error_rate = bits_errored as f32;
 
                     crate::dbg_log!(
-                        "dynamic_command: sample window closed error_rate={:.4}, error_percent={:.4}, bits_errored={}",
-                        rsp.error_rate, rsp.error_rate_percent, bits_errored
+                        "dynamic_command: sample window closed error_rate={} bits, error_percent={:.6} ({}/{} bits), error_rate_per_second={:.2}",
+                        rsp.error_rate, rsp.error_rate_percent, bits_errored, bits_sampled, rsp.error_rate_per_second
                     );
 
                     //Clear sampling vars
@@ -505,6 +517,12 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
             //Check if the test is over
             if rsp.test_completed {
 
+                crate::dbg_log!(
+                    "dynamic_command: test complete — sefi_detected={}, time_to_sefi={}ms, passes={}, total_bytes={}, exposure_time={}ms, total_time={}ms, err_bins={:?}, adj_err_bins={:?}",
+                    rsp.sefi_detected, rsp.time_to_sefi, rsp.pass_counter, rsp.total_bytes,
+                    rsp.exposure_time_ms, rsp.total_time_ms, rsp.err_bins, rsp.adj_err_bins
+                );
+
                 if config.enable_logging {
                     
                     //Commit log file
@@ -529,6 +547,11 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
         //Increment pass count
         rsp.pass_counter += 1;
 
+        crate::dbg_log!(
+            "dynamic_command: completed full chip sweep #{} (total_bytes={}, sefi_detected={})",
+            rsp.pass_counter, rsp.total_bytes, rsp.sefi_detected
+        );
+
     };
 
 
@@ -537,14 +560,11 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
 
 pub fn info_command(stream: &mut TcpStream){
 
-    #[cfg(feature = "debug")]
-    {
-        crate::dbg_log!(
-            "info_command: beam={}, calibrated={}, ui_clock={}, pl_clock={}, fpga_loaded={}",
-            gpio::get_beam_signal(), gpio::get_calibration_signal(), gpio::get_ui_clock_signal(),
-            gpio::get_pl_clock_signal(), gpio::get_fpga_loaded_status()
-        );
-    }
+    crate::dbg_log!(
+        "info_command: beam={}, calibrated={}, ui_clock={}, pl_clock={}, fpga_loaded={}",
+        gpio::get_beam_signal(), gpio::get_calibration_signal(), gpio::get_ui_clock_signal(),
+        gpio::get_pl_clock_signal(), gpio::get_fpga_loaded_status()
+    );
 
     //Create info response struct
     let payload = crate::server::codec().serialize(&InfoRsp {
@@ -566,8 +586,8 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
     let config = CONFIG.read().unwrap();
 
     crate::dbg_log!(
-        "write_command: seed={}, pattern={}, chip_size_bytes={}, address_multiplier={}",
-        cmd.seed, cmd.pattern, config.chip_size_bytes, config.address_multiplier
+        "write_command: seed={:#018X}, pattern={}, chip_size_bytes={} ({:#x}), address_multiplier={}",
+        cmd.seed, cmd.pattern, config.chip_size_bytes, config.chip_size_bytes, config.address_multiplier
     );
 
     if config.address_multiplier == 0 {
@@ -684,8 +704,8 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
     let config = CONFIG.read().unwrap();
 
     crate::dbg_log!(
-        "verify_command: seed={}, pattern={}, chip_size_bytes={}, address_multiplier={}",
-        cmd.seed, cmd.pattern, config.chip_size_bytes, config.address_multiplier
+        "verify_command: uuid={}, seed={:#018X}, pattern={}, chip_size_bytes={} ({:#x}), address_multiplier={}",
+        cmd.uuid, cmd.seed, cmd.pattern, config.chip_size_bytes, config.chip_size_bytes, config.address_multiplier
     );
 
     if config.address_multiplier == 0 {
@@ -812,6 +832,12 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
             //If we are done, exit
             if done {
 
+                crate::dbg_log!(
+                    "verify_command: complete — {:.1}% at offset {:#x}, num_correct={}, num_incorrect={}, err_bins={:?}, adj_err_bins={:?}, elapsed={}ms",
+                    rsp.percent_complete, rsp.current_address, rsp.num_correct, rsp.num_incorrect,
+                    rsp.err_bins, rsp.adj_err_bins, rsp.time_spent_ms
+                );
+
                 if config.enable_logging {
 
                 //Commit log file
@@ -904,7 +930,7 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
                 }
             },
             Err(e) => {
-                eprintln!("[!] Error reading from chip at offset {}: {:?}", i, e);
+                crate::dbg_log!("verify_command: chip read error at offset {:#x}: {:?}", i, e);
             }
         };
 
@@ -935,8 +961,8 @@ pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd, v_cmd: &VerifyCmd){
     let base_address = cmd.offset_start - (cmd.offset_start % PAGE_SIZE as u32); // Align down to page boundary
 
     crate::dbg_log!(
-        "dump_command: offset_start={:#x}, base_address={:#x}, num_pages={}, comparison_mode={}, PAGE_SIZE={}, pattern={}",
-        cmd.offset_start, base_address, cmd.num_pages, cmd.comparison_mode, PAGE_SIZE, v_cmd.pattern
+        "dump_command: offset_start={:#x}, base_address={:#x}, num_pages={}, comparison_mode={}, PAGE_SIZE={}, pattern={} (from last Verify: uuid={}, seed={:#018X})",
+        cmd.offset_start, base_address, cmd.num_pages, cmd.comparison_mode, PAGE_SIZE, v_cmd.pattern, v_cmd.uuid, v_cmd.seed
     );
 
     //Init the pseudo-random generator with the provided seed

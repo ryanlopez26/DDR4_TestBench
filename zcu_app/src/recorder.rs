@@ -70,20 +70,16 @@ pub fn clear() {
 }
 
 pub fn write(uuid: u16) -> std::io::Result<()> {
-
     let mut log_path = PathBuf::from(LOGDIR);
     log_path.push(format!("{uuid}.csv"));
 
     let mut datalog = DATALOG.lock().unwrap();
     fs::write(&log_path, datalog.join("\n"))?;
-    datalog.clear();
+    datalog.clear();                 // this is the only clear you need
 
     TAKEN_UUIDS.lock().unwrap().push(uuid);
 
-    //Empty the log
-    clear();
-
-    Ok(())
+    Ok(())                           // removed the trailing clear()
 }
 
 pub fn new(entries: Vec<&str>) {

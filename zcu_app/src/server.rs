@@ -184,10 +184,10 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
 
             CMD_DUMP => match parse_payload::<DumpCmd>(&payload) {
                 Ok(d) => {
-                    println!(
-                        "[{}] Dump {{ offset: 0x{:08X}, num_pages: {}, comparison_mode: {} }}",
-                        peer, d.offset_start, d.num_pages, d.comparison_mode
-                    );
+                    // println!(
+                    //     "[{}] Dump {{ offset: 0x{:08X}, num_pages: {}, comparison_mode: {} }}",
+                    //     peer, d.offset_start, d.num_pages, d.comparison_mode
+                    // );
 
                     //Execute command
                     crate::commands::dump_command(&mut stream, d, &last_verify_parameters);
