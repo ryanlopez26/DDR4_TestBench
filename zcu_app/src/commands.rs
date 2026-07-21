@@ -286,7 +286,7 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
             {
 
                 //Update current address
-                rsp.current_address += 1;
+                rsp.current_address = i;
 
                 //Value to test
                 let v = match cmd.pattern {
@@ -388,8 +388,10 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
 
             // Perform rate calculation
             {
-                if bits_sampled > cmd.sample_size_in_bytes as u64 * 8 {
-                    rsp.error_rate_per_second = (bits_errored as f32 * 1000.0) / (last_sample_instant.elapsed().unwrap().as_millis() as f32); // Errors per second
+                if bits_sampled >= cmd.sample_size_in_bytes as u64 * 8 {
+                    
+                    let secs = last_sample_instant.elapsed().unwrap().as_secs_f32();
+                    rsp.error_rate_per_second = if secs > 0.0 { bits_errored as f32 / secs } else { 0.0 };
                     rsp.error_rate_percent = bits_errored as f32 / bits_sampled as f32;
                     rsp.error_rate = bits_errored as f32;
 
@@ -402,6 +404,9 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
                     bits_sampled = 0;
                     bits_errored = 0;
                     last_sample_instant = SystemTime::now();
+
+                    rsp.adj_err_bins = [0,0,0,0,0,0,0,0];
+                    rsp.err_bins = [0,0,0,0,0,0,0,0,0];
 
                     //Check if a SEFI has been detected
                     if (rsp.error_rate_percent > cmd.trigger_threshold) && !rsp.sefi_detected {
