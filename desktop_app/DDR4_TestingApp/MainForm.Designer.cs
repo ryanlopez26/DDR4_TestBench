@@ -355,6 +355,8 @@
             // autoManageUUID
             // 
             autoManageUUID.AutoSize = true;
+            autoManageUUID.Checked = true;
+            autoManageUUID.CheckState = CheckState.Checked;
             autoManageUUID.Location = new Point(254, 35);
             autoManageUUID.Name = "autoManageUUID";
             autoManageUUID.Size = new Size(116, 17);
@@ -365,6 +367,8 @@
             // enableLogs
             // 
             enableLogs.AutoSize = true;
+            enableLogs.Checked = true;
+            enableLogs.CheckState = CheckState.Checked;
             enableLogs.Location = new Point(254, 58);
             enableLogs.Name = "enableLogs";
             enableLogs.Size = new Size(110, 17);
@@ -1290,6 +1294,7 @@
             dyn_bps.Name = "dyn_bps";
             dyn_bps.Size = new Size(63, 20);
             dyn_bps.TabIndex = 2;
+            dyn_bps.Text = "200";
             // 
             // groupBox24
             // 
@@ -1304,6 +1309,8 @@
             // dyn_beam
             // 
             dyn_beam.AutoSize = true;
+            dyn_beam.Checked = true;
+            dyn_beam.CheckState = CheckState.Checked;
             dyn_beam.Location = new Point(12, 21);
             dyn_beam.Name = "dyn_beam";
             dyn_beam.Size = new Size(68, 17);
