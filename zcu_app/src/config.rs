@@ -23,14 +23,10 @@ pub const UPDATE_FREQUENCY_MS: f32 = 100.0; // Frequency of progress updates dur
 
 //Global configuration variable, protected by a RwLock for concurrent access. Initialized with default values.
 pub static CONFIG: LazyLock<RwLock<ConfigCmd>> = LazyLock::new(|| {
-    RwLock::new(ConfigCmd {
-        chip_index: 0,
-        bus_bytes_per_chip: 2,             // x16 default
+    RwLock::new(ConfigCmd {         // x16 default
         block_size : 0x0010_0000, //  1MB default
         block_factor : 1,
         num_blocks : 0x0000_0100, // Test 256MB
-        bus_size_in_bytes: 8,             // 8 bytes per bus word (x64)
-        enable_chip_select: false,
         enable_logging: true
     })
 });

@@ -1,5 +1,6 @@
 // ======================= Performs the commands ========================
 
+use std::fs;
 use std::net::TcpStream;
 use std::time::SystemTime;
 
@@ -67,10 +68,6 @@ pub fn config_command(stream: &mut TcpStream, cmd: ConfigCmd){
     //Load new configuration settings
     {
         let mut config = CONFIG.write().unwrap();
-        config.chip_index = cmd.chip_index;
-        config.bus_bytes_per_chip = cmd.bus_bytes_per_chip;
-        config.bus_size_in_bytes = cmd.bus_size_in_bytes;
-        config.enable_chip_select = cmd.enable_chip_select;
         config.enable_logging = cmd.enable_logging;
         config.block_factor = cmd.block_factor;
         config.block_size  = cmd.block_size;
@@ -123,6 +120,9 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
 
     //Init the pseudo-random generator with the provided seed
     crate::rand::set_seed(cmd.seed);
+
+    //Verification stream log (will get very big)
+    let mut stream_log: Vec<u8> = Vec::new();
 
     //Response structure
     let mut rsp = DynamicRsp {
@@ -347,6 +347,9 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
 
                                 //Collect statistics
                                 rsp.err_bins[diff_bits] += 1;
+
+                                //Log if enabled
+                                if config.enable_logging {stream_log.push(diff_mask); };
                                 
                                 //Detect multi-bit upset
                                 if diff_bits > 1 {
@@ -561,6 +564,8 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
                             format!("{:?}", cmd),
                             format!("{:?}", rsp),
                         ]).unwrap();
+
+                        recorder::write_raw(cmd.uuid, stream_log).unwrap();
 
                     }
 
@@ -963,109 +968,105 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
     
 }
 
-pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd, v_cmd: &VerifyCmd){
+use std::time::Instant;
 
-    //Load configuration
+fn flush_page(
+    stream: &mut TcpStream,
+    block_data: &mut Vec<u8>,
+    num_errors: &mut u64,      // match your DumpRsp field types
+    page_addr: u32,          // ditto — cast if address is u32
+    start: Instant ) -> Result<(), ()> 
+    {
+    if block_data.is_empty() {
+        return Ok(());
+    }
+    let rsp = DumpRsp {
+        num_errors: *num_errors,
+        address: page_addr,
+        time_spent_ms: start.elapsed().as_millis() as f32,
+    };
+    let mut payload = crate::server::codec().serialize(&rsp).unwrap();
+    payload.extend_from_slice(block_data);
+
+    block_data.clear();
+    *num_errors = 0;
+
+    send_response(stream, CMD_DUMP, payload).map_err(|e| {
+        eprintln!("[!] Failed to send dump response: {}", e);
+    })
+}
+
+pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd, v_cmd: &VerifyCmd) {
     let config = CONFIG.read().unwrap();
-
-    //Setup timers
-    let time_since_start = SystemTime::now();
-
-    //Get base page address
-    let base_address = cmd.offset_start - (cmd.offset_start % PAGE_SIZE as u32); // Align down to page boundary
+    let start = Instant::now();
 
     crate::dbg_log!(
-        "dump_command: offset_start={:#x}, base_address={:#x}, num_pages={}, comparison_mode={}, PAGE_SIZE={}, pattern={} (from last Verify: uuid={}, seed={:#018X})",
-        cmd.offset_start, base_address, cmd.num_pages, cmd.comparison_mode, PAGE_SIZE, v_cmd.pattern, v_cmd.uuid, v_cmd.seed
+        "dump_command: offset_start={:#x}, num_pages={}, comparison_mode={}, PAGE_SIZE={}, pattern={} (last Verify: uuid={}, seed={:#018X})",
+        cmd.offset_start, cmd.num_pages, cmd.comparison_mode, PAGE_SIZE, v_cmd.pattern, v_cmd.uuid, v_cmd.seed
     );
 
-    //Init the pseudo-random generator with the provided seed
     crate::rand::set_seed(v_cmd.seed);
 
-    // Iterate over requested pages
-    for page_num in 0..cmd.num_pages {
-        
-        let page_address = base_address + (page_num * PAGE_SIZE as u32);
+    // These must persist across byte iterations.
+    let mut block_data: Vec<u8> = Vec::with_capacity(PAGE_SIZE);
+    let mut num_errors: u64 = 0;
+    let mut page_addr: u32 = 0;
 
-        //Read page data from chip
-        let mut page_data = Vec::new();
+    for blk_ind in (0..config.num_blocks).step_by(config.block_factor as usize) {
+        // usize math to avoid the u32 overflow we discussed
+        let block_start = blk_ind * config.block_size ;
+        let block_end   = block_start + config.block_size;
 
-        let mut num_errors = 0;
+        for addr in block_start..block_end {
+            if block_data.is_empty() {
+                page_addr = addr; // record where this page begins
+            }
 
-        //Check which mode we are in 
-
-        if cmd.comparison_mode {
-
-            //Comparison dump
-
-            for offset in 0..PAGE_SIZE as u32 {
-                match crate::chip::read(&config, page_address + offset) {
+            if cmd.comparison_mode {
+                match crate::chip::read(&config, addr) {
                     Ok(byte) => {
-
-                        //Generate the expected byte
                         let expected = match v_cmd.pattern {
-                            0 => 0, // All zeros
-                            1 => 0xFF, // All ones
-                            2 => crate::rand::rand(page_address + offset), // Pseudorandom pattern based on seed
+                            0 => 0x00,
+                            1 => 0xFF,
+                            2 => crate::rand::rand(addr as u32),
                             _ => {
                                 eprintln!("[!] Invalid pattern in VerifyCmd: {}", v_cmd.pattern);
                                 return;
                             }
                         };
-                        
-                        //Write the XOR (1 if different) of the expected and actual
-                        page_data.push(expected ^ byte);
-
-
-                    },
+                        block_data.push(expected ^ byte);
+                    }
                     Err(e) => {
-                        eprintln!("[!] Error reading from chip at offset {}: {:?}", page_address + offset, e);
-                        page_data.push(0xFE); // Push a placeholder byte on error
+                        eprintln!("[!] Error reading chip at {:#x}: {:?}", addr, e);
+                        block_data.push(0xFE);
+                        num_errors += 1;
+                    }
+                }
+            } else {
+                match crate::chip::read(&config, addr) {
+                    Ok(byte) => block_data.push(byte),
+                    Err(e) => {
+                        eprintln!("[!] Error reading chip at {:#x}: {:?}", addr, e);
+                        block_data.push(0xFE);
                         num_errors += 1;
                     }
                 }
             }
 
-        } else {
-
-            //Standard direct dump
-
-            for offset in 0..PAGE_SIZE as u32 {
-                match crate::chip::read(&config, page_address + offset) {
-                    Ok(byte) => page_data.push(byte),
-                    Err(e) => {
-                        eprintln!("[!] Error reading from chip at offset {}: {:?}", page_address + offset, e);
-                        page_data.push(0xFE); // Push a placeholder byte on error
-                        num_errors += 1;
-                    }
+            if block_data.len() >= PAGE_SIZE {
+                if flush_page(stream, &mut block_data, &mut num_errors, page_addr, start).is_err() {
+                    return;
                 }
             }
-
         }
 
-        crate::dbg_log!(
-            "dump_command: page {}/{} address={:#x}, bytes={}, errors={}",
-            page_num + 1, cmd.num_pages, page_address, page_data.len(), num_errors
-        );
-
-        //Send page data in response
-        let rsp = DumpRsp {
-            num_errors,
-            address: page_address,
-            time_spent_ms: time_since_start.elapsed().unwrap().as_millis() as f32,
-            //Raw bytes are appended to this (3 byte pages)
-        };
-
-        let mut payload = crate::server::codec().serialize(&rsp).unwrap();
-        payload.extend_from_slice(&page_data);
-
-        if let Err(e) = send_response(stream, CMD_DUMP, payload) {
-            eprintln!("[!] Failed to send dump response: {}", e);
+        // Flush the block's trailing partial so it can't spill into the
+        // next (non-contiguous) sampled block.
+        if flush_page(stream, &mut block_data, &mut num_errors, page_addr, start).is_err() {
             return;
         }
-
     }
 
-    crate::dbg_log!("dump_command: complete, {} pages dumped in {}ms", cmd.num_pages, time_since_start.elapsed().unwrap().as_millis());
-
+    crate::dbg_log!("dump_command: complete in {}ms", start.elapsed().as_millis());
 }
+

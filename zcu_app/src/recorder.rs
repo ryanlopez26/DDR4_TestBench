@@ -65,6 +65,16 @@ pub fn write_summary(uuid: u16, entries: Vec<String>) -> std::io::Result<()> {
     Ok(())
 }
 
+pub fn write_raw(uuid: u16, raw: Vec<u8>) -> std::io::Result<()> {
+
+    let mut log_path = PathBuf::from(LOGDIR);
+    log_path.push(format!("{uuid}.bin"));
+
+    fs::write(&log_path, raw)?;
+
+    Ok(())
+}
+
 pub fn clear() {
     DATALOG.lock().unwrap().clear();
 }

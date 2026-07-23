@@ -45,8 +45,7 @@ pub struct DynamicCmd {
 #[repr(C)]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DumpCmd {
-    pub offset_start: u32,
-    pub num_pages: u32,
+    pub num_blocks: u32,
     pub comparison_mode: bool
 }
 
@@ -62,10 +61,6 @@ pub struct UUIDCmd {
 #[repr(C)]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ConfigCmd {
-    pub chip_index: u8,
-    pub bus_bytes_per_chip: u8,
-    pub bus_size_in_bytes: u32,
-    pub enable_chip_select: bool,
     pub enable_logging: bool,
 
     //Sampling variables
