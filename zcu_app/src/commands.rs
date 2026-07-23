@@ -206,17 +206,48 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
 
     //Check if we need to wait for the beam
     if cmd.wait_for_beam {
+        //Beam must read high continuously for this long before we start
+        const BEAM_HOLD_MS: u128 = 500;
 
         crate::dbg_log!("dynamic_command: waiting for beam signal to go high...");
 
-        //Wait for the beam signal to be high
-        while !gpio::get_beam_signal() {
-        
+        //Timestamp of when the beam most recently went high; None while it reads low
+        let mut beam_high_since: Option<SystemTime> = None;
+
+        //Wait for the beam signal to stay high for at least BEAM_HOLD_MS
+        loop {
+            let beam = gpio::get_beam_signal();
+
+            if beam {
+                match beam_high_since {
+                    //Rising edge: start the hold timer
+                    None => {
+                        crate::dbg_log!(
+                            "dynamic_command: beam went high, confirming it holds for {}ms...",
+                            BEAM_HOLD_MS
+                        );
+                        beam_high_since = Some(SystemTime::now());
+                    }
+                    //Still high: proceed once we've cleared the hold threshold
+                    Some(since) => {
+                        if since.elapsed().unwrap().as_millis() >= BEAM_HOLD_MS {
+                            break;
+                        }
+                    }
+                }
+            } else if beam_high_since.is_some() {
+                //Beam dropped mid-confirmation; reset and keep waiting
+                crate::dbg_log!(
+                    "dynamic_command: beam dropped before {}ms hold, resetting",
+                    BEAM_HOLD_MS
+                );
+                beam_high_since = None;
+            }
+
             //Check if we need to send status update
             if last_update_instant.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS {
-
                 //Send status update
-                rsp.beam_signal = gpio::get_beam_signal();
+                rsp.beam_signal = beam;
                 rsp.controller_calibrated = gpio::get_calibration_signal();
                 rsp.ui_clock = gpio::get_ui_clock_signal();
                 rsp.pl_clock = gpio::get_pl_clock_signal();
@@ -230,7 +261,6 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
 
                 //Log if enabled
                 if config.enable_logging {
-
                     recorder::log(
                         vec![
                             format!("{}", rsp.exposure_time_ms),
@@ -243,10 +273,8 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
                             format!("{}", rsp.beam_signal),
                             format!("{}", rsp.controller_calibrated),
                             format!("{}", rsp.exposure_started),
-                            
                         ]
                     );
-
                 }
 
                 let payload = crate::server::codec().serialize(&rsp).unwrap();
@@ -255,12 +283,9 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
                     eprintln!("[!] Failed to send progress update: {}", e);
                     return;
                 }
-                
                 //Reset timer for next update
                 last_update_instant = SystemTime::now();
             }
-            
-
         }
 
         crate::dbg_log!("dynamic_command: beam signal high, beginning exposure");

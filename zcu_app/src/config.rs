@@ -7,6 +7,9 @@ pub const SIMULATION_MODE: bool = false; // If true, the app will simulate read/
 pub const SYNC_MARKER: u32 = 0xDEAD_BEEF;
 pub const TERM_MARKER: u32 = 0xCAFE_BABE;
 
+//Scaling block factor
+pub const SCALING_BLOCK_SIZE: u32  = 0x0001_0000;
+
 pub const CMD_WRITE: u8 = 0x01;
 pub const CMD_VERIFY: u8 = 0x02;
 pub const CMD_DUMP: u8 = 0x03;
