@@ -198,7 +198,7 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
             CMD_CONFIG => match parse_payload::<ConfigCmd>(&payload) {
                 Ok(c) => {
                     println!(
-                        "[{}] Config Updated}}",
+                        "[{}] Config Updated",
                         peer
                     );
 

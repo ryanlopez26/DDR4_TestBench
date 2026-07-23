@@ -335,6 +335,10 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
                     //Read back and verify the value
                     match crate::chip::read(&config, addr) {
                         Ok(actual) => {
+                            
+                            //Log if enabled
+                            if config.enable_logging {stream_log.push(actual ^ v); };
+
                             if actual != v {
                                 crate::dbg_log!(
                                     "dynamic_command: mismatch at offset {:#x} expected={:#04X}, actual={:#04X}",
@@ -347,9 +351,6 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
 
                                 //Collect statistics
                                 rsp.err_bins[diff_bits] += 1;
-
-                                //Log if enabled
-                                if config.enable_logging {stream_log.push(diff_mask); };
                                 
                                 //Detect multi-bit upset
                                 if diff_bits > 1 {
@@ -1018,7 +1019,7 @@ pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd, v_cmd: &VerifyCmd) {
     let mut num_errors: u64 = 0;
     let mut page_addr: u32 = 0;
 
-    for blk_ind in (cmd.block_offset..cmd.num_blocks).step_by(config.block_factor as usize) {
+    for blk_ind in (cmd.block_offset..(cmd.block_offset + cmd.num_blocks)).step_by(config.block_factor as usize) {
         // usize math to avoid the u32 overflow we discussed
         let block_start = blk_ind * config.block_size ;
         let block_end   = block_start + config.block_size;
