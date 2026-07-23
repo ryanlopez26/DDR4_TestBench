@@ -50,42 +50,17 @@
             setUUID = new Button();
             inputUUID = new TextBox();
             groupBox2 = new GroupBox();
-            address_information = new RichTextBox();
+            addr_info = new RichTextBox();
             groupBox4 = new GroupBox();
-            chip_org = new ComboBox();
-            label16 = new Label();
-            sample_size = new ComboBox();
+            block_factor = new ComboBox();
+            groupBox43 = new GroupBox();
+            sampling_info = new RichTextBox();
+            label4 = new Label();
+            block_size = new ComboBox();
             label13 = new Label();
             selection_size = new ComboBox();
             label24 = new Label();
             applyConfiguration = new Button();
-            sideB = new GroupBox();
-            sel_dram7 = new Button();
-            label8 = new Label();
-            dram7 = new Panel();
-            sel_dram6 = new Button();
-            label9 = new Label();
-            dram6 = new Panel();
-            sel_dram5 = new Button();
-            label10 = new Label();
-            dram5 = new Panel();
-            sel_dram4 = new Button();
-            label11 = new Label();
-            dram4 = new Panel();
-            chip_isolation = new CheckBox();
-            sideA = new GroupBox();
-            sel_dram3 = new Button();
-            label7 = new Label();
-            dram3 = new Panel();
-            sel_dram2 = new Button();
-            label6 = new Label();
-            dram2 = new Panel();
-            sel_dram1 = new Button();
-            label5 = new Label();
-            dram1 = new Panel();
-            sel_dram0 = new Button();
-            label4 = new Label();
-            dram0 = new Panel();
             groupBox1 = new GroupBox();
             connect_btn = new Button();
             port = new TextBox();
@@ -123,10 +98,13 @@
             writeModeLabel = new GroupBox();
             writeMode = new ComboBox();
             groupBox15 = new GroupBox();
+            groupBox44 = new GroupBox();
+            dataViewerBaseAddr = new Label();
             groupBox16 = new GroupBox();
+            viewerCmpMode = new CheckBox();
             useLock = new CheckBox();
             groupBox7 = new GroupBox();
-            viewerAddress = new TextBox();
+            viewerBlockNum = new NumericUpDown();
             tabPage3 = new TabPage();
             groupBox37 = new GroupBox();
             dynPlot = new ScottPlot.WinForms.FormsPlot();
@@ -192,8 +170,7 @@
             groupBox6.SuspendLayout();
             groupBox2.SuspendLayout();
             groupBox4.SuspendLayout();
-            sideB.SuspendLayout();
-            sideA.SuspendLayout();
+            groupBox43.SuspendLayout();
             groupBox1.SuspendLayout();
             groupBox3.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)pictureBox3).BeginInit();
@@ -211,8 +188,10 @@
             groupBox8.SuspendLayout();
             writeModeLabel.SuspendLayout();
             groupBox15.SuspendLayout();
+            groupBox44.SuspendLayout();
             groupBox16.SuspendLayout();
             groupBox7.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)viewerBlockNum).BeginInit();
             tabPage3.SuspendLayout();
             groupBox37.SuspendLayout();
             groupBox33.SuspendLayout();
@@ -424,7 +403,7 @@
             // 
             // groupBox2
             // 
-            groupBox2.Controls.Add(address_information);
+            groupBox2.Controls.Add(addr_info);
             groupBox2.Location = new Point(411, 141);
             groupBox2.Name = "groupBox2";
             groupBox2.Size = new Size(270, 130);
@@ -432,27 +411,25 @@
             groupBox2.TabStop = false;
             groupBox2.Text = "Address Information";
             // 
-            // address_information
+            // addr_info
             // 
-            address_information.Font = new Font("Consolas", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            address_information.Location = new Point(6, 18);
-            address_information.Name = "address_information";
-            address_information.Size = new Size(258, 106);
-            address_information.TabIndex = 1;
-            address_information.Text = "";
+            addr_info.Font = new Font("Consolas", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            addr_info.Location = new Point(9, 19);
+            addr_info.Name = "addr_info";
+            addr_info.Size = new Size(255, 105);
+            addr_info.TabIndex = 2;
+            addr_info.Text = "";
             // 
             // groupBox4
             // 
-            groupBox4.Controls.Add(chip_org);
-            groupBox4.Controls.Add(label16);
-            groupBox4.Controls.Add(sample_size);
+            groupBox4.Controls.Add(block_factor);
+            groupBox4.Controls.Add(groupBox43);
+            groupBox4.Controls.Add(label4);
+            groupBox4.Controls.Add(block_size);
             groupBox4.Controls.Add(label13);
             groupBox4.Controls.Add(selection_size);
             groupBox4.Controls.Add(label24);
             groupBox4.Controls.Add(applyConfiguration);
-            groupBox4.Controls.Add(sideB);
-            groupBox4.Controls.Add(chip_isolation);
-            groupBox4.Controls.Add(sideA);
             groupBox4.Location = new Point(5, 5);
             groupBox4.Name = "groupBox4";
             groupBox4.Size = new Size(399, 377);
@@ -460,49 +437,68 @@
             groupBox4.TabStop = false;
             groupBox4.Text = "Configuration";
             // 
-            // chip_org
+            // block_factor
             // 
-            chip_org.FormattingEnabled = true;
-            chip_org.Items.AddRange(new object[] { "X8", "X16" });
-            chip_org.Location = new Point(126, 16);
-            chip_org.Name = "chip_org";
-            chip_org.Size = new Size(59, 21);
-            chip_org.TabIndex = 28;
-            chip_org.SelectedIndexChanged += chip_org_SelectedIndexChanged;
+            block_factor.FormattingEnabled = true;
+            block_factor.Items.AddRange(new object[] { "1", "2", "4", "8", "16", "32", "64", "128" });
+            block_factor.Location = new Point(115, 85);
+            block_factor.Name = "block_factor";
+            block_factor.Size = new Size(76, 21);
+            block_factor.TabIndex = 29;
+            block_factor.SelectedIndexChanged += block_factor_SelectedIndexChanged;
             // 
-            // label16
+            // groupBox43
             // 
-            label16.AutoSize = true;
-            label16.Location = new Point(9, 19);
-            label16.Name = "label16";
-            label16.Size = new Size(115, 13);
-            label16.TabIndex = 26;
-            label16.Text = "Chip Organization:";
+            groupBox43.Controls.Add(sampling_info);
+            groupBox43.Location = new Point(5, 114);
+            groupBox43.Name = "groupBox43";
+            groupBox43.Size = new Size(387, 211);
+            groupBox43.TabIndex = 28;
+            groupBox43.TabStop = false;
+            groupBox43.Text = "Sampling Information";
             // 
-            // sample_size
+            // sampling_info
             // 
-            sample_size.FormattingEnabled = true;
-            sample_size.Items.AddRange(new object[] { "10 MB", "20 MB", "50 MB", "100 MB", "250 MB", "512 MB", "1 GB", "2 GB" });
-            sample_size.Location = new Point(317, 39);
-            sample_size.Name = "sample_size";
-            sample_size.Size = new Size(76, 21);
-            sample_size.TabIndex = 25;
-            sample_size.SelectedIndexChanged += chipOrg_SelectedIndexChanged;
+            sampling_info.Font = new Font("Consolas", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            sampling_info.Location = new Point(6, 22);
+            sampling_info.Name = "sampling_info";
+            sampling_info.Size = new Size(375, 182);
+            sampling_info.TabIndex = 1;
+            sampling_info.Text = "";
+            // 
+            // label4
+            // 
+            label4.AutoSize = true;
+            label4.Location = new Point(11, 88);
+            label4.Name = "label4";
+            label4.Size = new Size(85, 13);
+            label4.TabIndex = 26;
+            label4.Text = "Block Factor:";
+            // 
+            // block_size
+            // 
+            block_size.FormattingEnabled = true;
+            block_size.Items.AddRange(new object[] { "4 KB", "64 KB", "1 MB", "16 MB", "256 MB", "512 MB", "1 GB" });
+            block_size.Location = new Point(115, 52);
+            block_size.Name = "block_size";
+            block_size.Size = new Size(76, 21);
+            block_size.TabIndex = 25;
+            block_size.SelectedIndexChanged += chipOrg_SelectedIndexChanged;
             // 
             // label13
             // 
             label13.AutoSize = true;
-            label13.Location = new Point(225, 42);
+            label13.Location = new Point(12, 55);
             label13.Name = "label13";
-            label13.Size = new Size(79, 13);
+            label13.Size = new Size(73, 13);
             label13.TabIndex = 24;
-            label13.Text = "Sample Size:";
+            label13.Text = "Block Size:";
             // 
             // selection_size
             // 
             selection_size.FormattingEnabled = true;
-            selection_size.Items.AddRange(new object[] { "10 MB", "20 MB", "50 MB", "100 MB", "250 MB", "512 MB", "1 GB", "2 GB" });
-            selection_size.Location = new Point(317, 15);
+            selection_size.Items.AddRange(new object[] { "4 KB", "64 KB", "1 MB", "16 MB", "256 MB", "512 MB", "1 GB" });
+            selection_size.Location = new Point(115, 20);
             selection_size.Name = "selection_size";
             selection_size.Size = new Size(76, 21);
             selection_size.TabIndex = 23;
@@ -511,7 +507,7 @@
             // label24
             // 
             label24.AutoSize = true;
-            label24.Location = new Point(207, 18);
+            label24.Location = new Point(12, 23);
             label24.Name = "label24";
             label24.Size = new Size(97, 13);
             label24.TabIndex = 22;
@@ -526,293 +522,6 @@
             applyConfiguration.Text = "Apply Configuration";
             applyConfiguration.UseVisualStyleBackColor = true;
             applyConfiguration.Click += applyConfiguration_Click;
-            // 
-            // sideB
-            // 
-            sideB.Controls.Add(sel_dram7);
-            sideB.Controls.Add(label8);
-            sideB.Controls.Add(dram7);
-            sideB.Controls.Add(sel_dram6);
-            sideB.Controls.Add(label9);
-            sideB.Controls.Add(dram6);
-            sideB.Controls.Add(sel_dram5);
-            sideB.Controls.Add(label10);
-            sideB.Controls.Add(dram5);
-            sideB.Controls.Add(sel_dram4);
-            sideB.Controls.Add(label11);
-            sideB.Controls.Add(dram4);
-            sideB.Enabled = false;
-            sideB.Location = new Point(5, 196);
-            sideB.Name = "sideB";
-            sideB.Size = new Size(387, 129);
-            sideB.TabIndex = 12;
-            sideB.TabStop = false;
-            sideB.Text = "Side B";
-            // 
-            // sel_dram7
-            // 
-            sel_dram7.Location = new Point(292, 100);
-            sel_dram7.Name = "sel_dram7";
-            sel_dram7.Size = new Size(90, 20);
-            sel_dram7.TabIndex = 11;
-            sel_dram7.Text = "Select";
-            sel_dram7.UseVisualStyleBackColor = true;
-            sel_dram7.Click += sel_dram7_Click;
-            // 
-            // label8
-            // 
-            label8.AutoSize = true;
-            label8.Location = new Point(314, 24);
-            label8.Name = "label8";
-            label8.Size = new Size(43, 13);
-            label8.TabIndex = 10;
-            label8.Text = "DRAM 7";
-            label8.TextAlign = ContentAlignment.TopCenter;
-            // 
-            // dram7
-            // 
-            dram7.BackColor = Color.Silver;
-            dram7.BorderStyle = BorderStyle.FixedSingle;
-            dram7.Location = new Point(291, 40);
-            dram7.Name = "dram7";
-            dram7.Size = new Size(90, 50);
-            dram7.TabIndex = 9;
-            // 
-            // sel_dram6
-            // 
-            sel_dram6.Location = new Point(196, 100);
-            sel_dram6.Name = "sel_dram6";
-            sel_dram6.Size = new Size(90, 20);
-            sel_dram6.TabIndex = 8;
-            sel_dram6.Text = "Select";
-            sel_dram6.UseVisualStyleBackColor = true;
-            sel_dram6.Click += sel_dram6_Click;
-            // 
-            // label9
-            // 
-            label9.AutoSize = true;
-            label9.Location = new Point(219, 24);
-            label9.Name = "label9";
-            label9.Size = new Size(43, 13);
-            label9.TabIndex = 7;
-            label9.Text = "DRAM 6";
-            label9.TextAlign = ContentAlignment.TopCenter;
-            // 
-            // dram6
-            // 
-            dram6.BackColor = Color.Silver;
-            dram6.BorderStyle = BorderStyle.FixedSingle;
-            dram6.Location = new Point(195, 40);
-            dram6.Name = "dram6";
-            dram6.Size = new Size(90, 50);
-            dram6.TabIndex = 6;
-            // 
-            // sel_dram5
-            // 
-            sel_dram5.Location = new Point(101, 100);
-            sel_dram5.Name = "sel_dram5";
-            sel_dram5.Size = new Size(90, 20);
-            sel_dram5.TabIndex = 5;
-            sel_dram5.Text = "Select";
-            sel_dram5.UseVisualStyleBackColor = true;
-            sel_dram5.Click += sel_dram5_Click;
-            // 
-            // label10
-            // 
-            label10.AutoSize = true;
-            label10.Location = new Point(123, 24);
-            label10.Name = "label10";
-            label10.Size = new Size(43, 13);
-            label10.TabIndex = 4;
-            label10.Text = "DRAM 5";
-            label10.TextAlign = ContentAlignment.TopCenter;
-            // 
-            // dram5
-            // 
-            dram5.BackColor = Color.Silver;
-            dram5.BorderStyle = BorderStyle.FixedSingle;
-            dram5.Location = new Point(100, 40);
-            dram5.Name = "dram5";
-            dram5.Size = new Size(90, 50);
-            dram5.TabIndex = 3;
-            // 
-            // sel_dram4
-            // 
-            sel_dram4.Location = new Point(6, 100);
-            sel_dram4.Name = "sel_dram4";
-            sel_dram4.Size = new Size(90, 20);
-            sel_dram4.TabIndex = 2;
-            sel_dram4.Text = "Select";
-            sel_dram4.UseVisualStyleBackColor = true;
-            sel_dram4.Click += sel_dram4_Click;
-            // 
-            // label11
-            // 
-            label11.AutoSize = true;
-            label11.Location = new Point(28, 24);
-            label11.Name = "label11";
-            label11.Size = new Size(43, 13);
-            label11.TabIndex = 1;
-            label11.Text = "DRAM 4";
-            label11.TextAlign = ContentAlignment.TopCenter;
-            // 
-            // dram4
-            // 
-            dram4.BackColor = Color.Silver;
-            dram4.BorderStyle = BorderStyle.FixedSingle;
-            dram4.Location = new Point(5, 40);
-            dram4.Name = "dram4";
-            dram4.Size = new Size(90, 50);
-            dram4.TabIndex = 0;
-            // 
-            // chip_isolation
-            // 
-            chip_isolation.AutoSize = true;
-            chip_isolation.Location = new Point(19, 43);
-            chip_isolation.Name = "chip_isolation";
-            chip_isolation.Size = new Size(152, 17);
-            chip_isolation.TabIndex = 1;
-            chip_isolation.Text = "Enable Chip Isolation";
-            chip_isolation.UseVisualStyleBackColor = true;
-            chip_isolation.CheckedChanged += enableChipSelection_CheckedChanged;
-            // 
-            // sideA
-            // 
-            sideA.Controls.Add(sel_dram3);
-            sideA.Controls.Add(label7);
-            sideA.Controls.Add(dram3);
-            sideA.Controls.Add(sel_dram2);
-            sideA.Controls.Add(label6);
-            sideA.Controls.Add(dram2);
-            sideA.Controls.Add(sel_dram1);
-            sideA.Controls.Add(label5);
-            sideA.Controls.Add(dram1);
-            sideA.Controls.Add(sel_dram0);
-            sideA.Controls.Add(label4);
-            sideA.Controls.Add(dram0);
-            sideA.Enabled = false;
-            sideA.Location = new Point(3, 62);
-            sideA.Name = "sideA";
-            sideA.Size = new Size(387, 128);
-            sideA.TabIndex = 0;
-            sideA.TabStop = false;
-            sideA.Text = "Side A";
-            // 
-            // sel_dram3
-            // 
-            sel_dram3.Location = new Point(292, 96);
-            sel_dram3.Name = "sel_dram3";
-            sel_dram3.Size = new Size(90, 20);
-            sel_dram3.TabIndex = 11;
-            sel_dram3.Text = "Select";
-            sel_dram3.UseVisualStyleBackColor = true;
-            sel_dram3.Click += sel_dram3_Click;
-            // 
-            // label7
-            // 
-            label7.AutoSize = true;
-            label7.Location = new Point(314, 24);
-            label7.Name = "label7";
-            label7.Size = new Size(43, 13);
-            label7.TabIndex = 10;
-            label7.Text = "DRAM 3";
-            label7.TextAlign = ContentAlignment.TopCenter;
-            // 
-            // dram3
-            // 
-            dram3.BackColor = Color.Silver;
-            dram3.BorderStyle = BorderStyle.FixedSingle;
-            dram3.Location = new Point(291, 40);
-            dram3.Name = "dram3";
-            dram3.Size = new Size(90, 50);
-            dram3.TabIndex = 9;
-            // 
-            // sel_dram2
-            // 
-            sel_dram2.Location = new Point(196, 96);
-            sel_dram2.Name = "sel_dram2";
-            sel_dram2.Size = new Size(90, 20);
-            sel_dram2.TabIndex = 8;
-            sel_dram2.Text = "Select";
-            sel_dram2.UseVisualStyleBackColor = true;
-            sel_dram2.Click += sel_dram2_Click;
-            // 
-            // label6
-            // 
-            label6.AutoSize = true;
-            label6.Location = new Point(219, 24);
-            label6.Name = "label6";
-            label6.Size = new Size(43, 13);
-            label6.TabIndex = 7;
-            label6.Text = "DRAM 2";
-            label6.TextAlign = ContentAlignment.TopCenter;
-            // 
-            // dram2
-            // 
-            dram2.BackColor = Color.Silver;
-            dram2.BorderStyle = BorderStyle.FixedSingle;
-            dram2.Location = new Point(195, 40);
-            dram2.Name = "dram2";
-            dram2.Size = new Size(90, 50);
-            dram2.TabIndex = 6;
-            // 
-            // sel_dram1
-            // 
-            sel_dram1.Location = new Point(101, 96);
-            sel_dram1.Name = "sel_dram1";
-            sel_dram1.Size = new Size(90, 20);
-            sel_dram1.TabIndex = 5;
-            sel_dram1.Text = "Select";
-            sel_dram1.UseVisualStyleBackColor = true;
-            sel_dram1.Click += sel_dram1_Click;
-            // 
-            // label5
-            // 
-            label5.AutoSize = true;
-            label5.Location = new Point(123, 24);
-            label5.Name = "label5";
-            label5.Size = new Size(43, 13);
-            label5.TabIndex = 4;
-            label5.Text = "DRAM 1";
-            label5.TextAlign = ContentAlignment.TopCenter;
-            // 
-            // dram1
-            // 
-            dram1.BackColor = Color.Silver;
-            dram1.BorderStyle = BorderStyle.FixedSingle;
-            dram1.Location = new Point(100, 40);
-            dram1.Name = "dram1";
-            dram1.Size = new Size(90, 50);
-            dram1.TabIndex = 3;
-            // 
-            // sel_dram0
-            // 
-            sel_dram0.Location = new Point(6, 96);
-            sel_dram0.Name = "sel_dram0";
-            sel_dram0.Size = new Size(90, 20);
-            sel_dram0.TabIndex = 2;
-            sel_dram0.Text = "Select";
-            sel_dram0.UseVisualStyleBackColor = true;
-            sel_dram0.Click += sel_dram0_Click;
-            // 
-            // label4
-            // 
-            label4.AutoSize = true;
-            label4.Location = new Point(28, 24);
-            label4.Name = "label4";
-            label4.Size = new Size(43, 13);
-            label4.TabIndex = 1;
-            label4.Text = "DRAM 0";
-            label4.TextAlign = ContentAlignment.TopCenter;
-            // 
-            // dram0
-            // 
-            dram0.BackColor = Color.Silver;
-            dram0.BorderStyle = BorderStyle.FixedSingle;
-            dram0.Location = new Point(5, 40);
-            dram0.Name = "dram0";
-            dram0.Size = new Size(90, 50);
-            dram0.TabIndex = 0;
             // 
             // groupBox1
             // 
@@ -1183,6 +892,7 @@
             // 
             // writeMode
             // 
+            writeMode.DisplayMember = "2";
             writeMode.FormattingEnabled = true;
             writeMode.Items.AddRange(new object[] { "ZEROS", "ONES", "PRNG" });
             writeMode.Location = new Point(5, 19);
@@ -1192,6 +902,7 @@
             // 
             // groupBox15
             // 
+            groupBox15.Controls.Add(groupBox44);
             groupBox15.Controls.Add(groupBox16);
             groupBox15.Controls.Add(groupBox7);
             groupBox15.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
@@ -1202,47 +913,79 @@
             groupBox15.TabStop = false;
             groupBox15.Text = "Data Viewer Settings";
             // 
+            // groupBox44
+            // 
+            groupBox44.Controls.Add(dataViewerBaseAddr);
+            groupBox44.Font = new Font("Segoe UI", 9F);
+            groupBox44.Location = new Point(198, 17);
+            groupBox44.Name = "groupBox44";
+            groupBox44.Size = new Size(112, 46);
+            groupBox44.TabIndex = 8;
+            groupBox44.TabStop = false;
+            groupBox44.Text = "Base Block Addr";
+            // 
+            // dataViewerBaseAddr
+            // 
+            dataViewerBaseAddr.AutoSize = true;
+            dataViewerBaseAddr.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            dataViewerBaseAddr.Location = new Point(17, 21);
+            dataViewerBaseAddr.Name = "dataViewerBaseAddr";
+            dataViewerBaseAddr.Size = new Size(77, 15);
+            dataViewerBaseAddr.TabIndex = 0;
+            dataViewerBaseAddr.Text = "0x00000000";
+            // 
             // groupBox16
             // 
+            groupBox16.Controls.Add(viewerCmpMode);
             groupBox16.Controls.Add(useLock);
             groupBox16.Font = new Font("Segoe UI", 9F);
-            groupBox16.Location = new Point(215, 17);
+            groupBox16.Location = new Point(79, 17);
             groupBox16.Name = "groupBox16";
-            groupBox16.Size = new Size(95, 46);
+            groupBox16.Size = new Size(113, 46);
             groupBox16.TabIndex = 8;
             groupBox16.TabStop = false;
-            groupBox16.Text = "Lock";
+            groupBox16.Text = "Config";
+            // 
+            // viewerCmpMode
+            // 
+            viewerCmpMode.AutoSize = true;
+            viewerCmpMode.Location = new Point(61, 19);
+            viewerCmpMode.Name = "viewerCmpMode";
+            viewerCmpMode.Size = new Size(52, 19);
+            viewerCmpMode.TabIndex = 1;
+            viewerCmpMode.Text = "CMP";
+            viewerCmpMode.UseVisualStyleBackColor = true;
             // 
             // useLock
             // 
             useLock.AutoSize = true;
-            useLock.Location = new Point(6, 17);
+            useLock.Checked = true;
+            useLock.CheckState = CheckState.Checked;
+            useLock.Location = new Point(6, 19);
             useLock.Name = "useLock";
-            useLock.Size = new Size(51, 19);
+            useLock.Size = new Size(56, 19);
             useLock.TabIndex = 0;
-            useLock.Text = "Lock";
+            useLock.Text = "LOCK";
             useLock.UseVisualStyleBackColor = true;
             useLock.CheckedChanged += useLock_CheckedChanged;
             // 
             // groupBox7
             // 
-            groupBox7.Controls.Add(viewerAddress);
+            groupBox7.Controls.Add(viewerBlockNum);
             groupBox7.Font = new Font("Segoe UI", 9F);
             groupBox7.Location = new Point(9, 17);
             groupBox7.Name = "groupBox7";
-            groupBox7.Size = new Size(200, 46);
+            groupBox7.Size = new Size(64, 46);
             groupBox7.TabIndex = 7;
             groupBox7.TabStop = false;
-            groupBox7.Text = "Memory Address";
+            groupBox7.Text = "Block #";
             // 
-            // viewerAddress
+            // viewerBlockNum
             // 
-            viewerAddress.Location = new Point(6, 17);
-            viewerAddress.Name = "viewerAddress";
-            viewerAddress.Size = new Size(188, 23);
-            viewerAddress.TabIndex = 5;
-            viewerAddress.Text = "0x00000000";
-            viewerAddress.LostFocus += viewerAddress_TextChanged_1;
+            viewerBlockNum.Location = new Point(6, 18);
+            viewerBlockNum.Name = "viewerBlockNum";
+            viewerBlockNum.Size = new Size(48, 23);
+            viewerBlockNum.TabIndex = 1;
             // 
             // tabPage3
             // 
@@ -1657,7 +1400,7 @@
             currentDumpAddress.Name = "currentDumpAddress";
             currentDumpAddress.Size = new Size(372, 20);
             currentDumpAddress.TabIndex = 7;
-            currentDumpAddress.Text = "C:\\";
+            currentDumpAddress.Text = "0x00000000";
             // 
             // currentDumpPage
             // 
@@ -1823,10 +1566,7 @@
             groupBox2.ResumeLayout(false);
             groupBox4.ResumeLayout(false);
             groupBox4.PerformLayout();
-            sideB.ResumeLayout(false);
-            sideB.PerformLayout();
-            sideA.ResumeLayout(false);
-            sideA.PerformLayout();
+            groupBox43.ResumeLayout(false);
             groupBox1.ResumeLayout(false);
             groupBox1.PerformLayout();
             groupBox3.ResumeLayout(false);
@@ -1847,10 +1587,12 @@
             groupBox8.ResumeLayout(false);
             writeModeLabel.ResumeLayout(false);
             groupBox15.ResumeLayout(false);
+            groupBox44.ResumeLayout(false);
+            groupBox44.PerformLayout();
             groupBox16.ResumeLayout(false);
             groupBox16.PerformLayout();
             groupBox7.ResumeLayout(false);
-            groupBox7.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)viewerBlockNum).EndInit();
             tabPage3.ResumeLayout(false);
             groupBox37.ResumeLayout(false);
             groupBox33.ResumeLayout(false);
@@ -1916,7 +1658,6 @@
         private GroupBox groupBox3;
         private CheckBox chip_isolation;
         private GroupBox sideA;
-        private Label label4;
         private Panel dram0;
         private Button applyConfiguration;
         private GroupBox sideB;
@@ -1970,7 +1711,7 @@
         private ToolStripStatusLabel onlineInd;
         private ToolStripStatusLabel uiInd;
         private ToolStripStatusLabel plInd;
-        private ComboBox sample_size;
+        private ComboBox block_size;
         private Label label13;
         private GroupBox groupBox14;
         private GroupBox groupBox15;
@@ -1990,7 +1731,6 @@
         private Button selectSaveLocation;
         private TextBox dumpPath;
         private RichTextBox dataViewer;
-        private TextBox viewerAddress;
         private Button DataViewerScrollDown;
         private Button DataViewerScrollUp;
         private GroupBox groupBox16;
@@ -2018,7 +1758,7 @@
         private GroupBox groupBox35;
         private Label label16;
         private ComboBox chip_org;
-        private RichTextBox address_information;
+        private RichTextBox sampling_info;
         private GroupBox groupBox37;
         private TextBox dynStage;
         private GroupBox groupBox39;
@@ -2053,5 +1793,13 @@
         private TextBox currentDumpAddress;
         private RichTextBox currentDumpPage;
         private CheckBox useLock;
+        private GroupBox groupBox43;
+        private Label label4;
+        private RichTextBox addr_info;
+        private ComboBox block_factor;
+        private GroupBox groupBox44;
+        private Label dataViewerBaseAddr;
+        private NumericUpDown viewerBlockNum;
+        private CheckBox viewerCmpMode;
     }
 }

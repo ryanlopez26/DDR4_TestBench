@@ -14,23 +14,29 @@ namespace DDR4_TestingApp
 
         static public ConfigCmd sys = new ConfigCmd
         {
-            ChipIndex               = 0,
-            BusBytesPerChip         = 2,
-            BusSizeInBytes          = 8,
-            ChipSizeBytes           = 1 * 1024 * 1024 * 1024,
-            EnableChipSelect        = false,
-            AddressMultiplier       = 0x0,
             EnableLogging           = false,
+            BlockSize = 0x0001_0000,          
+            BlockFactor = 0x0000_0004,
+            NumBlocks = 0x0000_0100,
         };
+
+        static public void updateCalculations()
+        {
+
+            //Compute the number of blocks
+            sys.NumBlocks = Program.selection_size / sys.BlockSize;
+
+            //Compute the number of sampled blocks
+            var sampledBlocks = sys.NumBlocks / sys.BlockFactor;
+
+            //Compute sampled size
+            Program.sample_size = sampledBlocks * sys.BlockSize;
+
+
+        }
 
         static public async void apply()
         {
-
-            //Populate total size parameter
-            sys.ChipSizeBytes = Program.selection_size;
-
-            //Calculate address scaling needed to obtain target sample size
-            sys.AddressMultiplier = Program.selection_size / Program.sample_size;
 
             Program.taskName = "CONFIG";
             Program.taskProgress = 0.0f;
