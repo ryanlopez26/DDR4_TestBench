@@ -123,37 +123,6 @@ namespace DDR4_TestingApp
         }
 
 
-        private void UpdateDramPanels(uint ramOrg, uint selectedChip)
-        {
-            var panels = new[] { dram0, dram1, dram2, dram3, dram4, dram5, dram6, dram7 };
-
-            int enabledCount = ramOrg switch
-            {
-                8 => 8,    // x8  chips: all 8 active
-                16 => 4,    // x16 chips: first 4 active
-                _ => 0,    // anything else: none active
-            };
-
-            for (int i = 0; i < panels.Length; i++)
-            {
-                panels[i].BackColor =
-                    i >= enabledCount ? Color.Gray :
-                    i == selectedChip ? Color.Green :
-                                          Color.Red;
-            }
-
-            if (enabledCount == 8)
-            {
-                sideA.Enabled = true;
-                sideB.Enabled = true;
-            }
-
-            if (enabledCount == 4)
-            {
-                sideA.Enabled = true;
-                sideB.Enabled = false;
-            }
-        }
 
         // Push a set of values into a bar plot. If the bar count is unchanged, the existing
         // Bar objects are mutated in place (Bar is a reference type, so edits persist);
@@ -248,36 +217,21 @@ namespace DDR4_TestingApp
             if (connected) { connect_btn.Text = "Disconnect"; }
             else { connect_btn.Text = "Connect"; }
 
-            // Update DRAM panels
-            if (Config.sys.EnableChipSelect)
-            {
 
-                //Update panel
-                UpdateDramPanels(Convert.ToUInt32(Config.sys.BusBytesPerChip * 8), Config.sys.ChipIndex);
-            }
-            else
-            {
-                //Disable panels
-                sideA.Enabled = false;
-                sideB.Enabled = false;
-                UpdateDramPanels(0, 0);
-            }
-
-            update_addrInfo();   // cheap label update — do it every tick, before any await
+            updateAddrInfo();   // cheap label update — do it every tick, before any await
 
             // Live data-viewer refresh: at most ONE dump in flight, and none while a
             // foreground op owns the connection. Without these guards each 100ms tick
             // queues another dump on the single serialized connection; they pile up
             // during a long task, flood out at the end, and starve the UUID/Info pollers.
-            uint? addr = Tools.ParseHex(viewerAddress.Text);
-            if (addr.HasValue && connected && !Program.busy && !_viewerRefreshInProgress && !useLock.Checked)
+            
+            if (connected && !Program.busy && !_viewerRefreshInProgress && !useLock.Checked)
             {
                 _viewerRefreshInProgress = true;
                 try
                 {
                     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                    await DumpTableFormatter.WriteDumpHexTableAsync(
-                        dataViewer, addr.Value, DATA_VIEWER_RENDER_SIZE, 1, DATA_VIEWER_ROW_SIZE, cts.Token);
+                    await DumpTableFormatter.WriteDumpHexTableAsync(dataViewer, (uint) viewerBlockNum.Value, 1, 1, DATA_VIEWER_ROW_SIZE, viewerCmpMode.Checked, cts.Token);
                 }
                 catch (OperationCanceledException) { /* skip this cycle; retry next tick */ }
                 catch (Exception) { /* transient background-refresh error; ignore */ }
@@ -353,6 +307,26 @@ namespace DDR4_TestingApp
 
 
             }
+        }
+
+        private void updateAddrInfo()
+        {
+            //Rerun config calc
+            DDR4_TestingApp.Config.updateCalculations();
+
+            addr_info.Text = $"Start Address: \t{Tools.ToHexString(0)}\n" +
+                           $"End Address: \t\t{Tools.ToHexString(DDR4_TestingApp.Config.sys.NumBlocks * DDR4_TestingApp.Config.sys.BlockSize)}\n";
+
+            sampling_info.Text =
+                           $"Total Number of Blocks: \t{DDR4_TestingApp.Config.sys.NumBlocks}\n" +
+                           $"Blocks Sampled: \t\t{DDR4_TestingApp.Config.sys.NumBlocks / DDR4_TestingApp.Config.sys.BlockFactor}\n" +
+                           $"Block Size: \t\t\t{Tools.ToHexString(DDR4_TestingApp.Config.sys.BlockSize)} ( {Tools.FormatBytes(DDR4_TestingApp.Config.sys.BlockSize)} )\n" +
+                           $"Block Factor: \t\t{DDR4_TestingApp.Config.sys.BlockFactor}\n\n" +
+                           $"Selection Size: \t\t{Tools.ToHexString(Program.selection_size)} ( {Tools.FormatBytes(Program.selection_size)} )\n" +
+                           $"Sample Size: \t\t\t{Tools.ToHexString(Program.sample_size)} ( {Tools.FormatBytes(Program.sample_size)} )\n\n" +
+                           $"Percent Sampled: {((float)Program.sample_size / (float)Program.selection_size) * 100.0f}%";
+
+
         }
 
         private async void button1_Click(object sender, EventArgs e)
@@ -443,45 +417,7 @@ namespace DDR4_TestingApp
             prngSeed.Text = Random.Shared.Next(0, 100_000_000).ToString("D8");
         }
 
-        private void sel_dram0_Click(object sender, EventArgs e)
-        {
-            Config.sys.ChipIndex = 0;
-        }
 
-        private void sel_dram1_Click(object sender, EventArgs e)
-        {
-            Config.sys.ChipIndex = 1;
-        }
-
-        private void sel_dram2_Click(object sender, EventArgs e)
-        {
-            Config.sys.ChipIndex = 2;
-        }
-
-        private void sel_dram3_Click(object sender, EventArgs e)
-        {
-            Config.sys.ChipIndex = 3;
-        }
-
-        private void sel_dram4_Click(object sender, EventArgs e)
-        {
-            Config.sys.ChipIndex = 4;
-        }
-
-        private void sel_dram5_Click(object sender, EventArgs e)
-        {
-            Config.sys.ChipIndex = 5;
-        }
-
-        private void sel_dram6_Click(object sender, EventArgs e)
-        {
-            Config.sys.ChipIndex = 6;
-        }
-
-        private void sel_dram7_Click(object sender, EventArgs e)
-        {
-            Config.sys.ChipIndex = 7;
-        }
 
         private async void verifyButton_Click_1(object sender, EventArgs e)
         {
@@ -603,175 +539,122 @@ namespace DDR4_TestingApp
             }
         }
 
-        private void update_addrInfo()
-        {
-
-            address_information.Text = $"Start Address: \t{Tools.ToHexString(0)}\nEnd Address: \t\t{Tools.ToHexString(Program.selection_size)}\nAddress Scaling: \t{Tools.ToHexString(Config.sys.AddressMultiplier)}\nPercent Sampled: \t{Math.Round(((float)Program.sample_size / Program.selection_size) * 100)}%\n";
-
-
-
-        }
-        private void enableChipSelection_CheckedChanged(object sender, EventArgs e)
-        {
-            Config.sys.EnableChipSelect = chip_isolation.Checked;
-        }
-
         private void applyConfiguration_Click(object sender, EventArgs e)
         {
-            Config.apply();
+            DDR4_TestingApp.Config.apply();
         }
 
         private void chip_capacity_SelectedIndexChanged(object sender, EventArgs e)
         {
             uint sb = 0;
 
+            /*
+            4 KB
+            64 KB0
+            1 MB
+            16 MB
+            256 MB
+            512 MB
+            1 GB
+             */
+
             switch (selection_size.SelectedIndex)
             {
                 case 0:
-                    // 10 MB
-                    sb = 1024 * 1024 * 10;
+                    // 4 KB
+                    sb = 0x1000;
                     break;
                 case 1:
-                    // 20 MB
-                    sb = 1024 * 1024 * 20;
+                    // 64 KB
+                    sb = 0x10000;
                     break;
                 case 2:
-                    // 50 MB
-                    sb = 1024 * 1024 * 50;
+                    // 1 MB
+                    sb = 0x100000;
                     break;
                 case 3:
-                    // 100 MB
-                    sb = 1024 * 1024 * 100;
+                    // 16 MB
+                    sb = 0x1000000;
                     break;
                 case 4:
-                    // 250 MB
-                    sb = 1024 * 1024 * 250;
+                    // 256 MB
+                    sb = 0x10000000;
                     break;
                 case 5:
                     // 512 MB
-                    sb = 1024 * 1024 * 512;
+                    sb = 0x20000000;
                     break;
                 case 6:
                     // 1 GB
-                    sb = 1024 * 1024 * 1024;
+                    sb = 0x40000000;
                     break;
                 default:
-                    // 2 GB
-                    sb = (uint)1024 * 1024 * 1024 * 2;
+                    // No/invalid selection (e.g. SelectedIndex == -1) — safe minimum
+                    sb = 0x1000;
                     break;
             }
 
             Program.selection_size = sb;
-
-
         }
 
         private void chipOrg_SelectedIndexChanged(object sender, EventArgs e)
         {
             uint sb = 0;
 
-            switch (sample_size.SelectedIndex)
+            switch (block_size.SelectedIndex)
             {
                 case 0:
-                    // 10 MB
-                    sb = 1024 * 1024 * 10;
+                    // 4 KB
+                    sb = 0x1000;
                     break;
                 case 1:
-                    // 20 MB
-                    sb = 1024 * 1024 * 20;
+                    // 64 KB
+                    sb = 0x10000;
                     break;
                 case 2:
-                    // 50 MB
-                    sb = 1024 * 1024 * 50;
+                    // 1 MB
+                    sb = 0x100000;
                     break;
                 case 3:
-                    // 100 MB
-                    sb = 1024 * 1024 * 100;
+                    // 16 MB
+                    sb = 0x1000000;
                     break;
                 case 4:
-                    // 250 MB
-                    sb = 1024 * 1024 * 250;
+                    // 256 MB
+                    sb = 0x10000000;
                     break;
                 case 5:
                     // 512 MB
-                    sb = 1024 * 1024 * 512;
+                    sb = 0x20000000;
                     break;
                 case 6:
                     // 1 GB
-                    sb = 1024 * 1024 * 1024;
+                    sb = 0x40000000;
                     break;
                 default:
-                    // 2 GB
-                    sb = (uint)1024 * 1024 * 1024 * 2;
+                    // No/invalid selection (e.g. SelectedIndex == -1) — safe minimum
+                    sb = 0x1000;
                     break;
             }
 
-            Program.sample_size = sb;
-
-        }
-
-
-        private void viewerAddress_TextChanged_1(object sender, EventArgs e)
-        {
-            //Attempt to parse address
-            uint? addr = Tools.ParseHex(viewerAddress.Text);
-
-            //Check to see if an address was provided
-            if (addr.HasValue)
-            {
-                //Update field
-                viewerAddress.Text = Tools.ToHexString(addr.Value);
-
-            }
-            else
-            {
-                //Default value
-                viewerAddress.Text = Tools.ToHexString(0);
-            }
-
+            DDR4_TestingApp.Config.sys.BlockSize = sb;
 
         }
 
         private void DataViewerScrollUp_Click(object sender, EventArgs e)
         {
-            //Attempt to parse address
-            uint? addr = Tools.ParseHex(viewerAddress.Text);
+            //Scroll if possible
+            if (viewerBlockNum.Value > 0) viewerBlockNum.Value = viewerBlockNum.Value - 1;
 
-            //Check to see if an address was provided
-            if (addr.HasValue)
-            {
-                //Scroll if possible
-                if (Convert.ToInt64(addr.Value) - Convert.ToInt64(DATA_VIEWER_ROW_SIZE) >= 0x0) viewerAddress.Text = Tools.ToHexString(addr.Value - DATA_VIEWER_ROW_SIZE);
-
-            }
         }
 
         private void DataViewerScrollDown_Click(object sender, EventArgs e)
         {
-            //Attempt to parse address
-            uint? addr = Tools.ParseHex(viewerAddress.Text);
+            //Scroll if possible
+            if (viewerBlockNum.Value < DDR4_TestingApp.Config.sys.NumBlocks / DDR4_TestingApp.Config.sys.BlockFactor) viewerBlockNum.Value = viewerBlockNum.Value + 1;
 
-            //Check to see if an address was provided
-            if (addr.HasValue)
-            {
-                //Scroll if possible
-                if (addr.Value + DATA_VIEWER_RENDER_SIZE < 0xFFFFFFFF) viewerAddress.Text = Tools.ToHexString(addr.Value + DATA_VIEWER_ROW_SIZE);
-
-            }
         }
 
-        private void chip_org_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            switch (chip_org.SelectedIndex)
-            {
-                case 0:
-                    Config.sys.BusBytesPerChip = 1;
-                    break;
-                case 1:
-                    Config.sys.BusBytesPerChip = 2;
-                    break;
-            }
-        }
 
         private async void dyn_execute_Click(object sender, EventArgs e)
         {
@@ -923,7 +806,7 @@ namespace DDR4_TestingApp
                     const uint rows = MEM_VIEWER_ROWS;            // class const, = 21
 
                     uint start_addr = 0;
-                    uint end_addr = Config.sys.ChipSizeBytes;
+                    uint end_addr = DDR4_TestingApp.Config.sys.BlockSize * DDR4_TestingApp.Config.sys.NumBlocks;
                     uint step = (end_addr - start_addr) / rows;   // bytes represented by one row
                     if (step == 0) step = 1;                      // guard: chip smaller than the row count
 
@@ -1031,7 +914,7 @@ namespace DDR4_TestingApp
 
         private void enableLogs_CheckedChanged(object sender, EventArgs e)
         {
-            Config.sys.EnableLogging = enableLogs.Checked;
+            DDR4_TestingApp.Config.sys.EnableLogging = enableLogs.Checked;
         }
 
         private void setUUID_Click(object sender, EventArgs e)
@@ -1080,17 +963,10 @@ namespace DDR4_TestingApp
             const uint UnitSize = 1;
             const uint RowSize = 16;
 
-            // Whole-chip dump from offset 0. uint/uint (PAGE_SIZE is int, hence the cast).
-            uint offset = 0;
-            uint numPages = Config.sys.ChipSizeBytes / (uint)TcpManager.PAGE_SIZE;
-            if (numPages == 0)
-            {
-                MessageBox.Show("Page count is 0 — is ChipSizeBytes configured?");
-                return;
-            }
+            // Whole-chip dump from offset 0. uint/uint (PAGE_SIZE is int, hence the cast)
 
             Program.taskName = "DUMP";
-            var cmd = new DumpCmd { OffsetStart = offset, NumPages = numPages, ComparisonMode = captureDiff };
+            var cmd = new DumpCmd { BlockOffset = 0, NumBlocks = DDR4_TestingApp.Config.sys.NumBlocks, ComparisonMode = captureDiff };
 
             // The server streams one page at a time and can emit hundreds of thousands
             // of them for a full-chip dump, so throttle the expensive per-page redraw to
@@ -1108,7 +984,7 @@ namespace DDR4_TestingApp
                 pagesReceived++;
                 bytesReceived += page.Data.Length;
                 errorsSeen += (long)page.NumErrors;
-                Program.taskProgress = Math.Clamp((int)(pagesReceived * 100L / numPages), 0, 100);
+                Program.taskProgress = ((float)page.Address / (float)(DDR4_TestingApp.Config.sys.BlockSize * DDR4_TestingApp.Config.sys.NumBlocks)) * 100;
 
                 // Cheap single-line update every page.
                 currentDumpAddress.Text = $"0x{page.Address:X8}";
@@ -1117,7 +993,7 @@ namespace DDR4_TestingApp
                 if (opClock.ElapsedMilliseconds - lastRedrawMs >= RedrawThrottleMs)
                 {
                     lastRedrawMs = opClock.ElapsedMilliseconds;
-                    dumpStatus.Text = BuildDumpStatus("Dumping", pagesReceived, numPages,
+                    dumpStatus.Text = BuildDumpStatus("Dumping",
                                                       page.Address, bytesReceived, errorsSeen, opClock.Elapsed);
                     DumpTableFormatter.RenderBytesHexTable(currentDumpPage, page.Address, page.Data, UnitSize, RowSize);
                 }
@@ -1154,7 +1030,6 @@ namespace DDR4_TestingApp
                 Program.taskProgress = 100;
                 dumpStatus.Text =
                     $"Dump complete.\n" +
-                    $"Pages:   {pages.Count:N0} / {numPages:N0}\n" +
                     $"Bytes:   {totalBytes:N0}\n" +
                     $"Errors:  {totalErrors:N0}\n" +
                     $"Elapsed: {opClock.Elapsed:hh\\:mm\\:ss}\n" +
@@ -1162,7 +1037,7 @@ namespace DDR4_TestingApp
             }
             catch (OperationCanceledException)
             {
-                dumpStatus.Text = $"Dump cancelled after {pagesReceived:N0}/{numPages:N0} pages.";
+                dumpStatus.Text = $"Dump cancelled.";
             }
             catch (Exception ex)
             {
@@ -1178,12 +1053,11 @@ namespace DDR4_TestingApp
 
         // Multi-line detail block for dumpStatus.
         private static string BuildDumpStatus(
-            string state, int pages, uint totalPages, uint address, long bytes, long errors, TimeSpan elapsed)
+            string state, uint address, long bytes, long errors, TimeSpan elapsed)
         {
-            int percent = totalPages == 0 ? 0 : (int)Math.Clamp(pages * 100L / totalPages, 0, 100);
             return
                 $"{state}...\n" +
-                $"Pages:   {pages:N0} / {totalPages:N0} ({percent}%)\n" +
+                $"Progress:   {((float)address / (float)(DDR4_TestingApp.Config.sys.BlockSize * DDR4_TestingApp.Config.sys.NumBlocks)) * 100.0}%\n" +
                 $"Address: 0x{address:X8}\n" +
                 $"Bytes:   {bytes:N0}\n" +
                 $"Errors:  {errors:N0}\n" +
@@ -1193,6 +1067,56 @@ namespace DDR4_TestingApp
         private void useLock_CheckedChanged(object sender, EventArgs e)
         {
 
+        }
+
+        private void block_factor_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            /*
+            1
+            2
+            4
+            8
+            16
+            32
+            64
+            128
+             */
+
+            uint bf = 0;
+
+            switch (block_factor.SelectedIndex)
+            {
+                case 0:
+                    bf = 1;
+                    break;
+                case 1:
+                    bf = 2;
+                    break;
+                case 2:
+                    bf = 4;
+                    break;
+                case 3:
+                    bf = 8;
+                    break;
+                case 4:
+                    bf = 16;
+                    break;
+                case 5:
+                    bf = 32;
+                    break;
+                case 6:
+                    bf = 64;
+                    break;
+                case 7:
+                    bf = 128;
+                    break;
+                default:
+                    // No/invalid selection (e.g. SelectedIndex == -1) — neutral factor (full coverage)
+                    bf = 1;
+                    break;
+            }
+
+            DDR4_TestingApp.Config.sys.BlockFactor = bf;
         }
     }
 }

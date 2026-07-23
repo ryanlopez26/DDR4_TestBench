@@ -11,9 +11,9 @@ namespace DDR4_TestingApp
     public static class DumpTableFormatter
     {
         /// <summary>
-        /// Fetches <paramref name="numBytes"/> bytes starting at
-        /// <paramref name="startAddress"/> via TcpManager's dump command and
-        /// renders them as a labeled hex table, e.g. (unitSize=1, rowSize=16):
+        /// Dumps the block-index range [<paramref name="blockOffset"/>,
+        /// <paramref name="numBlocks"/>) via TcpManager's dump command and renders
+        /// the returned bytes as a labeled hex table, e.g. (unitSize=1, rowSize=16):
         ///
         ///     ---- 0x0 0x1 0x2 0x3 0x4 0x5 0x6 0x7 0x8 0x9 0xA 0xB 0xC 0xD 0xE 0xF
         ///     0x00 0x4A 0x00 0x00 0x00 0xFF 0xFF 0xFF 0xFF 0x12 0x34 0x56 0x78 0x00 0x00 0x00 0x00
@@ -30,21 +30,30 @@ namespace DDR4_TestingApp
         /// (first byte read = most-significant digits shown) - not
         /// reinterpreted as a little-endian machine word.
         ///
+        /// The dump is returned WHOLE (no trimming): you get every byte of the
+        /// sampled blocks. Row labels are the true byte addresses the server sent
+        /// (block b starts at byte b*BlockSize). When the configured block_factor
+        /// is &gt; 1 the sampled blocks aren't address-contiguous, so the table
+        /// restarts its header at each address gap. NumBlocks is an EXCLUSIVE END
+        /// block index, not a count (see TcpManager.DumpCmd).
+        ///
         /// See <see cref="WriteDumpHexTableAsync"/> for a version that renders
         /// straight into a RichTextBox with the row/column labels bolded,
         /// instead of returning plain text.
         /// </summary>
         public static async Task<string> GenerateDumpHexTableAsync(
-            uint startAddress,
-            uint numBytes,
+            uint blockOffset,
+            uint numBlocks,
             uint unitSize,
             uint rowSize,
+            bool comparisonMode = false,
             CancellationToken ct = default)
         {
-            ValidateSizes(numBytes, unitSize, rowSize);
+            ValidateBlockRange(blockOffset, numBlocks, unitSize, rowSize);
 
-            byte[] data = await FetchBytesAsync(startAddress, numBytes, ct).ConfigureAwait(false);
-            List<HexTableSegment> segments = BuildHexTableSegments(startAddress, data, unitSize, rowSize);
+            List<DumpPage> pages = await FetchPagesAsync(blockOffset, numBlocks, comparisonMode, ct)
+                .ConfigureAwait(false);
+            List<HexTableSegment> segments = BuildHexTableSegmentsForPages(pages, unitSize, rowSize);
 
             var sb = new StringBuilder();
             foreach (HexTableSegment seg in segments)
@@ -107,18 +116,20 @@ namespace DDR4_TestingApp
         /// </summary>
         public static async Task WriteDumpHexTableAsync(
             RichTextBox target,
-            uint startAddress,
-            uint numBytes,
+            uint blockOffset,
+            uint numBlocks,
             uint unitSize,
             uint rowSize,
+            bool comparisonMode = false,
             CancellationToken ct = default)
         {
             if (target is null)
                 throw new ArgumentNullException(nameof(target));
-            ValidateSizes(numBytes, unitSize, rowSize);
+            ValidateBlockRange(blockOffset, numBlocks, unitSize, rowSize);
 
-            byte[] data = await FetchBytesAsync(startAddress, numBytes, ct).ConfigureAwait(false);
-            List<HexTableSegment> segments = BuildHexTableSegments(startAddress, data, unitSize, rowSize);
+            List<DumpPage> pages = await FetchPagesAsync(blockOffset, numBlocks, comparisonMode, ct)
+                .ConfigureAwait(false);
+            List<HexTableSegment> segments = BuildHexTableSegmentsForPages(pages, unitSize, rowSize);
 
             if (target.InvokeRequired)
                 target.Invoke(new Action(() => RenderSegments(target, segments)));
@@ -126,10 +137,14 @@ namespace DDR4_TestingApp
                 RenderSegments(target, segments);
         }
 
-        private static void ValidateSizes(uint numBytes, uint unitSize, uint rowSize)
+        private static void ValidateBlockRange(
+            uint blockOffset, uint numBlocks, uint unitSize, uint rowSize)
         {
-            if (numBytes == 0)
-                throw new ArgumentOutOfRangeException(nameof(numBytes), "must be > 0");
+            if (numBlocks <= blockOffset)
+                throw new ArgumentOutOfRangeException(nameof(numBlocks),
+                    $"empty block range: numBlocks ({numBlocks}) must be > blockOffset ({blockOffset}). " +
+                    "numBlocks is an EXCLUSIVE END index, not a count — the server loops " +
+                    "block_offset..num_blocks.");
             if (unitSize == 0)
                 throw new ArgumentOutOfRangeException(nameof(unitSize), "must be > 0");
             if (rowSize == 0)
@@ -137,49 +152,73 @@ namespace DDR4_TestingApp
         }
 
         /// <summary>
-        /// Requests exactly enough whole pages via TcpManager.SendDumpAsync to
-        /// cover [startAddress, startAddress + numBytes), then trims the
-        /// (page-aligned, page-sized) response down to exactly the requested
-        /// range.
+        /// Issues the dump for the block-index range [blockOffset, numBlocks) and
+        /// returns the pages exactly as the server sent them (each carrying its own
+        /// start address). No trimming or page-alignment — a block dump comes back
+        /// whole. Uses the block_size / block_factor cached by the last
+        /// TcpManager.SendConfigAsync, so Config must have been applied on this
+        /// connection first (otherwise SendDumpAsync throws).
         /// </summary>
-        private static async Task<byte[]> FetchBytesAsync(
-            uint startAddress, uint numBytes, CancellationToken ct)
+        private static Task<List<DumpPage>> FetchPagesAsync(
+            uint blockOffset, uint numBlocks, bool comparisonMode, CancellationToken ct)
         {
-            const uint PageSize = (uint)TcpManager.PAGE_SIZE;
-
-            uint pageAlignedStart = startAddress - (startAddress % PageSize);
-            uint endAddressExclusive = startAddress + numBytes;
-            uint pagesNeeded = (endAddressExclusive - pageAlignedStart + PageSize - 1) / PageSize;
-
             var dumpCmd = new DumpCmd
             {
-                OffsetStart = pageAlignedStart,
-                NumPages = pagesNeeded,
-                ComparisonMode = false,
+                BlockOffset = blockOffset,
+                NumBlocks = numBlocks,
+                ComparisonMode = comparisonMode,
             };
 
-            List<DumpPage> pages = await TcpManager.SendDumpAsync(dumpCmd, ct: ct)
-                .ConfigureAwait(false);
+            return TcpManager.SendDumpAsync(dumpCmd, ct: ct);
+        }
 
-            var buffer = new byte[numBytes];
-            foreach (DumpPage page in pages)
+        /// <summary>
+        /// Renders a set of dump pages using the same per-cell/per-row formatting as
+        /// <see cref="BuildHexTableSegments"/>. Pages are ordered by address and
+        /// address-contiguous pages are merged into one run; each run is emitted as
+        /// its own labeled table (header + address-labeled rows). This keeps the row
+        /// address labels correct across the gaps that appear when block_factor &gt; 1
+        /// (non-contiguous sampled blocks) — for a contiguous dump it's a single
+        /// table, identical to the old address-range renderer.
+        /// </summary>
+        private static List<HexTableSegment> BuildHexTableSegmentsForPages(
+            List<DumpPage> pages, uint unitSize, uint rowSize)
+        {
+            var segments = new List<HexTableSegment>();
+            if (pages is null || pages.Count == 0)
+                return segments;
+
+            // Defensive: the server emits pages in address order, but don't rely on it.
+            var ordered = new List<DumpPage>(pages);
+            ordered.Sort((a, b) => a.Address.CompareTo(b.Address));
+
+            bool firstRun = true;
+            int i = 0;
+            while (i < ordered.Count)
             {
-                uint pageStart = page.Address;
-                uint pageEnd = pageStart + (uint)page.Data.Length;
+                uint runBase = ordered[i].Address;
+                var runData = new List<byte>(ordered[i].Data);
+                uint runEnd = runBase + (uint)ordered[i].Data.Length;
+                i++;
 
-                uint copyStart = Math.Max(pageStart, startAddress);
-                uint copyEnd = Math.Min(pageEnd, endAddressExclusive);
-                if (copyEnd <= copyStart)
-                    continue; // this page doesn't overlap the requested range at all
+                // Absorb following pages that begin exactly where this run ends.
+                while (i < ordered.Count && ordered[i].Address == runEnd)
+                {
+                    runData.AddRange(ordered[i].Data);
+                    runEnd += (uint)ordered[i].Data.Length;
+                    i++;
+                }
 
-                int srcOffset = (int)(copyStart - pageStart);
-                int dstOffset = (int)(copyStart - startAddress);
-                int length = (int)(copyEnd - copyStart);
+                // Blank line between non-contiguous runs so the tables don't abut.
+                if (!firstRun)
+                    segments.Add(new HexTableSegment("\n", isLabel: false));
+                firstRun = false;
 
-                Buffer.BlockCopy(page.Data, srcOffset, buffer, dstOffset, length);
+                segments.AddRange(
+                    BuildHexTableSegments(runBase, runData.ToArray(), unitSize, rowSize));
             }
 
-            return buffer;
+            return segments;
         }
 
         /// <summary>One chunk of the rendered table, tagged with whether it's a label (bold) or data (regular).</summary>

@@ -799,18 +799,16 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
         //Iterate over bytes in block
         for addr in (blk_ind * config.block_size)..((blk_ind + 1) * config.block_size){
 
-            let done = addr == (((blk_ind + 1) * config.block_size) - 1);
-
-            //Check if progress update is needed (or we are done)
-            if time_since_last_update.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS || done {
+            //Check if a periodic progress update is due
+            if time_since_last_update.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS {
 
                 //Calculate status
                 let elapsed = start_time.elapsed().unwrap().as_millis() as f32;
                 let percent_complete = (blk_ind as f32 / config.num_blocks as f32) * 100.0;  
 
                 crate::dbg_log!(
-                    "verify_command: progress offset={}, {:.1}% complete, errors={}, correct={}",
-                    i, percent_complete, rsp.num_incorrect, rsp.num_correct
+                    "verify_command: progress offset={:#x}, {:.1}% complete, errors={}, correct={}",
+                    addr, percent_complete, rsp.num_incorrect, rsp.num_correct
                 );
 
                 //Update bytes verified and percent complete in response structure
@@ -856,32 +854,6 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
 
                 //Reset timer for next update
                 time_since_last_update = SystemTime::now();
-
-                //If we are done, exit
-                if done {
-
-                    crate::dbg_log!(
-                        "verify_command: complete — {:.1}% at offset {:#x}, num_correct={}, num_incorrect={}, err_bins={:?}, adj_err_bins={:?}, elapsed={}ms",
-                        rsp.percent_complete, rsp.current_address, rsp.num_correct, rsp.num_incorrect,
-                        rsp.err_bins, rsp.adj_err_bins, rsp.time_spent_ms
-                    );
-
-                    if config.enable_logging {
-
-                    //Commit log file
-                    recorder::write(cmd.uuid).unwrap();
-
-                    //Generate test summary file
-                    recorder::write_summary(cmd.uuid, vec![
-                        format!("{:?}", config),
-                        format!("{:?}", cmd),
-                        format!("{:?}", rsp),
-                    ]).unwrap();
-                    
-                    }
-
-                    return;
-                }
             }
 
             //Expected value
@@ -901,7 +873,7 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
                     if actual != expected {
                         crate::dbg_log!(
                             "verify_command: mismatch at offset {:#x} expected={:#x}, actual={:#x}",
-                            i, expected, actual
+                            addr, expected, actual
                         );
                         
                         let diff_mask        = actual ^ expected;
@@ -958,12 +930,46 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
                     }
                 },
                 Err(e) => {
-                    crate::dbg_log!("verify_command: chip read error at offset {:#x}: {:?}", i, e);
+                    crate::dbg_log!("verify_command: chip read error at offset {:#x}: {:?}", addr, e);
                 }
             };
 
         }
 
+    }
+
+    // Sweep finished. Send a final 100%-complete frame so the client's
+    // "read until percent_complete >= 100" loop can terminate — the periodic
+    // frames above never reach 100 (percent is blk_ind/num_blocks, and blk_ind
+    // stops short of num_blocks). Mirrors the final-response pattern in
+    // write_command. Without this, the client blocks forever waiting for a
+    // completion frame while the server blocks waiting for the next command.
+    rsp.current_address = rsp.end_address;
+    rsp.time_spent_ms = start_time.elapsed().unwrap().as_millis() as f32;
+    rsp.percent_complete = 100.0;
+
+    let payload = crate::server::codec().serialize(&rsp).unwrap();
+    if let Err(e) = send_response(stream, CMD_VERIFY, payload) {
+        eprintln!("[!] Failed to send final Verify response: {}", e);
+        return;
+    }
+
+    crate::dbg_log!(
+        "verify_command: complete — 100% at offset {:#x}, num_correct={}, num_incorrect={}, err_bins={:?}, adj_err_bins={:?}, elapsed={}ms",
+        rsp.current_address, rsp.num_correct, rsp.num_incorrect,
+        rsp.err_bins, rsp.adj_err_bins, rsp.time_spent_ms
+    );
+
+    if config.enable_logging {
+        //Commit log file
+        recorder::write(cmd.uuid).unwrap();
+
+        //Generate test summary file
+        recorder::write_summary(cmd.uuid, vec![
+            format!("{:?}", config),
+            format!("{:?}", cmd),
+            format!("{:?}", rsp),
+        ]).unwrap();
     }
     
 }
@@ -1069,4 +1075,3 @@ pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd, v_cmd: &VerifyCmd) {
 
     crate::dbg_log!("dump_command: complete in {}ms", start.elapsed().as_millis());
 }
-

@@ -1,20 +1,27 @@
 // TcpManager.cs — C# client for the Rust ZCU104 DDR4-tester TCP server.
 //
 // Rewritten to match the current server (types.rs / commands.rs / server.rs /
-// config.rs). Notable changes vs. the previous client:
-//   * VerifyCmd/DynamicCmd/UUIDCmd carry the uuid as a u16 (was a 3-byte array),
-//     so Verify is now 11 bytes, Dynamic 20, UUID 2.
-//   * VerifyRsp is a completely different, larger struct (address range,
-//     num_correct/num_incorrect, and two bit-error histograms — AdjErrBins
-//     x8 and ErrBins x9).
-//   * DynamicRsp gained pass_counter + current/start/end address (4 x u32), and
-//     now ALSO carries the AdjErrBins x8 / ErrBins x9 histograms (inserted between
-//     error_rate_percent and pass_counter), making its payload 192 bytes.
-//   * ConfigCmd gained a trailing `enable_logging` bool — Config payload is 16 bytes.
-//   * New UUID command (0x07) with UUIDRsp { success }.
-//   * The Reset command (0x07 in the old build) has been REMOVED from the
-//     server — server.rs has no CMD_RESET dispatch arm, so it is dropped here.
-//     (ResetRsp still exists in types.rs but nothing produces it.)
+// config.rs). Changes vs. the previous client:
+//   * ConfigCmd is now { bool enable_logging, u32 num_blocks, u32 block_size,
+//     u32 block_factor } = 13 bytes (was 20). The chip-geometry fields
+//     (chip_index, bus_bytes_per_chip, bus_size_in_bytes, enable_chip_select)
+//     are GONE from the command — config_command only writes enable_logging +
+//     the three sampling fields into CONFIG. The server still keeps
+//     chip_size_bytes / address_multiplier / etc. in its CONFIG, but this client
+//     can no longer set them.
+//   * DumpCmd is now { u32 block_offset, u32 num_blocks, bool comparison_mode }
+//     = 9 bytes. dump_command loops the block-index range block_offset..num_blocks
+//     (HALF-OPEN — num_blocks is an EXCLUSIVE END index, not a count) stepped by
+//     CONFIG.block_factor; block_size also comes from CONFIG. It sends NO
+//     end-of-dump sentinel, so the client derives the frame count from the
+//     command's range + the applied block_size/block_factor (see ExpectedDumpPages
+//     / SendDumpAsync).
+//   * DynamicRsp.pass_counter and current/start/end address ARE now populated by
+//     the server (start=0, end=num_blocks*block_size, current tracks progress,
+//     pass_counter counts completed full sweeps). The old "always 0" note is gone.
+//
+// Response structs (WriteRsp/VerifyRsp/DumpRsp/DynamicRsp/InfoRsp/UUIDRsp) are
+// unchanged on the wire, so their decoders are identical to the previous client.
 //
 // Protocol framing (all framing integers big-endian / network byte order):
 //
@@ -29,20 +36,26 @@
 // bool -> 1 byte (0/1); u16 -> 2 bytes; [u64;8] -> 64 bytes. The server uses
 // reject_trailing_bytes(), so payload length must match the struct EXACTLY.
 //
-// Commands (values from config.rs):
-//   0x01 Write   -> WriteCmd   { u8 pattern, u64 seed }                       9 bytes
-//   0x02 Verify  -> VerifyCmd  { u16 uuid, u8 pattern, u64 seed }            11 bytes
-//   0x03 Dump    -> DumpCmd    { u32 offset_start, u32 num_pages, bool cmp }  9 bytes
-//   0x04 Config  -> ConfigCmd  { u8 chip_index, u8 bus_bytes_per_chip,
-//                                u32 bus_size_in_bytes, u32 chip_size_bytes,
-//                                bool enable_chip_select, u32 address_multiplier,
-//                                bool enable_logging }                       16 bytes
+// Commands (values from config.rs — assumed unchanged; config.rs not provided):
+//   0x01 Write   -> WriteCmd   { u8 pattern, u64 seed }                        9 bytes
+//   0x02 Verify  -> VerifyCmd  { u16 uuid, u8 pattern, u64 seed }             11 bytes
+//   0x03 Dump    -> DumpCmd    { u32 block_offset, u32 num_blocks,
+//                                bool comparison_mode }                        9 bytes
+//   0x04 Config  -> ConfigCmd  { bool enable_logging, u32 num_blocks,
+//                                u32 block_size, u32 block_factor }           13 bytes
 //   0x05 Dynamic -> DynamicCmd { u16 uuid, u8 pattern, u64 seed,
 //                                u32 sample_size_in_bytes, bool wait_for_beam,
-//                                f32 trigger_threshold }                     20 bytes
+//                                f32 trigger_threshold }                      20 bytes
 //   0x06 Info    -> (empty payload) — server replies with InfoRsp
-//   0x07 UUID    -> UUIDCmd    { u16 uuid }                                   2 bytes
-//                   <- UUIDRsp { bool success }                              1 byte
+//   0x07 UUID    -> UUIDCmd    { u16 uuid }                                    2 bytes
+//                   <- UUIDRsp { bool success }                               1 byte
+//
+// Sampling geometry (drives Write/Verify/Dynamic/Dump on the server):
+//     for blk in (0..NumBlocks).step_by(BlockFactor):
+//         for addr in blk*BlockSize .. (blk+1)*BlockSize: <test byte>
+//   so BlockFactor is a STRIDE over blocks (coverage ~= 1/BlockFactor) and the
+//   logical byte extent is NumBlocks*BlockSize. BlockFactor MUST be >= 1 — the
+//   server calls step_by(BlockFactor) and step_by(0) panics.
 //
 // Response streaming (from commands.rs):
 //   - Config : one CMD_CONFIG frame, 1-byte ACK payload (contents ignored).
@@ -50,8 +63,14 @@
 //              percent_complete == 100. Caller waits for percent >= 100.
 //   - Verify : periodic CMD_VERIFY progress frames; a final frame is sent when
 //              the sweep finishes (percent >= 100). Caller waits for percent >= 100.
-//   - Dump   : exactly num_pages CMD_DUMP frames, each a 16-byte header plus
-//              PAGE_SIZE (1024) raw bytes.
+//   - Dump   : one CMD_DUMP frame per flushed page — a 16-byte DumpRsp header
+//              (time_spent_ms, num_errors, address) followed by up to PAGE_SIZE
+//              (1024) raw bytes. The server loops the block-index range
+//              [BlockOffset, NumBlocks) FROM THE COMMAND, stepped by the CONFIG
+//              block_factor, and sends NO terminator — so the client expects
+//              exactly ExpectedDumpPages(BlockOffset, NumBlocks, BlockSize,
+//              BlockFactor) frames. Pages are NOT address-contiguous when
+//              block_factor > 1; each page carries its own start address.
 //   - Dynamic: periodic CMD_DYNAMIC frames. Termination: with wait_for_beam == true
 //              the server completes when the beam drops; with wait_for_beam == false
 //              it completes when a SEFI is detected (error_rate_percent > threshold).
@@ -77,13 +96,13 @@ namespace DDR4_TestingApp
 
     public struct ConfigCmd
     {
-        public byte ChipIndex;
-        public byte BusBytesPerChip;
-        public uint BusSizeInBytes;
-        public uint ChipSizeBytes;
-        public bool EnableChipSelect;
-        public uint AddressMultiplier;
-        public bool EnableLogging;   // maps to Rust ConfigCmd.enable_logging (server-side logging on/off)
+        // Server-side logging on/off (recorder.rs writes {uuid}.csv + summary).
+        public bool EnableLogging;
+
+        // Sparse-sampling geometry (see header). BlockFactor MUST be >= 1.
+        public uint NumBlocks;
+        public uint BlockSize;
+        public uint BlockFactor;
     }
 
     public struct WriteCmd
@@ -101,9 +120,22 @@ namespace DDR4_TestingApp
 
     public struct DumpCmd
     {
-        public uint OffsetStart;   // server aligns this down to a PAGE_SIZE boundary
-        public uint NumPages;
-        public bool ComparisonMode; // true => pages contain expected^actual (XOR of the pattern)
+        // First block index to dump (inclusive). Byte address of block b is
+        // b * BlockSize (BlockSize from the applied Config).
+        public uint BlockOffset;
+
+        // END block index, EXCLUSIVE: the server loops the half-open range
+        // (BlockOffset..NumBlocks).step_by(block_factor). So this is an END INDEX,
+        // NOT a count — blocks [BlockOffset, NumBlocks) are visited (before the
+        // stride is applied). NOTE: this matches commands.rs as written; if you
+        // meant NumBlocks as a COUNT, the Rust loop needs
+        // block_offset..(block_offset + num_blocks).
+        public uint NumBlocks;
+
+        // true  => each page holds expected^actual (XOR against the last Verify's
+        //          pattern/seed — run a Verify first so the server has them).
+        // false => each page holds the raw bytes read back.
+        public bool ComparisonMode;
     }
 
     public struct DynamicCmd
@@ -165,7 +197,7 @@ namespace DDR4_TestingApp
         public float TimeSpentMs;
         public ulong NumErrors;   // count of chip READ failures on this page (not bit diffs)
         public uint Address;
-        public byte[] Data;       // PAGE_SIZE bytes (1024)
+        public byte[] Data;       // up to PAGE_SIZE bytes (1024)
     }
 
     public struct DynamicRsp
@@ -185,16 +217,17 @@ namespace DDR4_TestingApp
         public float ErrorRatePerSecond;
         public float ErrorRatePercent;
 
-        // Bit-error histograms over the sample window (same layout as VerifyRsp):
-        //   AdjErrBins[k] = runs of k adjacent flipped bits   (length 8; index 0 unused)
-        //   ErrBins[k]    = bytes with exactly k flipped bits (length 9; indices 0..8)
+        // Bit-error histograms over the sample window (same layout as VerifyRsp).
+        // The server RESETS these to zero at the end of each sample window, so they
+        // reflect the most recent window, not the whole run.
         public ulong[] AdjErrBins; // 8 entries
         public ulong[] ErrBins;    // 9 entries
 
-        // Progress / addressing.
-        // NOTE: as of the current commands.rs, dynamic_command never writes these
-        // four (they stay at their 0 init), so they always decode as 0. Kept for
-        // wire compatibility — don't rely on them until the server populates them.
+        // Progress / addressing (now populated by dynamic_command):
+        //   PassCounter    = completed full sweeps of the sampled range
+        //   StartAddress   = 0
+        //   EndAddress     = NumBlocks * BlockSize (logical extent; ignores stride)
+        //   CurrentAddress = address of the byte most recently tested
         public uint PassCounter;
         public uint CurrentAddress;
         public uint StartAddress;
@@ -247,11 +280,19 @@ namespace DDR4_TestingApp
         private const byte CMD_INFO = 0x06;
         private const byte CMD_UUID = 0x07;
 
+        // Must match config.rs PAGE_SIZE. Load-bearing: the Dump frame count is
+        // derived from it (ceil(BlockSize / PAGE_SIZE) pages per sampled block).
         public const int PAGE_SIZE = 1024;
 
         // ---- Connection state --------------------------------------------------
         private static TcpClient? client;
         private static NetworkStream? stream;
+
+        // Last sampling geometry applied via SendConfigAsync. The server derives the
+        // number of Dump frames from its CONFIG (num_blocks / block_size /
+        // block_factor) and sends NO end-of-dump sentinel, so the client must know
+        // the same geometry to bound its read loop. Reset on disconnect.
+        private static (uint NumBlocks, uint BlockSize, uint BlockFactor)? lastGeometry;
 
         // The Rust server is single-threaded — at most one command in flight.
         // We enforce that on the client side too so two callers can't interleave
@@ -295,6 +336,11 @@ namespace DDR4_TestingApp
             try { client?.Close(); } catch { /* ignore */ }
             stream = null;
             client = null;
+
+            // The server keeps its CONFIG across reconnects, but this client can't
+            // know it without re-sending Config, so drop the cached geometry.
+            lastGeometry = null;
+
             if (was) StatusChanged?.Invoke(ConnectionStatus.Disconnected);
         }
 
@@ -302,7 +348,9 @@ namespace DDR4_TestingApp
 
         /// <summary>
         /// Send a Config command. Returns once the server has applied the new
-        /// geometry and ACKed (single 1-byte payload).
+        /// geometry and ACKed (single 1-byte payload). The applied sampling
+        /// geometry is cached so <see cref="SendDumpAsync(DumpCmd, IProgress{DumpPage}?, CancellationToken)"/>
+        /// can bound its read loop.
         /// </summary>
         public static async Task SendConfigAsync(ConfigCmd cfg,
                                                  CancellationToken ct = default)
@@ -316,6 +364,9 @@ namespace DDR4_TestingApp
                 if (cmd != CMD_CONFIG)
                     throw new InvalidDataException(
                         $"expected Config ACK (0x{CMD_CONFIG:X2}), got 0x{cmd:X2}");
+
+                // Remember the geometry the server is now running with.
+                lastGeometry = (cfg.NumBlocks, cfg.BlockSize, cfg.BlockFactor);
             }
             finally { sendLock.Release(); }
         }
@@ -379,22 +430,79 @@ namespace DDR4_TestingApp
         }
 
         /// <summary>
-        /// Send a Dump command. One response frame is received per page; each is
-        /// reported via <paramref name="onPage"/> as it arrives and also collected
-        /// into the returned list.
+        /// Number of CMD_DUMP frames the server will send for a dump of the
+        /// half-open block-index range [<paramref name="blockOffset"/>,
+        /// <paramref name="blockEndExclusive"/>) at the given Config geometry. The
+        /// server has no end-of-dump marker, so this is how the client knows when a
+        /// dump is finished. Mirrors dump_command in commands.rs:
+        ///   span          = max(0, blockEndExclusive - blockOffset)
+        ///   sampledBlocks = ceil(span / blockFactor)         (the step_by stride)
+        ///   pagesPerBlock = ceil(blockSize / PAGE_SIZE)      (page flush + trailing partial)
+        ///   total         = sampledBlocks * pagesPerBlock
         /// </summary>
-        public static async Task<List<DumpPage>> SendDumpAsync(
+        public static long ExpectedDumpPages(
+            uint blockOffset, uint blockEndExclusive, uint blockSize, uint blockFactor)
+        {
+            if (blockFactor == 0)
+                throw new ArgumentException(
+                    "BlockFactor must be >= 1 — the server does step_by(BlockFactor) and step_by(0) panics.",
+                    nameof(blockFactor));
+            if (blockEndExclusive <= blockOffset || blockSize == 0)
+                return 0;
+
+            long span = (long)blockEndExclusive - blockOffset;
+            long sampledBlocks = (span + blockFactor - 1) / blockFactor;
+            long pagesPerBlock = ((long)blockSize + PAGE_SIZE - 1) / PAGE_SIZE;
+            return sampledBlocks * pagesPerBlock;
+        }
+
+        /// <summary>
+        /// Send a Dump command using the block_size / block_factor from the most
+        /// recent <see cref="SendConfigAsync"/> on this connection. The block-index
+        /// RANGE comes from <paramref name="d"/> (BlockOffset..NumBlocks). Throws if
+        /// no Config has been applied — use the explicit-geometry overload then.
+        /// </summary>
+        public static Task<List<DumpPage>> SendDumpAsync(
             DumpCmd d,
             IProgress<DumpPage>? onPage = null,
             CancellationToken ct = default)
         {
+            if (lastGeometry is null)
+                throw new InvalidOperationException(
+                    "Dump needs block_size/block_factor to know how many frames to expect, " +
+                    "and no Config has been applied on this connection. Call SendConfigAsync " +
+                    "first, or use the SendDumpAsync overload that takes explicit geometry.");
+
+            var g = lastGeometry.Value;
+            return SendDumpAsync(d, g.BlockSize, g.BlockFactor, onPage, ct);
+        }
+
+        /// <summary>
+        /// Send a Dump command with explicitly supplied block_size / block_factor
+        /// (the block-index range comes from <paramref name="d"/>). One response
+        /// frame is received per flushed page; each is reported via
+        /// <paramref name="onPage"/> as it arrives and also collected into the
+        /// returned list. The frame count is
+        /// <see cref="ExpectedDumpPages"/>(d.BlockOffset, d.NumBlocks,
+        /// <paramref name="blockSize"/>, <paramref name="blockFactor"/>) — blockSize
+        /// and blockFactor MUST match the server's current CONFIG or the read loop
+        /// will desync.
+        /// </summary>
+        public static async Task<List<DumpPage>> SendDumpAsync(
+            DumpCmd d,
+            uint blockSize, uint blockFactor,
+            IProgress<DumpPage>? onPage = null,
+            CancellationToken ct = default)
+        {
+            long expected = ExpectedDumpPages(d.BlockOffset, d.NumBlocks, blockSize, blockFactor);
+
             await sendLock.WaitAsync(ct).ConfigureAwait(false);
             try
             {
                 await WriteFrameAsync(CMD_DUMP, EncodeDump(d), ct).ConfigureAwait(false);
 
-                var pages = new List<DumpPage>((int)Math.Min(d.NumPages, 1024));
-                for (uint i = 0; i < d.NumPages; i++)
+                var pages = new List<DumpPage>((int)Math.Min(expected, 4096));
+                for (long i = 0; i < expected; i++)
                 {
                     var (cmd, payload) = await ReadFrameAsync(ct).ConfigureAwait(false);
                     if (cmd != CMD_DUMP)
@@ -563,17 +671,16 @@ namespace DDR4_TestingApp
 
         private static byte[] EncodeConfig(ConfigCmd c)
         {
-            // u8 chip_index, u8 bus_bytes_per_chip, u32 bus_size_in_bytes,
-            // u32 chip_size_bytes, bool enable_chip_select, u32 address_multiplier,
-            // bool enable_logging = 16 bytes
-            var b = new byte[16];
-            b[0] = c.ChipIndex;
-            b[1] = c.BusBytesPerChip;
-            BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(2, 4), c.BusSizeInBytes);
-            BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(6, 4), c.ChipSizeBytes);
-            b[10] = Convert.ToByte(c.EnableChipSelect);
-            BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(11, 4), c.AddressMultiplier);
-            b[15] = Convert.ToByte(c.EnableLogging);
+            // bool enable_logging  @ 0   (1)
+            // u32  num_blocks      @ 1   (4)
+            // u32  block_size      @ 5   (4)
+            // u32  block_factor    @ 9   (4)
+            //                      = 13 bytes
+            var b = new byte[13];
+            b[0] = Convert.ToByte(c.EnableLogging);
+            BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(1, 4), c.NumBlocks);
+            BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(5, 4), c.BlockSize);
+            BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(9, 4), c.BlockFactor);
             return b;
         }
 
@@ -597,9 +704,13 @@ namespace DDR4_TestingApp
 
         private static byte[] EncodeDump(DumpCmd c)
         {
+            // u32  block_offset     @ 0  (4)
+            // u32  num_blocks       @ 4  (4)   (EXCLUSIVE end index — see DumpCmd)
+            // bool comparison_mode  @ 8  (1)
+            //                       = 9 bytes
             var b = new byte[9];
-            BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(0, 4), c.OffsetStart);
-            BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(4, 4), c.NumPages);
+            BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(0, 4), c.BlockOffset);
+            BinaryPrimitives.WriteUInt32BigEndian(b.AsSpan(4, 4), c.NumBlocks);
             b[8] = Convert.ToByte(c.ComparisonMode);
             return b;
         }
