@@ -44,10 +44,10 @@ macro_rules! dbg_log {
 
 pub fn config_command(stream: &mut TcpStream, cmd: ConfigCmd){
 
-    crate::dbg_log!(
-        "config_command: incoming ConfigCmd chip_index={}, bus_bytes_per_chip={}, chip_size_bytes={} ({:#x}), bus_size_in_bytes={}, enable_chip_select={}, address_multiplier={}, enable_logging={}",
-        cmd.chip_index, cmd.bus_bytes_per_chip, cmd.chip_size_bytes, cmd.chip_size_bytes, cmd.bus_size_in_bytes, cmd.enable_chip_select, cmd.address_multiplier, cmd.enable_logging
-    );
+    // crate::dbg_log!(
+    //     "config_command: incoming ConfigCmd chip_index={}, bus_bytes_per_chip={}, chip_size_bytes={} ({:#x}), bus_size_in_bytes={}, enable_chip_select={}, address_multiplier={}, enable_logging={}",
+    //     cmd.chip_index, cmd.bus_bytes_per_chip, cmd.chip_size_bytes, cmd.chip_size_bytes, cmd.bus_size_in_bytes, cmd.enable_chip_select, cmd.address_multiplier, cmd.enable_logging
+    // );
 
     // //Prevent invalid address multiplier
     // if  {
@@ -75,11 +75,11 @@ pub fn config_command(stream: &mut TcpStream, cmd: ConfigCmd){
 
         // Log the full config as actually applied, so the active geometry the
         // loops will read is visible (this handler DID just write every field).
-        crate::dbg_log!(
-            "config_command: applied CONFIG chip_index={}, bus_bytes_per_chip={}, chip_size_bytes={} ({:#x}), bus_size_in_bytes={}, enable_chip_select={}, address_multiplier={}, enable_logging={}",
-            config.chip_index, config.bus_bytes_per_chip, config.chip_size_bytes, config.chip_size_bytes,
-            config.bus_size_in_bytes, config.enable_chip_select, config.address_multiplier, config.enable_logging
-        );
+        // crate::dbg_log!(
+        //     "config_command: applied CONFIG chip_index={}, bus_bytes_per_chip={}, chip_size_bytes={} ({:#x}), bus_size_in_bytes={}, enable_chip_select={}, address_multiplier={}, enable_logging={}",
+        //     config.chip_index, config.bus_bytes_per_chip, config.chip_size_bytes, config.chip_size_bytes,
+        //     config.bus_size_in_bytes, config.enable_chip_select, config.address_multiplier, config.enable_logging
+        // );
     }
 
     //Status response 
