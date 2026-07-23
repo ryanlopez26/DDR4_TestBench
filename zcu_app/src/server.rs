@@ -198,8 +198,8 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
             CMD_CONFIG => match parse_payload::<ConfigCmd>(&payload) {
                 Ok(c) => {
                     println!(
-                        "[{}] Config {{ chip_index: {}, bus_bytes_per_chip: {}, chip_size_bytes: {} }}",
-                        peer, c.chip_index, c.bus_bytes_per_chip, c.chip_size_bytes
+                        "[{}] Config Updated}}",
+                        peer
                     );
 
                     //Execute command

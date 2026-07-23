@@ -48,32 +48,33 @@ pub fn config_command(stream: &mut TcpStream, cmd: ConfigCmd){
         cmd.chip_index, cmd.bus_bytes_per_chip, cmd.chip_size_bytes, cmd.chip_size_bytes, cmd.bus_size_in_bytes, cmd.enable_chip_select, cmd.address_multiplier, cmd.enable_logging
     );
 
-    //Prevent invalid address multiplier
-    if cmd.address_multiplier == 0 {
+    // //Prevent invalid address multiplier
+    // if  {
 
-        crate::dbg_log!(
-            "config_command: REJECTED address_multiplier==0 (would make step_by(0) panic); config left unchanged, sending failure ACK"
-        );
+    //     crate::dbg_log!(
+    //         "config_command: REJECTED address_multiplier==0 (would make step_by(0) panic); config left unchanged, sending failure ACK"
+    //     );
 
-        //Invalid status response 
-        let payload: Vec<u8> = vec![0];
-        send_response(stream, CMD_CONFIG, payload).unwrap();
+    //     //Invalid status response 
+    //     let payload: Vec<u8> = vec![0];
+    //     send_response(stream, CMD_CONFIG, payload).unwrap();
 
-        //Failed
-        return;
+    //     //Failed
+    //     return;
 
-    }
+    // }
 
     //Load new configuration settings
     {
         let mut config = CONFIG.write().unwrap();
         config.chip_index = cmd.chip_index;
         config.bus_bytes_per_chip = cmd.bus_bytes_per_chip;
-        config.chip_size_bytes = cmd.chip_size_bytes;
         config.bus_size_in_bytes = cmd.bus_size_in_bytes;
         config.enable_chip_select = cmd.enable_chip_select;
-        config.address_multiplier = cmd.address_multiplier;
         config.enable_logging = cmd.enable_logging;
+        config.block_factor = cmd.block_factor;
+        config.block_size  = cmd.block_size;
+        config.num_blocks = cmd.num_blocks;
 
         // Log the full config as actually applied, so the active geometry the
         // loops will read is visible (this handler DID just write every field).
@@ -144,7 +145,7 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
         fpga_loaded: gpio::get_fpga_loaded_status(),
         pass_counter: 0,
         start_address: 0x00000000,
-        end_address: config.chip_size_bytes,
+        end_address: config.num_blocks * config.block_size,
         current_address: 0x00000000,
     };
 
@@ -192,13 +193,6 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
         "dynamic_command: uuid={}, seed={:#018X}, pattern={}, wait_for_beam={}, sample_size_in_bytes={}, trigger_threshold={}, chip_size_bytes={} ({:#x}), address_multiplier={}",
         cmd.uuid, cmd.seed, cmd.pattern, cmd.wait_for_beam, cmd.sample_size_in_bytes, cmd.trigger_threshold, config.chip_size_bytes, config.chip_size_bytes, config.address_multiplier
     );
-
-    if config.address_multiplier == 0 {
-        crate::dbg_log!("dynamic_command: WARNING address_multiplier==0, step_by(0) will panic");
-    }
-    if config.chip_size_bytes == 0 {
-        crate::dbg_log!("dynamic_command: WARNING chip_size_bytes==0, loop range is empty and will not execute");
-    }
 
     //Instant when test first started
     let first_start_instant = SystemTime::now();
@@ -304,276 +298,280 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
     //Exposure present - Perform test
     loop {
 
-        //Iterate over chip
-        for i in (0..config.chip_size_bytes).step_by(config.address_multiplier as usize) {
+        // Iterate over number of blocks
+        for blk_ind in (0..config.num_blocks).step_by(config.block_factor as usize) {
 
-            // Perform write and verify operation
-            {
+            //Iterate over bytes in block
+            for addr in (blk_ind * config.block_size)..((blk_ind + 1) * config.block_size){
 
-                //Update current address
-                rsp.current_address = i;
+                // Perform write and verify operation
+                {
 
-                //Value to test
-                let v = match cmd.pattern {
-                    0 => {
-                        // Zero mode
-                        0x00
-                    },
-                    1 => {
-                        // All ones
-                        0xFF
-                    },
-                    2 => {
-                        // Random
-                        crate::rand::rand(i)
-                    },
-                    _ => {
-                        eprintln!("[!] Invalid pattern in DynamicCmd: {}", cmd.pattern);
-                        return;
-                    }};
-                
-                //Write test value to byte
-                chip::write(&config, i, v).unwrap();
+                    //Update current address
+                    rsp.current_address = addr;
 
-                //Read back and verify the value
-                match crate::chip::read(&config, i) {
-                    Ok(actual) => {
-                        if actual != v {
-                            crate::dbg_log!(
-                                "dynamic_command: mismatch at offset {:#x} expected={:#04X}, actual={:#04X}",
-                                i, v, actual
-                            );
+                    //Value to test
+                    let v = match cmd.pattern {
+                        0 => {
+                            // Zero mode
+                            0x00
+                        },
+                        1 => {
+                            // All ones
+                            0xFF
+                        },
+                        2 => {
+                            // Random
+                            crate::rand::rand(addr)
+                        },
+                        _ => {
+                            eprintln!("[!] Invalid pattern in DynamicCmd: {}", cmd.pattern);
+                            return;
+                        }};
+                    
+                    //Write test value to byte
+                    chip::write(&config, addr, v).unwrap();
 
-                            let diff_mask        = actual ^ v;
-                            let diff_bits: usize = (diff_mask).count_ones() as usize;
-                            let adj_bits         = diff_mask & (diff_mask >> 1);
+                    //Read back and verify the value
+                    match crate::chip::read(&config, addr) {
+                        Ok(actual) => {
+                            if actual != v {
+                                crate::dbg_log!(
+                                    "dynamic_command: mismatch at offset {:#x} expected={:#04X}, actual={:#04X}",
+                                    i, v, actual
+                                );
 
-                            //Collect statistics
-                            rsp.err_bins[diff_bits] += 1;
-                            
-                            //Detect multi-bit upset
-                            if diff_bits > 1 {
+                                let diff_mask        = actual ^ v;
+                                let diff_bits: usize = (diff_mask).count_ones() as usize;
+                                let adj_bits         = diff_mask & (diff_mask >> 1);
 
-                                //Counter 
-                                let mut c: usize = 0;
+                                //Collect statistics
+                                rsp.err_bins[diff_bits] += 1;
+                                
+                                //Detect multi-bit upset
+                                if diff_bits > 1 {
 
-                                //We need to count more carefully, this is CPU intensive though :(
-                                for i in 0..8 {
-                                    
-                                    //Check if bit is set
-                                    if adj_bits & (1 << i) != 0 {
+                                    //Counter 
+                                    let mut c: usize = 0;
+
+                                    //We need to count more carefully, this is CPU intensive though :(
+                                    for i in 0..8 {
                                         
-                                        //Bit is set
-                                        c += 1;
+                                        //Check if bit is set
+                                        if adj_bits & (1 << i) != 0 {
+                                            
+                                            //Bit is set
+                                            c += 1;
 
-                                    } else {
-                                        
-                                        //Bit is not set
+                                        } else {
+                                            
+                                            //Bit is not set
 
-                                        //Commit result if there is one
-                                        if c > 0 { 
-                                            rsp.adj_err_bins[c] += 1; 
-                                            c = 0;
+                                            //Commit result if there is one
+                                            if c > 0 { 
+                                                rsp.adj_err_bins[c] += 1; 
+                                                c = 0;
+                                            }
                                         }
+                                        
                                     }
                                     
+                                    //Commit just in case any pending result
+                                    if c > 0 { 
+                                        rsp.adj_err_bins[c] += 1; 
+                                    }
+
+                                } else {
+                                    //Optimization trick to prevent extensive check
+                                    rsp.adj_err_bins[0] += 1;
                                 }
-                                
-                                //Commit just in case any pending result
-                                if c > 0 { 
-                                    rsp.adj_err_bins[c] += 1; 
-                                }
+
+                                //Rate calculation
+                                bits_sampled += 8;
+                                bits_errored += diff_bits as u64;
+
+
 
                             } else {
-                                //Optimization trick to prevent extensive check
-                                rsp.adj_err_bins[0] += 1;
+                                bits_sampled += 8;
                             }
-
-                            //Rate calculation
+                        },
+                        Err(e) => {
                             bits_sampled += 8;
-                            bits_errored += diff_bits as u64;
-
-
-
-                        } else {
-                            bits_sampled += 8;
+                            bits_errored += 8;
+                            crate::dbg_log!("dynamic_command: chip read error at offset {:#x}: {:?} (counted as 8 errored bits)", i, e);
                         }
-                    },
-                    Err(e) => {
-                        bits_sampled += 8;
-                        bits_errored += 8;
-                        crate::dbg_log!("dynamic_command: chip read error at offset {:#x}: {:?} (counted as 8 errored bits)", i, e);
-                    }
-                };
+                    };
 
-                //Totals
-                rsp.total_bytes += 1;
+                    //Totals
+                    rsp.total_bytes += 1;
 
-            }
+                }
 
-            // Perform rate calculation
-            {
-                if bits_sampled >= cmd.sample_size_in_bytes as u64 * 8 {
-                    
-                    let secs = last_sample_instant.elapsed().unwrap().as_secs_f32();
-                    rsp.error_rate_per_second = if secs > 0.0 { bits_errored as f32 / secs } else { 0.0 };
-                    rsp.error_rate_percent = bits_errored as f32 / bits_sampled as f32;
-                    rsp.error_rate = bits_errored as f32;
-
-                    crate::dbg_log!(
-                        "dynamic_command: sample window closed error_rate={} bits, error_percent={:.6} ({}/{} bits), error_rate_per_second={:.2}",
-                        rsp.error_rate, rsp.error_rate_percent, bits_errored, bits_sampled, rsp.error_rate_per_second
-                    );
-
-                    //Clear sampling vars
-                    bits_sampled = 0;
-                    bits_errored = 0;
-                    last_sample_instant = SystemTime::now();
-
-                    rsp.adj_err_bins = [0,0,0,0,0,0,0,0];
-                    rsp.err_bins = [0,0,0,0,0,0,0,0,0];
-
-                    //Check if a SEFI has been detected
-                    if (rsp.error_rate_percent > cmd.trigger_threshold) && !rsp.sefi_detected {
-
-                        //First SEFI trigger
-                        rsp.sefi_detected = true;
-
-                        //Record time this took to occur
-                        rsp.time_to_sefi = exposure_start_instant.elapsed().unwrap().as_millis() as f32;
-
-                        //End test if beam detection is disabled
-                        if !cmd.wait_for_beam {
-                            rsp.test_completed = true;
-                        } 
+                // Perform rate calculation
+                {
+                    if bits_sampled >= cmd.sample_size_in_bytes as u64 * 8 {
+                        
+                        let secs = last_sample_instant.elapsed().unwrap().as_secs_f32();
+                        rsp.error_rate_per_second = if secs > 0.0 { bits_errored as f32 / secs } else { 0.0 };
+                        rsp.error_rate_percent = bits_errored as f32 / bits_sampled as f32;
+                        rsp.error_rate = bits_errored as f32;
 
                         crate::dbg_log!(
-                            "dynamic_command: SEFI detected error_rate={:.4} > threshold={:.4}, time_to_sefi={}ms",
-                            rsp.error_rate, cmd.trigger_threshold, rsp.time_to_sefi
+                            "dynamic_command: sample window closed error_rate={} bits, error_percent={:.6} ({}/{} bits), error_rate_per_second={:.2}",
+                            rsp.error_rate, rsp.error_rate_percent, bits_errored, bits_sampled, rsp.error_rate_per_second
                         );
+
+                        //Clear sampling vars
+                        bits_sampled = 0;
+                        bits_errored = 0;
+                        last_sample_instant = SystemTime::now();
+
+                        rsp.adj_err_bins = [0,0,0,0,0,0,0,0];
+                        rsp.err_bins = [0,0,0,0,0,0,0,0,0];
+
+                        //Check if a SEFI has been detected
+                        if (rsp.error_rate_percent > cmd.trigger_threshold) && !rsp.sefi_detected {
+
+                            //First SEFI trigger
+                            rsp.sefi_detected = true;
+
+                            //Record time this took to occur
+                            rsp.time_to_sefi = exposure_start_instant.elapsed().unwrap().as_millis() as f32;
+
+                            //End test if beam detection is disabled
+                            if !cmd.wait_for_beam {
+                                rsp.test_completed = true;
+                            } 
+
+                            crate::dbg_log!(
+                                "dynamic_command: SEFI detected error_rate={:.4} > threshold={:.4}, time_to_sefi={}ms",
+                                rsp.error_rate, cmd.trigger_threshold, rsp.time_to_sefi
+                            );
+                        }
                     }
                 }
-            }
 
-            // Perform beam check (if enabled)
-            {
-                //Check if beam has gone inactive
-                if !gpio::get_beam_signal() && cmd.wait_for_beam {
-                    crate::dbg_log!("dynamic_command: beam signal went low, ending test");
-                    rsp.test_completed = true;
-                }
-            }
-
-            //Update required timings
-            {
-                //If beam is still active, increase exposure time
-                if gpio::get_beam_signal() || !cmd.wait_for_beam {
-                    rsp.exposure_time_ms = exposure_start_instant.elapsed().unwrap().as_millis() as f32;
+                // Perform beam check (if enabled)
+                {
+                    //Check if beam has gone inactive
+                    if !gpio::get_beam_signal() && cmd.wait_for_beam {
+                        crate::dbg_log!("dynamic_command: beam signal went low, ending test");
+                        rsp.test_completed = true;
+                    }
                 }
 
-                //Increase total test time
-                if !rsp.test_completed {
-                    rsp.total_time_ms = first_start_instant.elapsed().unwrap().as_millis() as f32;
-                }
-            }
-
-            // Perform progress update (if needed) - Progress update performed early if test is over
-            {
-                if last_update_instant.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS || rsp.test_completed {
-                    
-
-                    //Update response structure
-                    rsp.beam_signal = gpio::get_beam_signal();
-                    rsp.controller_calibrated = gpio::get_calibration_signal();
-                    rsp.ui_clock = gpio::get_ui_clock_signal();
-                    rsp.pl_clock = gpio::get_pl_clock_signal();
-                    rsp.fpga_loaded = gpio::get_fpga_loaded_status();
-
-                    let payload = crate::server::codec().serialize(&rsp).unwrap();
-
-                    if let Err(e) = send_response(stream, CMD_DYNAMIC, payload) {
-                        eprintln!("[!] Failed to send progress update: {}", e);
-                        return;
+                //Update required timings
+                {
+                    //If beam is still active, increase exposure time
+                    if gpio::get_beam_signal() || !cmd.wait_for_beam {
+                        rsp.exposure_time_ms = exposure_start_instant.elapsed().unwrap().as_millis() as f32;
                     }
 
-                    //Create log
+                    //Increase total test time
+                    if !rsp.test_completed {
+                        rsp.total_time_ms = first_start_instant.elapsed().unwrap().as_millis() as f32;
+                    }
+                }
+
+                // Perform progress update (if needed) - Progress update performed early if test is over
+                {
+                    if last_update_instant.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS || rsp.test_completed {
+                        
+
+                        //Update response structure
+                        rsp.beam_signal = gpio::get_beam_signal();
+                        rsp.controller_calibrated = gpio::get_calibration_signal();
+                        rsp.ui_clock = gpio::get_ui_clock_signal();
+                        rsp.pl_clock = gpio::get_pl_clock_signal();
+                        rsp.fpga_loaded = gpio::get_fpga_loaded_status();
+
+                        let payload = crate::server::codec().serialize(&rsp).unwrap();
+
+                        if let Err(e) = send_response(stream, CMD_DYNAMIC, payload) {
+                            eprintln!("[!] Failed to send progress update: {}", e);
+                            return;
+                        }
+
+                        //Create log
+                        if config.enable_logging {
+
+                            recorder::log(vec![
+                                rsp.exposure_time_ms.to_string(),
+                                rsp.total_time_ms.to_string(),
+                                rsp.total_bytes.to_string(),
+                                rsp.error_rate.to_string(),
+                                rsp.error_rate_per_second.to_string(),
+                                rsp.error_rate_percent.to_string(), 
+                                cmd.trigger_threshold.to_string(),
+                                rsp.beam_signal.to_string(),
+                                rsp.controller_calibrated.to_string(),
+                                rsp.exposure_started.to_string(),
+                                rsp.sefi_detected.to_string(),
+                                rsp.time_to_sefi.to_string(),
+                                rsp.test_completed.to_string(),
+                                rsp.pass_counter.to_string(),
+                                rsp.current_address.to_string(),
+                                rsp.start_address.to_string(),
+                                rsp.end_address.to_string(),
+                                rsp.adj_err_bins[0].to_string(), 
+                                rsp.adj_err_bins[1].to_string(),
+                                rsp.adj_err_bins[2].to_string(),
+                                rsp.adj_err_bins[3].to_string(),
+                                rsp.adj_err_bins[4].to_string(),
+                                rsp.adj_err_bins[5].to_string(),
+                                rsp.adj_err_bins[6].to_string(),
+                                rsp.adj_err_bins[7].to_string(),
+                                rsp.err_bins[0].to_string(),
+                                rsp.err_bins[1].to_string(),
+                                rsp.err_bins[2].to_string(),
+                                rsp.err_bins[3].to_string(),
+                                rsp.err_bins[4].to_string(),
+                                rsp.err_bins[5].to_string(),
+                                rsp.err_bins[6].to_string(),
+                                rsp.err_bins[7].to_string(),
+                                rsp.err_bins[8].to_string()
+                            ]);
+
+                        }
+                        
+                        //Reset timer for next update
+                        last_update_instant = SystemTime::now();
+            
+                    }
+                }
+
+                //Check if the test is over
+                if rsp.test_completed {
+
+                    crate::dbg_log!(
+                        "dynamic_command: test complete — sefi_detected={}, time_to_sefi={}ms, passes={}, total_bytes={}, exposure_time={}ms, total_time={}ms, err_bins={:?}, adj_err_bins={:?}",
+                        rsp.sefi_detected, rsp.time_to_sefi, rsp.pass_counter, rsp.total_bytes,
+                        rsp.exposure_time_ms, rsp.total_time_ms, rsp.err_bins, rsp.adj_err_bins
+                    );
+
                     if config.enable_logging {
+                        
+                        //Commit log file
+                        recorder::write(cmd.uuid).unwrap();
 
-                        recorder::log(vec![
-                            rsp.exposure_time_ms.to_string(),
-                            rsp.total_time_ms.to_string(),
-                            rsp.total_bytes.to_string(),
-                            rsp.error_rate.to_string(),
-                            rsp.error_rate_per_second.to_string(),
-                            rsp.error_rate_percent.to_string(), 
-                            cmd.trigger_threshold.to_string(),
-                            rsp.beam_signal.to_string(),
-                            rsp.controller_calibrated.to_string(),
-                            rsp.exposure_started.to_string(),
-                            rsp.sefi_detected.to_string(),
-                            rsp.time_to_sefi.to_string(),
-                            rsp.test_completed.to_string(),
-                            rsp.pass_counter.to_string(),
-                            rsp.current_address.to_string(),
-                            rsp.start_address.to_string(),
-                            rsp.end_address.to_string(),
-                            rsp.adj_err_bins[0].to_string(), 
-                            rsp.adj_err_bins[1].to_string(),
-                            rsp.adj_err_bins[2].to_string(),
-                            rsp.adj_err_bins[3].to_string(),
-                            rsp.adj_err_bins[4].to_string(),
-                            rsp.adj_err_bins[5].to_string(),
-                            rsp.adj_err_bins[6].to_string(),
-                            rsp.adj_err_bins[7].to_string(),
-                            rsp.err_bins[0].to_string(),
-                            rsp.err_bins[1].to_string(),
-                            rsp.err_bins[2].to_string(),
-                            rsp.err_bins[3].to_string(),
-                            rsp.err_bins[4].to_string(),
-                            rsp.err_bins[5].to_string(),
-                            rsp.err_bins[6].to_string(),
-                            rsp.err_bins[7].to_string(),
-                            rsp.err_bins[8].to_string()
-                        ]);
+                        //Generate test summary file
+                        recorder::write_summary(cmd.uuid, vec![
+                            format!("{:?}", config),
+                            format!("{:?}", cmd),
+                            format!("{:?}", rsp),
+                        ]).unwrap();
 
                     }
-                    
-                    //Reset timer for next update
-                    last_update_instant = SystemTime::now();
-        
+
+                    //End test
+                    return;
                 }
+                        
+
             }
-
-            //Check if the test is over
-            if rsp.test_completed {
-
-                crate::dbg_log!(
-                    "dynamic_command: test complete — sefi_detected={}, time_to_sefi={}ms, passes={}, total_bytes={}, exposure_time={}ms, total_time={}ms, err_bins={:?}, adj_err_bins={:?}",
-                    rsp.sefi_detected, rsp.time_to_sefi, rsp.pass_counter, rsp.total_bytes,
-                    rsp.exposure_time_ms, rsp.total_time_ms, rsp.err_bins, rsp.adj_err_bins
-                );
-
-                if config.enable_logging {
-                    
-                    //Commit log file
-                    recorder::write(cmd.uuid).unwrap();
-
-                    //Generate test summary file
-                    recorder::write_summary(cmd.uuid, vec![
-                        format!("{:?}", config),
-                        format!("{:?}", cmd),
-                        format!("{:?}", rsp),
-                    ]).unwrap();
-
-                }
-
-                //End test
-                return;
-            }
-                    
-
         }
-   
+        
         //Increment pass count
         rsp.pass_counter += 1;
 
@@ -582,7 +580,7 @@ pub fn dynamic_command(stream: &mut TcpStream, cmd: DynamicCmd){
             rsp.pass_counter, rsp.total_bytes, rsp.sefi_detected
         );
 
-    };
+    }
 
 
 }
@@ -620,12 +618,6 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
         cmd.seed, cmd.pattern, config.chip_size_bytes, config.chip_size_bytes, config.address_multiplier
     );
 
-    if config.address_multiplier == 0 {
-        crate::dbg_log!("write_command: WARNING address_multiplier==0, step_by(0) will panic");
-    }
-    if config.chip_size_bytes == 0 {
-        crate::dbg_log!("write_command: WARNING chip_size_bytes==0, loop range 0..0 is empty; nothing will be written");
-    }
     crate::dbg_log!(
         "write_command: iterating range 0..{} step {} (expected {} writes)",
         config.chip_size_bytes, config.address_multiplier,
@@ -643,66 +635,73 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
     #[cfg(feature = "debug")]
     let mut iterations: u64 = 0;
 
-    // Iterate over chip 
-    for i in (0..config.chip_size_bytes).step_by(config.address_multiplier as usize) {
 
-        #[cfg(feature = "debug")]
-        { iterations += 1; }
+    // Iterate over number of blocks
+    for blk_ind in (0..config.num_blocks).step_by(config.block_factor as usize) {
 
-        //Determine the required contents to write
-        match match cmd.pattern {
-            0 => {
-                // All zeros
-                chip::write(&config, i, 0)
-            },
-            1 => {
-                // All ones
-                chip::write(&config, i, 0xFF)
-            },
-            2 => {
-                // Pseudorandom pattern based on seed
-                chip::write(&config, i, crate::rand::rand(i))
-            },
-            _ => {
-                eprintln!("[!] Invalid pattern in WriteCmd: {}", cmd.pattern);
-                return;
+        //Iterate over bytes in block
+        for addr in (blk_ind * config.block_size)..((blk_ind + 1) * config.block_size){
+
+            #[cfg(feature = "debug")]
+            { iterations += 1; }
+
+            //Determine the required contents to write
+            match match cmd.pattern {
+                0 => {
+                    // All zeros
+                    chip::write(&config, addr, 0)
+                },
+                1 => {
+                    // All ones
+                    chip::write(&config, addr, 0xFF)
+                },
+                2 => {
+                    // Pseudorandom pattern based on seed
+                    chip::write(&config, addr, crate::rand::rand(addr))
+                },
+                _ => {
+                    eprintln!("[!] Invalid pattern in WriteCmd: {}", cmd.pattern);
+                    return;
+                }
             }
-        }
-        {
-            Ok(_) => {},
-            Err(e) => {
-                eprintln!("[!] Error writing to chip at offset {}: {:?}", i, e);
-                return;
+            {
+                Ok(_) => {},
+                Err(e) => {
+                    eprintln!("[!] Error writing to chip at offset {}: {:?}", addr, e);
+                    return;
+                }
             }
-        }
 
-        //Check if progress update is needed
-        if time_since_last_update.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS {
+            //Check if progress update is needed
+            if time_since_last_update.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS {
 
-            //Calculate status
-            let elapsed = start_time.elapsed().unwrap().as_millis() as f32;
-            let percent_complete = (i as f32 / config.chip_size_bytes as f32) * 100.0;  
+                //Calculate status
+                let elapsed = start_time.elapsed().unwrap().as_millis() as f32;
+                let percent_complete = (blk_ind as f32 / config.num_blocks as f32) * 100.0;  
 
-            crate::dbg_log!("write_command: progress offset={}, {:.1}% complete, {}ms elapsed", i, percent_complete, elapsed);
+                crate::dbg_log!("write_command: progress offset={}, {:.1}% complete, {}ms elapsed", i, percent_complete, elapsed);
 
-            //Send status update
-            let rsp = WriteRsp {
-                bytes_written: i,
-                time_spent_ms: elapsed,
-                percent_complete
-            };
+                //Send status update
+                let rsp = WriteRsp {
+                    bytes_written: blk_ind * config.block_size,
+                    time_spent_ms: elapsed,
+                    percent_complete
+                };
 
-            let payload = crate::server::codec().serialize(&rsp).unwrap();
+                let payload = crate::server::codec().serialize(&rsp).unwrap();
 
-            if let Err(e) = send_response(stream, CMD_WRITE, payload) {
-                eprintln!("[!] Failed to send progress update: {}", e);
-                return;
+                if let Err(e) = send_response(stream, CMD_WRITE, payload) {
+                    eprintln!("[!] Failed to send progress update: {}", e);
+                    return;
+                }
+                
+                //Reset timer for next update
+                time_since_last_update = SystemTime::now();
             }
             
-            //Reset timer for next update
-            time_since_last_update = SystemTime::now();
         }
-        
+
+
     }
 
     crate::dbg_log!(
@@ -713,7 +712,7 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
     //Send final status response
 
     let rsp = WriteRsp {
-        bytes_written: config.chip_size_bytes,
+        bytes_written: config.block_size * (config.num_blocks / config.block_factor),
         time_spent_ms: start_time.elapsed().unwrap().as_millis() as f32,
         percent_complete: 100.0,
     };
@@ -738,13 +737,6 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
         cmd.uuid, cmd.seed, cmd.pattern, config.chip_size_bytes, config.chip_size_bytes, config.address_multiplier
     );
 
-    if config.address_multiplier == 0 {
-        crate::dbg_log!("verify_command: WARNING address_multiplier==0, step_by(0) will panic");
-    }
-    if config.chip_size_bytes == 0 {
-        crate::dbg_log!("verify_command: WARNING chip_size_bytes==0, loop range is empty; nothing will be verified");
-    }
-
     //Setup timers
     let start_time = SystemTime::now();
     let mut time_since_last_update = SystemTime::now();
@@ -762,7 +754,7 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
         err_bins: [0, 0, 0, 0, 0, 0, 0, 0, 0],
         current_address: 0x00000000,
         start_address: 0x00000000,
-        end_address: config.chip_size_bytes,
+        end_address: config.num_blocks * config.block_size,
      };
 
     // Setup log
@@ -794,186 +786,178 @@ pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
         ]);
     }
 
-    //Current address iterator
-    let mut i: u32 = 0;
 
-    //Done flag
-    let mut done = false;
 
-    // Iterate over chip 
-    loop {
+    // Iterate over number of blocks
+    for blk_ind in (0..config.num_blocks).step_by(config.block_factor as usize) {
 
-        //Check if progress update is needed (or we are done)
-        if time_since_last_update.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS || done {
+        //Iterate over bytes in block
+        for addr in (blk_ind * config.block_size)..((blk_ind + 1) * config.block_size){
 
-            //Calculate status
-            let elapsed = start_time.elapsed().unwrap().as_millis() as f32;
-            let percent_complete = (i as f32 / config.chip_size_bytes as f32) * 100.0;  
+            let done = addr == (((blk_ind + 1) * config.block_size) - 1);
 
-            crate::dbg_log!(
-                "verify_command: progress offset={}, {:.1}% complete, errors={}, correct={}",
-                i, percent_complete, rsp.num_incorrect, rsp.num_correct
-            );
+            //Check if progress update is needed (or we are done)
+            if time_since_last_update.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS || done {
 
-            //Update bytes verified and percent complete in response structure
-            rsp.current_address = i;
-            rsp.time_spent_ms = elapsed;
-            rsp.percent_complete = percent_complete;
-
-            let payload = crate::server::codec().serialize(&rsp).unwrap();
-
-            if let Err(e) = send_response(stream, CMD_VERIFY, payload) {
-                eprintln!("[!] Failed to send progress update: {}", e);
-                return;
-            }
-            
-            //Create log entry
-            if config.enable_logging {
-            recorder::log(vec![rsp.time_spent_ms.to_string(), 
-                format!("{:#010X}", rsp.start_address), 
-                format!("{:#010X}", rsp.end_address),
-                format!("{:#010X}", rsp.current_address),
-                rsp.percent_complete.to_string(), 
-                rsp.num_correct.to_string(), 
-                rsp.num_incorrect.to_string(), 
-                rsp.adj_err_bins[0].to_string(), 
-                rsp.adj_err_bins[1].to_string(),
-                rsp.adj_err_bins[2].to_string(),
-                rsp.adj_err_bins[3].to_string(),
-                rsp.adj_err_bins[4].to_string(),
-                rsp.adj_err_bins[5].to_string(),
-                rsp.adj_err_bins[6].to_string(),
-                rsp.adj_err_bins[7].to_string(),
-                rsp.err_bins[0].to_string(),
-                rsp.err_bins[1].to_string(),
-                rsp.err_bins[2].to_string(),
-                rsp.err_bins[3].to_string(),
-                rsp.err_bins[4].to_string(),
-                rsp.err_bins[5].to_string(),
-                rsp.err_bins[6].to_string(),
-                rsp.err_bins[7].to_string(),
-                rsp.err_bins[8].to_string()
-                ]);
-            }
-
-            //Reset timer for next update
-            time_since_last_update = SystemTime::now();
-
-            //If we are done, exit
-            if done {
+                //Calculate status
+                let elapsed = start_time.elapsed().unwrap().as_millis() as f32;
+                let percent_complete = (blk_ind as f32 / config.num_blocks as f32) * 100.0;  
 
                 crate::dbg_log!(
-                    "verify_command: complete — {:.1}% at offset {:#x}, num_correct={}, num_incorrect={}, err_bins={:?}, adj_err_bins={:?}, elapsed={}ms",
-                    rsp.percent_complete, rsp.current_address, rsp.num_correct, rsp.num_incorrect,
-                    rsp.err_bins, rsp.adj_err_bins, rsp.time_spent_ms
+                    "verify_command: progress offset={}, {:.1}% complete, errors={}, correct={}",
+                    i, percent_complete, rsp.num_incorrect, rsp.num_correct
                 );
 
-                if config.enable_logging {
+                //Update bytes verified and percent complete in response structure
+                rsp.current_address = addr;
+                rsp.time_spent_ms = elapsed;
+                rsp.percent_complete = percent_complete;
 
-                //Commit log file
-                recorder::write(cmd.uuid).unwrap();
+                let payload = crate::server::codec().serialize(&rsp).unwrap();
 
-                //Generate test summary file
-                recorder::write_summary(cmd.uuid, vec![
-                    format!("{:?}", config),
-                    format!("{:?}", cmd),
-                    format!("{:?}", rsp),
-                ]).unwrap();
+                if let Err(e) = send_response(stream, CMD_VERIFY, payload) {
+                    eprintln!("[!] Failed to send progress update: {}", e);
+                    return;
+                }
                 
+                //Create log entry
+                if config.enable_logging {
+                recorder::log(vec![rsp.time_spent_ms.to_string(), 
+                    format!("{:#010X}", rsp.start_address), 
+                    format!("{:#010X}", rsp.end_address),
+                    format!("{:#010X}", rsp.current_address),
+                    rsp.percent_complete.to_string(), 
+                    rsp.num_correct.to_string(), 
+                    rsp.num_incorrect.to_string(), 
+                    rsp.adj_err_bins[0].to_string(), 
+                    rsp.adj_err_bins[1].to_string(),
+                    rsp.adj_err_bins[2].to_string(),
+                    rsp.adj_err_bins[3].to_string(),
+                    rsp.adj_err_bins[4].to_string(),
+                    rsp.adj_err_bins[5].to_string(),
+                    rsp.adj_err_bins[6].to_string(),
+                    rsp.adj_err_bins[7].to_string(),
+                    rsp.err_bins[0].to_string(),
+                    rsp.err_bins[1].to_string(),
+                    rsp.err_bins[2].to_string(),
+                    rsp.err_bins[3].to_string(),
+                    rsp.err_bins[4].to_string(),
+                    rsp.err_bins[5].to_string(),
+                    rsp.err_bins[6].to_string(),
+                    rsp.err_bins[7].to_string(),
+                    rsp.err_bins[8].to_string()
+                    ]);
                 }
 
-                return;
-            }
-        }
+                //Reset timer for next update
+                time_since_last_update = SystemTime::now();
 
-        //Expected value
-        let expected = match cmd.pattern {
-            0 => 0, // All zeros
-            1 => 0xFF, // All ones
-            2 => crate::rand::rand(i), // Pseudorandom pattern based on seed
-            _ => {
-                eprintln!("[!] Invalid pattern in VerifyCmd: {}", cmd.pattern);
-                return;
-            }
-        };
+                //If we are done, exit
+                if done {
 
-        //Determine the expected contents to verify against
-        match crate::chip::read(&config, i) {
-            Ok(actual) => {
-                if actual != expected {
                     crate::dbg_log!(
-                        "verify_command: mismatch at offset {:#x} expected={:#x}, actual={:#x}",
-                        i, expected, actual
+                        "verify_command: complete — {:.1}% at offset {:#x}, num_correct={}, num_incorrect={}, err_bins={:?}, adj_err_bins={:?}, elapsed={}ms",
+                        rsp.percent_complete, rsp.current_address, rsp.num_correct, rsp.num_incorrect,
+                        rsp.err_bins, rsp.adj_err_bins, rsp.time_spent_ms
                     );
+
+                    if config.enable_logging {
+
+                    //Commit log file
+                    recorder::write(cmd.uuid).unwrap();
+
+                    //Generate test summary file
+                    recorder::write_summary(cmd.uuid, vec![
+                        format!("{:?}", config),
+                        format!("{:?}", cmd),
+                        format!("{:?}", rsp),
+                    ]).unwrap();
                     
-                    let diff_mask        = actual ^ expected;
-                    let diff_bits: usize = (diff_mask).count_ones() as usize;
-                    let adj_bits         = diff_mask & (diff_mask >> 1);
+                    }
 
-                    //Overall metrics
-                    rsp.num_correct += 8 - diff_bits as u64;
-                    rsp.num_incorrect += diff_bits as u64;
+                    return;
+                }
+            }
 
-                    //Collect statistics
-                    rsp.err_bins[diff_bits] += 1;
-                    
-                    //Detect multi-bit upset
-                    if diff_bits > 1 {
+            //Expected value
+            let expected = match cmd.pattern {
+                0 => 0, // All zeros
+                1 => 0xFF, // All ones
+                2 => crate::rand::rand(addr), // Pseudorandom pattern based on seed
+                _ => {
+                    eprintln!("[!] Invalid pattern in VerifyCmd: {}", cmd.pattern);
+                    return;
+                }
+            };
 
-                        //Counter 
-                        let mut c: usize = 0;
+            //Determine the expected contents to verify against
+            match crate::chip::read(&config, addr) {
+                Ok(actual) => {
+                    if actual != expected {
+                        crate::dbg_log!(
+                            "verify_command: mismatch at offset {:#x} expected={:#x}, actual={:#x}",
+                            i, expected, actual
+                        );
+                        
+                        let diff_mask        = actual ^ expected;
+                        let diff_bits: usize = (diff_mask).count_ones() as usize;
+                        let adj_bits         = diff_mask & (diff_mask >> 1);
 
-                        //We need to count more carefully, this is CPU intensive though :(
-                        for i in 0..8 {
-                            
-                            //Check if bit is set
-                            if adj_bits & (1 << i) != 0 {
+                        //Overall metrics
+                        rsp.num_correct += 8 - diff_bits as u64;
+                        rsp.num_incorrect += diff_bits as u64;
+
+                        //Collect statistics
+                        rsp.err_bins[diff_bits] += 1;
+                        
+                        //Detect multi-bit upset
+                        if diff_bits > 1 {
+
+                            //Counter 
+                            let mut c: usize = 0;
+
+                            //We need to count more carefully, this is CPU intensive though :(
+                            for i in 0..8 {
                                 
-                                //Bit is set
-                                c += 1;
+                                //Check if bit is set
+                                if adj_bits & (1 << i) != 0 {
+                                    
+                                    //Bit is set
+                                    c += 1;
 
-                            } else {
-                                
-                                //Bit is not set
+                                } else {
+                                    
+                                    //Bit is not set
 
-                                //Commit result if there is one
-                                if c > 0 { 
-                                    rsp.adj_err_bins[c] += 1; 
-                                    c = 0;
+                                    //Commit result if there is one
+                                    if c > 0 { 
+                                        rsp.adj_err_bins[c] += 1; 
+                                        c = 0;
+                                    }
                                 }
+                                
                             }
                             
-                        }
-                        
-                        //Commit just in case any pending result
-                        if c > 0 { 
-                            rsp.adj_err_bins[c] += 1; 
+                            //Commit just in case any pending result
+                            if c > 0 { 
+                                rsp.adj_err_bins[c] += 1; 
+                            }
+
+                        } else {
+                            //Optimization trick to prevent extensive check
+                            rsp.adj_err_bins[0] += 1;
                         }
 
                     } else {
-                        //Optimization trick to prevent extensive check
-                        rsp.adj_err_bins[0] += 1;
+                        rsp.num_correct += 8;
                     }
-
-                } else {
-                    rsp.num_correct += 8;
+                },
+                Err(e) => {
+                    crate::dbg_log!("verify_command: chip read error at offset {:#x}: {:?}", i, e);
                 }
-            },
-            Err(e) => {
-                crate::dbg_log!("verify_command: chip read error at offset {:#x}: {:?}", i, e);
-            }
-        };
+            };
 
-
-        //Update iterator
-        i += config.address_multiplier;
-        
-        //Check if we are done
-        if i >= config.chip_size_bytes {
-            //We are done
-            done = true;
         }
-
 
     }
     

@@ -7,8 +7,8 @@ pub const SIMULATION_MODE: bool = false; // If true, the app will simulate read/
 pub const SYNC_MARKER: u32 = 0xDEAD_BEEF;
 pub const TERM_MARKER: u32 = 0xCAFE_BABE;
 
-//Scaling block factor
-pub const SCALING_BLOCK_SIZE: u32  = 0x0001_0000;
+//Scaling block factor (8KB)
+pub const SCALING_BLOCK_SIZE: u32  = 0x0000_2000;
 
 pub const CMD_WRITE: u8 = 0x01;
 pub const CMD_VERIFY: u8 = 0x02;
@@ -26,10 +26,11 @@ pub static CONFIG: LazyLock<RwLock<ConfigCmd>> = LazyLock::new(|| {
     RwLock::new(ConfigCmd {
         chip_index: 0,
         bus_bytes_per_chip: 2,             // x16 default
-        chip_size_bytes: 512 * 1024 * 1024, // 512 MiB default
+        block_size : 0x0010_0000, //  1MB default
+        block_factor : 1,
+        num_blocks : 0x0000_0100, // Test 256MB
         bus_size_in_bytes: 8,             // 8 bytes per bus word (x64)
         enable_chip_select: false,
-        address_multiplier: 1024,
         enable_logging: true
     })
 });

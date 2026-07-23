@@ -65,10 +65,13 @@ pub struct ConfigCmd {
     pub chip_index: u8,
     pub bus_bytes_per_chip: u8,
     pub bus_size_in_bytes: u32,
-    pub chip_size_bytes: u32,
     pub enable_chip_select: bool,
-    pub address_multiplier: u32,
-    pub enable_logging: bool
+    pub enable_logging: bool,
+
+    //Sampling variables
+    pub num_blocks: u32,
+    pub block_size: u32,
+    pub block_factor: u32,
 }
 
 
