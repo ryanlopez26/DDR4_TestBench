@@ -124,7 +124,7 @@
             writeMode = new ComboBox();
             groupBox15 = new GroupBox();
             groupBox16 = new GroupBox();
-            viewerMode = new ComboBox();
+            useLock = new CheckBox();
             groupBox7 = new GroupBox();
             viewerAddress = new TextBox();
             tabPage3 = new TabPage();
@@ -1204,23 +1204,25 @@
             // 
             // groupBox16
             // 
-            groupBox16.Controls.Add(viewerMode);
+            groupBox16.Controls.Add(useLock);
             groupBox16.Font = new Font("Segoe UI", 9F);
             groupBox16.Location = new Point(215, 17);
             groupBox16.Name = "groupBox16";
             groupBox16.Size = new Size(95, 46);
             groupBox16.TabIndex = 8;
             groupBox16.TabStop = false;
-            groupBox16.Text = "Mode";
+            groupBox16.Text = "Lock";
             // 
-            // viewerMode
+            // useLock
             // 
-            viewerMode.FormattingEnabled = true;
-            viewerMode.Items.AddRange(new object[] { "RAW", "DIFF" });
-            viewerMode.Location = new Point(12, 17);
-            viewerMode.Name = "viewerMode";
-            viewerMode.Size = new Size(77, 23);
-            viewerMode.TabIndex = 0;
+            useLock.AutoSize = true;
+            useLock.Location = new Point(6, 17);
+            useLock.Name = "useLock";
+            useLock.Size = new Size(51, 19);
+            useLock.TabIndex = 0;
+            useLock.Text = "Lock";
+            useLock.UseVisualStyleBackColor = true;
+            useLock.CheckedChanged += useLock_CheckedChanged;
             // 
             // groupBox7
             // 
@@ -1430,9 +1432,10 @@
             // 
             // dynBytes
             // 
+            dynBytes.Font = new Font("Consolas", 7F);
             dynBytes.Location = new Point(6, 19);
             dynBytes.Name = "dynBytes";
-            dynBytes.Size = new Size(129, 20);
+            dynBytes.Size = new Size(129, 18);
             dynBytes.TabIndex = 1;
             // 
             // groupBox28
@@ -1845,6 +1848,7 @@
             writeModeLabel.ResumeLayout(false);
             groupBox15.ResumeLayout(false);
             groupBox16.ResumeLayout(false);
+            groupBox16.PerformLayout();
             groupBox7.ResumeLayout(false);
             groupBox7.PerformLayout();
             tabPage3.ResumeLayout(false);
@@ -1971,7 +1975,6 @@
         private GroupBox groupBox14;
         private GroupBox groupBox15;
         private TextBox dyn_trigger_box;
-        private ComboBox viewerMode;
         private TabPage tabPage3;
         private TabPage tabPage4;
         private GroupBox groupBox13;
@@ -2049,5 +2052,6 @@
         private CheckBox enableLogs;
         private TextBox currentDumpAddress;
         private RichTextBox currentDumpPage;
+        private CheckBox useLock;
     }
 }

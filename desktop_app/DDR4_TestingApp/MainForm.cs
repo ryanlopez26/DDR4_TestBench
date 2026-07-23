@@ -85,19 +85,19 @@ namespace DDR4_TestingApp
             Array.Clear(_memBandRate);
 
             // ===== Static plots =====
-            plot1.Plot.Axes.SetLimitsX(0, 10);
+            plot1.Plot.Axes.SetLimitsX(1, 8);
             plot1.Plot.Axes.Title.Label.IsVisible = false;
             plot1.Dock = DockStyle.Fill;
 
-            plot2.Plot.Axes.SetLimitsX(0, 10);
+            plot2.Plot.Axes.SetLimitsX(1, 7);
             plot2.Plot.Axes.Title.Label.IsVisible = false;
             plot2.Dock = DockStyle.Fill;
 
-            dynPlot2.Plot.Axes.SetLimitsX(0, 10);
+            dynPlot2.Plot.Axes.SetLimitsX(1, 8);
             dynPlot2.Plot.Axes.Title.Label.IsVisible = false;
             dynPlot2.Dock = DockStyle.Fill;
 
-            dynPlot3.Plot.Axes.SetLimitsX(0, 10);
+            dynPlot3.Plot.Axes.SetLimitsX(1, 7);
             dynPlot3.Plot.Axes.Title.Label.IsVisible = false;
             dynPlot3.Dock = DockStyle.Fill;
 
@@ -185,7 +185,7 @@ namespace DDR4_TestingApp
             //   Y runs from 0 (baseline) to just above the tallest bar.
             int n = values.Length;
             double max = n > 0 ? values.Max() : 0;
-            pane.Plot.Axes.SetLimitsX(-0.5, n > 0 ? n - 0.5 : 0.5);
+            //pane.Plot.Axes.SetLimitsX(-0.5, n > 0 ? n - 0.5 : 0.5);
             pane.Plot.Axes.SetLimitsY(0, max > 0 ? max * 1.1 : 1);
 
             pane.Refresh();
@@ -270,7 +270,7 @@ namespace DDR4_TestingApp
             // queues another dump on the single serialized connection; they pile up
             // during a long task, flood out at the end, and starve the UUID/Info pollers.
             uint? addr = Tools.ParseHex(viewerAddress.Text);
-            if (addr.HasValue && connected && !Program.busy && !_viewerRefreshInProgress)
+            if (addr.HasValue && connected && !Program.busy && !_viewerRefreshInProgress && !useLock.Checked)
             {
                 _viewerRefreshInProgress = true;
                 try
@@ -295,11 +295,12 @@ namespace DDR4_TestingApp
             taskName.Text = Program.taskName;
 
 
+
             if (TcpManager.Status == TcpManager.ConnectionStatus.Connected) { onlineInd.BackColor = Color.Green; }
             else { onlineInd.BackColor = Color.Red; }
 
 
-            if (Info.sys.HasValue)
+            if (Info.sys.HasValue && !Program.busy)
             {
 
                 //Update status indicators
@@ -811,6 +812,9 @@ namespace DDR4_TestingApp
                 TriggerThreshold = dyn_trigger_threshold
             };
 
+            // Per-run throughput state (captured by the progress callback below).
+            var rateClock = System.Diagnostics.Stopwatch.StartNew();
+            ulong lastBytes = 0;
 
             var progress = new Progress<DynamicRsp>(rsp =>
             {
@@ -864,10 +868,27 @@ namespace DDR4_TestingApp
                     else { loadedInd.BackColor = Color.Red; }
                 }
 
+
                 //Update status boxes
                 dynTotalTime.Text = rsp.TotalTimeMs.ToString() + " ms";
                 dynExposureTime.Text = rsp.ExposureTimeMs.ToString() + " ms";
-                dynBytes.Text = Tools.FormatBytes(rsp.TotalBytes);
+                dynTotalTime.Text = rsp.TotalTimeMs.ToString() + " ms";
+                dynExposureTime.Text = rsp.ExposureTimeMs.ToString() + " ms";
+
+                // Instantaneous throughput. Do the delta in the integer domain (exact), then
+                // divide by the REAL inter-callback interval — progress frames land ~100ms
+                // apart but not precisely, and TotalBytes is a billions-range counter, so a
+                // float subtraction here would be catastrophic cancellation + timing jitter.
+                ulong nowBytes = rsp.TotalBytes;
+                ulong deltaBytes = nowBytes >= lastBytes ? nowBytes - lastBytes : 0; // guard run restart
+                lastBytes = nowBytes;
+
+                double secs = rateClock.Elapsed.TotalSeconds;
+                rateClock.Restart();
+                ulong bytesPerSec = secs > 0 ? (ulong)(deltaBytes / secs) : 0;
+
+                dynBytes.Text = $"{Tools.FormatBytes(nowBytes)} ({Tools.FormatBytes(bytesPerSec)}/sec)";
+
 
                 //Check if SEFI occured
                 if (!rsp.SefiDetected)
@@ -885,8 +906,9 @@ namespace DDR4_TestingApp
 
                 //Update rate and error stats
                 dynBitErrors.Text = rsp.ErrorRate.ToString() + " bit(s)";
-                dynRateTime.Text = rsp.ErrorRatePerSecond.ToString() + " errors/sec";
+                dynRateTime.Text = Tools.FormatBytes(Convert.ToUInt64(rsp.ErrorRatePerSecond) / 8) + "/sec";
                 dynRatePercent.Text = rsp.ErrorRatePercent.ToString();
+
 
                 // Render the bar plots from this update packet.
                 double[] bitBins = rsp.ErrBins?.Select(v => (double)v).ToArray() ?? Array.Empty<double>();
@@ -909,7 +931,7 @@ namespace DDR4_TestingApp
                     // If DynamicRsp reports the address under test, use it directly, e.g.:
                     //     uint currentAddr = rsp.CurrentAddress;
                     // The fallback below only works if the scan walks the chip linearly and wraps.
-                    uint currentAddr = end_addr > 0 ? (uint)(rsp.TotalBytes % end_addr) : 0;
+                    uint currentAddr = rsp.CurrentAddress;
                     uint currentRow = Math.Min((currentAddr - start_addr) / step, rows - 1);
 
                     // --- Record this row's rate so it persists after the cursor moves off it ---
@@ -967,6 +989,7 @@ namespace DDR4_TestingApp
 
                 UUID.invalidate();
                 Program.busy = false;
+                verifyButton.Enabled = true;
 
             }
         }
@@ -1165,6 +1188,11 @@ namespace DDR4_TestingApp
                 $"Bytes:   {bytes:N0}\n" +
                 $"Errors:  {errors:N0}\n" +
                 $"Elapsed: {elapsed:hh\\:mm\\:ss}";
+        }
+
+        private void useLock_CheckedChanged(object sender, EventArgs e)
+        {
+
         }
     }
 }
