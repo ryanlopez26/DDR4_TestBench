@@ -11,11 +11,15 @@ mod gpio;
 mod recorder;
 
 fn main() {
+
+    println!("ZCU Server V3");
     
     //Initially memory provider
     if crate::config::SIMULATION_MODE {
         //Initalize simulated ram
         vram::init().unwrap();
+
+        println!("WARNING: SIMULATION MODE IS ACTIVE");
 
         
     } else {
