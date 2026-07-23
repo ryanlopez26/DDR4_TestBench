@@ -10,12 +10,12 @@
 //     chip_size_bytes / address_multiplier / etc. in its CONFIG, but this client
 //     can no longer set them.
 //   * DumpCmd is now { u32 block_offset, u32 num_blocks, bool comparison_mode }
-//     = 9 bytes. dump_command loops the block-index range block_offset..num_blocks
-//     (HALF-OPEN — num_blocks is an EXCLUSIVE END index, not a count) stepped by
-//     CONFIG.block_factor; block_size also comes from CONFIG. It sends NO
-//     end-of-dump sentinel, so the client derives the frame count from the
-//     command's range + the applied block_size/block_factor (see ExpectedDumpPages
-//     / SendDumpAsync).
+//     = 9 bytes. dump_command loops (block_offset..block_offset + num_blocks)
+//     stepped by CONFIG.block_factor — so num_blocks is a COUNT of blocks from
+//     block_offset (NOT an end index); block_size also comes from CONFIG. It sends
+//     NO end-of-dump sentinel, so the client derives the frame count from the
+//     command's block count + the applied block_size/block_factor (see
+//     ExpectedDumpPages / SendDumpAsync).
 //   * DynamicRsp.pass_counter and current/start/end address ARE now populated by
 //     the server (start=0, end=num_blocks*block_size, current tracks progress,
 //     pass_counter counts completed full sweeps). The old "always 0" note is gone.
@@ -65,12 +65,13 @@
 //              the sweep finishes (percent >= 100). Caller waits for percent >= 100.
 //   - Dump   : one CMD_DUMP frame per flushed page — a 16-byte DumpRsp header
 //              (time_spent_ms, num_errors, address) followed by up to PAGE_SIZE
-//              (1024) raw bytes. The server loops the block-index range
-//              [BlockOffset, NumBlocks) FROM THE COMMAND, stepped by the CONFIG
-//              block_factor, and sends NO terminator — so the client expects
-//              exactly ExpectedDumpPages(BlockOffset, NumBlocks, BlockSize,
-//              BlockFactor) frames. Pages are NOT address-contiguous when
-//              block_factor > 1; each page carries its own start address.
+//              (1024) raw bytes. The server loops
+//              (BlockOffset..BlockOffset + NumBlocks) FROM THE COMMAND — NumBlocks
+//              is a COUNT of blocks from BlockOffset — stepped by the CONFIG
+//              block_factor, and sends NO terminator, so the client expects exactly
+//              ExpectedDumpPages(NumBlocks, BlockSize, BlockFactor) frames. Pages
+//              are NOT address-contiguous when block_factor > 1; each page carries
+//              its own start address.
 //   - Dynamic: periodic CMD_DYNAMIC frames. Termination: with wait_for_beam == true
 //              the server completes when the beam drops; with wait_for_beam == false
 //              it completes when a SEFI is detected (error_rate_percent > threshold).
@@ -124,12 +125,11 @@ namespace DDR4_TestingApp
         // b * BlockSize (BlockSize from the applied Config).
         public uint BlockOffset;
 
-        // END block index, EXCLUSIVE: the server loops the half-open range
-        // (BlockOffset..NumBlocks).step_by(block_factor). So this is an END INDEX,
-        // NOT a count — blocks [BlockOffset, NumBlocks) are visited (before the
-        // stride is applied). NOTE: this matches commands.rs as written; if you
-        // meant NumBlocks as a COUNT, the Rust loop needs
-        // block_offset..(block_offset + num_blocks).
+        // COUNT of blocks to dump, starting at BlockOffset: the server loops
+        // (BlockOffset..BlockOffset + NumBlocks).step_by(block_factor). So the raw
+        // block span visited is [BlockOffset, BlockOffset + NumBlocks) and the number
+        // of blocks actually read back is ceil(NumBlocks / block_factor). To dump
+        // exactly one block at BlockOffset, set NumBlocks = 1.
         public uint NumBlocks;
 
         // true  => each page holds expected^actual (XOR against the last Verify's
@@ -294,6 +294,17 @@ namespace DDR4_TestingApp
         // the same geometry to bound its read loop. Reset on disconnect.
         private static (uint NumBlocks, uint BlockSize, uint BlockFactor)? lastGeometry;
 
+        /// <summary>
+        /// The sampling geometry (NumBlocks / BlockSize / BlockFactor) actually sent to
+        /// the server by the last successful <see cref="SendConfigAsync"/>, or null if no
+        /// Config has been applied since connecting (reset on disconnect). This is the ONLY
+        /// geometry the server will honor for a Dump: the live <c>Config.sys</c> can be
+        /// edited in the UI without re-applying, so any caller that must stay within the
+        /// block range the server actually has — e.g. the live block viewer — has to bound
+        /// itself against THIS, not against <c>Config.sys</c>.
+        /// </summary>
+        public static (uint NumBlocks, uint BlockSize, uint BlockFactor)? CommittedGeometry => lastGeometry;
+
         // The Rust server is single-threaded — at most one command in flight.
         // We enforce that on the client side too so two callers can't interleave
         // bytes on the wire.
@@ -430,37 +441,38 @@ namespace DDR4_TestingApp
         }
 
         /// <summary>
-        /// Number of CMD_DUMP frames the server will send for a dump of the
-        /// half-open block-index range [<paramref name="blockOffset"/>,
-        /// <paramref name="blockEndExclusive"/>) at the given Config geometry. The
-        /// server has no end-of-dump marker, so this is how the client knows when a
-        /// dump is finished. Mirrors dump_command in commands.rs:
-        ///   span          = max(0, blockEndExclusive - blockOffset)
-        ///   sampledBlocks = ceil(span / blockFactor)         (the step_by stride)
-        ///   pagesPerBlock = ceil(blockSize / PAGE_SIZE)      (page flush + trailing partial)
+        /// Number of CMD_DUMP frames the server will send for a dump of
+        /// <paramref name="numBlocks"/> blocks (starting at the command's BlockOffset)
+        /// at the given Config geometry. NumBlocks is a COUNT — the span length from
+        /// BlockOffset — matching dump_command's loop
+        ///   (block_offset .. block_offset + num_blocks).step_by(block_factor)
+        /// The server has no end-of-dump marker, so this is how the client knows when
+        /// a dump is finished:
+        ///   sampledBlocks = ceil(numBlocks / blockFactor)    (the step_by stride)
+        ///   pagesPerBlock = ceil(blockSize / PAGE_SIZE)       (page flush + trailing partial)
         ///   total         = sampledBlocks * pagesPerBlock
+        /// BlockOffset does not affect the count — it only shifts where the span starts.
         /// </summary>
-        public static long ExpectedDumpPages(
-            uint blockOffset, uint blockEndExclusive, uint blockSize, uint blockFactor)
+        public static long ExpectedDumpPages(uint numBlocks, uint blockSize, uint blockFactor)
         {
             if (blockFactor == 0)
                 throw new ArgumentException(
                     "BlockFactor must be >= 1 — the server does step_by(BlockFactor) and step_by(0) panics.",
                     nameof(blockFactor));
-            if (blockEndExclusive <= blockOffset || blockSize == 0)
+            if (numBlocks == 0 || blockSize == 0)
                 return 0;
 
-            long span = (long)blockEndExclusive - blockOffset;
-            long sampledBlocks = (span + blockFactor - 1) / blockFactor;
+            long sampledBlocks = ((long)numBlocks + blockFactor - 1) / blockFactor;
             long pagesPerBlock = ((long)blockSize + PAGE_SIZE - 1) / PAGE_SIZE;
             return sampledBlocks * pagesPerBlock;
         }
 
         /// <summary>
         /// Send a Dump command using the block_size / block_factor from the most
-        /// recent <see cref="SendConfigAsync"/> on this connection. The block-index
-        /// RANGE comes from <paramref name="d"/> (BlockOffset..NumBlocks). Throws if
-        /// no Config has been applied — use the explicit-geometry overload then.
+        /// recent <see cref="SendConfigAsync"/> on this connection. The starting block
+        /// and block COUNT come from <paramref name="d"/> (BlockOffset, NumBlocks).
+        /// Throws if no Config has been applied — use the explicit-geometry overload
+        /// then.
         /// </summary>
         public static Task<List<DumpPage>> SendDumpAsync(
             DumpCmd d,
@@ -479,14 +491,13 @@ namespace DDR4_TestingApp
 
         /// <summary>
         /// Send a Dump command with explicitly supplied block_size / block_factor
-        /// (the block-index range comes from <paramref name="d"/>). One response
-        /// frame is received per flushed page; each is reported via
+        /// (the starting block and block COUNT come from <paramref name="d"/>). One
+        /// response frame is received per flushed page; each is reported via
         /// <paramref name="onPage"/> as it arrives and also collected into the
         /// returned list. The frame count is
-        /// <see cref="ExpectedDumpPages"/>(d.BlockOffset, d.NumBlocks,
-        /// <paramref name="blockSize"/>, <paramref name="blockFactor"/>) — blockSize
-        /// and blockFactor MUST match the server's current CONFIG or the read loop
-        /// will desync.
+        /// <see cref="ExpectedDumpPages"/>(d.NumBlocks, <paramref name="blockSize"/>,
+        /// <paramref name="blockFactor"/>) — blockSize and blockFactor MUST match the
+        /// server's current CONFIG or the read loop will desync.
         /// </summary>
         public static async Task<List<DumpPage>> SendDumpAsync(
             DumpCmd d,
@@ -494,7 +505,7 @@ namespace DDR4_TestingApp
             IProgress<DumpPage>? onPage = null,
             CancellationToken ct = default)
         {
-            long expected = ExpectedDumpPages(d.BlockOffset, d.NumBlocks, blockSize, blockFactor);
+            long expected = ExpectedDumpPages(d.NumBlocks, blockSize, blockFactor);
 
             await sendLock.WaitAsync(ct).ConfigureAwait(false);
             try
@@ -705,7 +716,7 @@ namespace DDR4_TestingApp
         private static byte[] EncodeDump(DumpCmd c)
         {
             // u32  block_offset     @ 0  (4)
-            // u32  num_blocks       @ 4  (4)   (EXCLUSIVE end index — see DumpCmd)
+            // u32  num_blocks       @ 4  (4)   (COUNT of blocks from block_offset — see DumpCmd)
             // bool comparison_mode  @ 8  (1)
             //                       = 9 bytes
             var b = new byte[9];

@@ -120,6 +120,19 @@ namespace DDR4_TestingApp
             _uiTimer.Interval = 100;       // 10 Hz
             _uiTimer.Tick += UiTimer_Tick;
             _uiTimer.Start();
+
+            //Default settings
+            selection_size.SelectedIndex = 6;
+            block_size.SelectedIndex = 2;
+            block_factor.SelectedIndex = 5;
+            writeMode.SelectedIndex = 2;
+            verifyMode.SelectedIndex = 2;
+            prngSeed.Text = Random.Shared.Next(0, 100_000_000).ToString("D8");
+            dyn_pattern.SelectedIndex = 0;
+            dyn_trigger_threshold = 0.2f;
+            dyn_trigger_bar.Value = 20;
+            dyn_trigger_box.Text = "0.2";
+
         }
 
 
@@ -224,14 +237,56 @@ namespace DDR4_TestingApp
             // foreground op owns the connection. Without these guards each 100ms tick
             // queues another dump on the single serialized connection; they pile up
             // during a long task, flood out at the end, and starve the UUID/Info pollers.
-            
+
             if (connected && !Program.busy && !_viewerRefreshInProgress && !useLock.Checked)
             {
                 _viewerRefreshInProgress = true;
                 try
                 {
-                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                    await DumpTableFormatter.WriteDumpHexTableAsync(dataViewer, (uint) viewerBlockNum.Value, 1, 1, DATA_VIEWER_ROW_SIZE, viewerCmpMode.Checked, cts.Token);
+                    // Bound the request to the geometry the SERVER was actually configured
+                    // with (TcpManager.CommittedGeometry = the last applied Config), NOT the
+                    // live Config.sys. The combos mutate Config.sys without re-applying, and
+                    // the server reads each block at (block_index * BlockSize) with no bounds
+                    // check: an out-of-range index -> an out-of-region /dev/mem read, and a
+                    // BlockFactor of 0 -> step_by(0), and BOTH make the Rust server PANIC.
+                    // When the server dies it drops the socket mid-dump, which then cascades
+                    // into the client. If no Config has been applied there is nothing safe to
+                    // show, so skip the refresh entirely.
+                    var geo = TcpManager.CommittedGeometry;
+                    if (geo.HasValue && geo.Value.BlockFactor > 0 && geo.Value.NumBlocks >= geo.Value.BlockFactor)
+                    {
+                        var g = geo.Value;
+
+                        // Blocks the sampling actually wrote: 0, BlockFactor, 2*BlockFactor, ...
+                        // The viewer index selects among THOSE, so it maps to raw block
+                        // (index * BlockFactor) and never lands on a skipped/untouched block
+                        // (which, in comparison mode, would read back as spurious errors).
+                        uint sampledBlocks = g.NumBlocks / g.BlockFactor;
+
+                        // Keep the NumericUpDown's own range in sync so typed/spinner input
+                        // can't request a block past the sampled set either (it had no Maximum
+                        // set, so it defaulted to 100 regardless of the actual block count).
+                        if (viewerBlockNum.Maximum != sampledBlocks - 1)
+                            viewerBlockNum.Maximum = sampledBlocks - 1;
+                        viewerBlockNum.Minimum = 0;
+
+                        uint sampledIndex = Math.Min((uint)viewerBlockNum.Value, sampledBlocks - 1);
+                        uint blockOffset = sampledIndex * g.BlockFactor;   // raw index of that sampled block
+                        // blockOffset * BlockSize < NumBlocks * BlockSize = selection_size,
+                        // and selection_size maxes at 1 GB << the 4 GiB mapped region, so this
+                        // address is guaranteed in range -> the server can never read past it.
+
+                        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                        await DumpTableFormatter.WriteDumpHexTableAsync(
+                            dataViewer,
+                            blockOffset,                 // blockOffset (inclusive) — a real sampled block
+                            1,                           // numBlocks is now a COUNT -> dump exactly this one block
+                            1,                           // unitSize (one byte per cell)
+                            DATA_VIEWER_ROW_SIZE,        // rowSize (columns)
+                            viewerCmpMode.Checked,       // comparisonMode
+                            DATA_VIEWER_RENDER_SIZE,     // cap the RENDER so the 10 Hz refresh can't freeze the UI
+                            cts.Token);
+                    }
                 }
                 catch (OperationCanceledException) { /* skip this cycle; retry next tick */ }
                 catch (Exception) { /* transient background-refresh error; ignore */ }
@@ -243,8 +298,16 @@ namespace DDR4_TestingApp
 
         public void statusUpdate_Tick(object? sender, EventArgs e)
         {
-            //Attempt to update task indicator
-            taskProgress.Value = (int)Program.taskProgress;
+            //Attempt to update task indicator.
+            // A ToolStripProgressBar throws ArgumentOutOfRangeException if Value is
+            // set outside [Minimum, Maximum]. Program.taskProgress is a float driven
+            // by several sources (server percent, dump address/extent ratio, ...) and
+            // can legitimately land outside 0-100 (NaN/Inf on a bad ratio, or >100 if
+            // the UI's BlockSize no longer matches the applied/server geometry). This
+            // handler runs at 50 Hz with no try/catch, so an unclamped assignment here
+            // is a hard, uncaught crash. Saturating float->int + clamp makes it safe.
+            int pct = (int)Program.taskProgress;                       // NaN -> 0, +/-Inf saturate on .NET 5+
+            taskProgress.Value = Math.Clamp(pct, taskProgress.Minimum, taskProgress.Maximum);
             //taskInfo.Text = Program.taskInfo;
             taskName.Text = Program.taskName;
 
@@ -459,7 +522,7 @@ namespace DDR4_TestingApp
 
                 verificationResults.Text =
                     $"Finished verification in {seconds:F2} seconds!\n\n" +
-                    $"Correct bits:   {rsp.NumCorrect:N0}\n" +
+                    $"Correct bits:   {rsp.NumCorrect:N0} ({Tools.FormatBytes(rsp.NumCorrect / 8)})\n" +
                     $"Incorrect bits: {rsp.NumIncorrect:N0}\n\n" +
                     $"{corruptedPercent:F2}% of the bits were corrupted.";
 
@@ -494,7 +557,7 @@ namespace DDR4_TestingApp
 
                 verificationResults.Text =
                     $"Finished verification in {seconds:F2} seconds!\n\n" +
-                    $"Correct bits:   {final.NumCorrect:N0}\n" +
+                    $"Correct bits:   {final.NumCorrect:N0} ({Tools.FormatBytes(final.NumCorrect / 8)})\n" +
                     $"Incorrect bits: {final.NumIncorrect:N0}\n\n" +
                     $"{corruptedPercent:F2}% of the bits were corrupted.";
 
@@ -541,6 +604,14 @@ namespace DDR4_TestingApp
 
         private void applyConfiguration_Click(object sender, EventArgs e)
         {
+            // Derive NumBlocks (= selection_size / BlockSize) and sample_size from the
+            // current combo selections BEFORE sending. The combo handlers only set
+            // selection_size / BlockSize / BlockFactor individually and never recompute
+            // NumBlocks, so without this the struct's stale NumBlocks is what gets sent to
+            // the server and cached as the committed geometry — leaving the client and
+            // server disagreeing on the block count, which is what let the viewer address
+            // out of range in the first place.
+            DDR4_TestingApp.Config.updateCalculations();
             DDR4_TestingApp.Config.apply();
         }
 
@@ -643,15 +714,19 @@ namespace DDR4_TestingApp
 
         private void DataViewerScrollUp_Click(object sender, EventArgs e)
         {
-            //Scroll if possible
-            if (viewerBlockNum.Value > 0) viewerBlockNum.Value = viewerBlockNum.Value - 1;
+            // Step to the previous sampled block (bounded by the control's Minimum).
+            if (viewerBlockNum.Value > viewerBlockNum.Minimum) viewerBlockNum.Value = viewerBlockNum.Value - 1;
 
         }
 
         private void DataViewerScrollDown_Click(object sender, EventArgs e)
         {
-            //Scroll if possible
-            if (viewerBlockNum.Value < DDR4_TestingApp.Config.sys.NumBlocks / DDR4_TestingApp.Config.sys.BlockFactor) viewerBlockNum.Value = viewerBlockNum.Value + 1;
+            // Step to the next sampled block. Maximum is kept in sync with the applied
+            // geometry (sampledBlocks - 1) by the viewer refresh, so this can't scroll past
+            // the blocks the server actually has. NOTE: the old bound divided
+            // Config.sys.NumBlocks by Config.sys.BlockFactor inline, which threw
+            // DivideByZeroException whenever BlockFactor was 0 (e.g. before any Config).
+            if (viewerBlockNum.Value < viewerBlockNum.Maximum) viewerBlockNum.Value = viewerBlockNum.Value + 1;
 
         }
 
@@ -1009,11 +1084,17 @@ namespace DDR4_TestingApp
             {
                 var pages = await TcpManager.SendDumpAsync(cmd, progress, cts.Token);
 
-                // Persist raw bytes to disk.
+                // Persist raw bytes to disk. A whole-chip dump can be tens-to-hundreds
+                // of MB and this continuation resumes on the UI thread, so writing
+                // inline would freeze the window for the whole write. Read the control
+                // text here (UI thread), then do the file I/O on a worker thread.
                 string path = Path.Combine(dumpPath.Text, dumpFileName.Text + ".bin");
-                using (var fs = File.Create(path))
+                await Task.Run(() =>
+                {
+                    using var fs = File.Create(path);
                     foreach (var page in pages)
                         fs.Write(page.Data, 0, page.Data.Length);
+                }, cts.Token);
 
                 long totalBytes = pages.Sum(p => (long)p.Data.Length);
                 long totalErrors = pages.Sum(p => (long)p.NumErrors);

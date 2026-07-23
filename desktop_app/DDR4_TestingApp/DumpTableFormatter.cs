@@ -11,8 +11,8 @@ namespace DDR4_TestingApp
     public static class DumpTableFormatter
     {
         /// <summary>
-        /// Dumps the block-index range [<paramref name="blockOffset"/>,
-        /// <paramref name="numBlocks"/>) via TcpManager's dump command and renders
+        /// Dumps <paramref name="numBlocks"/> blocks starting at
+        /// <paramref name="blockOffset"/> via TcpManager's dump command and renders
         /// the returned bytes as a labeled hex table, e.g. (unitSize=1, rowSize=16):
         ///
         ///     ---- 0x0 0x1 0x2 0x3 0x4 0x5 0x6 0x7 0x8 0x9 0xA 0xB 0xC 0xD 0xE 0xF
@@ -34,8 +34,8 @@ namespace DDR4_TestingApp
         /// sampled blocks. Row labels are the true byte addresses the server sent
         /// (block b starts at byte b*BlockSize). When the configured block_factor
         /// is &gt; 1 the sampled blocks aren't address-contiguous, so the table
-        /// restarts its header at each address gap. NumBlocks is an EXCLUSIVE END
-        /// block index, not a count (see TcpManager.DumpCmd).
+        /// restarts its header at each address gap. NumBlocks is a COUNT of blocks
+        /// to dump from blockOffset, not an end index (see TcpManager.DumpCmd).
         ///
         /// See <see cref="WriteDumpHexTableAsync"/> for a version that renders
         /// straight into a RichTextBox with the row/column labels bolded,
@@ -113,6 +113,14 @@ namespace DDR4_TestingApp
         /// Consolas, Courier New) - a proportional font like the WinForms
         /// default will render every cell a different width regardless of
         /// how carefully the text is space-padded.
+        ///
+        /// <paramref name="maxRenderBytes"/> caps how many bytes are actually
+        /// RENDERED (0 = unlimited). This is a render-side limit only: the dump
+        /// still comes over the wire whole (block dumps have a one-block
+        /// minimum). It exists so a caller that redraws on a timer - e.g. the
+        /// live viewer at 10 Hz - can request a whole 64 KB block and only pay
+        /// to draw a small window of it, instead of building tens of thousands
+        /// of RichTextBox segments on the UI thread every tick and freezing it.
         /// </summary>
         public static async Task WriteDumpHexTableAsync(
             RichTextBox target,
@@ -121,6 +129,7 @@ namespace DDR4_TestingApp
             uint unitSize,
             uint rowSize,
             bool comparisonMode = false,
+            uint maxRenderBytes = 0,
             CancellationToken ct = default)
         {
             if (target is null)
@@ -129,7 +138,7 @@ namespace DDR4_TestingApp
 
             List<DumpPage> pages = await FetchPagesAsync(blockOffset, numBlocks, comparisonMode, ct)
                 .ConfigureAwait(false);
-            List<HexTableSegment> segments = BuildHexTableSegmentsForPages(pages, unitSize, rowSize);
+            List<HexTableSegment> segments = BuildHexTableSegmentsForPages(pages, unitSize, rowSize, maxRenderBytes);
 
             if (target.InvokeRequired)
                 target.Invoke(new Action(() => RenderSegments(target, segments)));
@@ -140,11 +149,11 @@ namespace DDR4_TestingApp
         private static void ValidateBlockRange(
             uint blockOffset, uint numBlocks, uint unitSize, uint rowSize)
         {
-            if (numBlocks <= blockOffset)
+            if (numBlocks == 0)
                 throw new ArgumentOutOfRangeException(nameof(numBlocks),
-                    $"empty block range: numBlocks ({numBlocks}) must be > blockOffset ({blockOffset}). " +
-                    "numBlocks is an EXCLUSIVE END index, not a count — the server loops " +
-                    "block_offset..num_blocks.");
+                    "empty block range: numBlocks must be >= 1. numBlocks is now a COUNT of " +
+                    "blocks to dump starting at blockOffset (not an end index) — the server " +
+                    "loops (block_offset..block_offset + num_blocks).");
             if (unitSize == 0)
                 throw new ArgumentOutOfRangeException(nameof(unitSize), "must be > 0");
             if (rowSize == 0)
@@ -152,7 +161,9 @@ namespace DDR4_TestingApp
         }
 
         /// <summary>
-        /// Issues the dump for the block-index range [blockOffset, numBlocks) and
+        /// Issues the dump for <paramref name="numBlocks"/> blocks starting at
+        /// <paramref name="blockOffset"/> (the server loops
+        /// block_offset..block_offset + num_blocks, stepped by block_factor) and
         /// returns the pages exactly as the server sent them (each carrying its own
         /// start address). No trimming or page-alignment — a block dump comes back
         /// whole. Uses the block_size / block_factor cached by the last
@@ -182,7 +193,7 @@ namespace DDR4_TestingApp
         /// table, identical to the old address-range renderer.
         /// </summary>
         private static List<HexTableSegment> BuildHexTableSegmentsForPages(
-            List<DumpPage> pages, uint unitSize, uint rowSize)
+            List<DumpPage> pages, uint unitSize, uint rowSize, uint maxRenderBytes = 0)
         {
             var segments = new List<HexTableSegment>();
             if (pages is null || pages.Count == 0)
@@ -192,9 +203,14 @@ namespace DDR4_TestingApp
             var ordered = new List<DumpPage>(pages);
             ordered.Sort((a, b) => a.Address.CompareTo(b.Address));
 
+            // Render budget: 0 == unlimited. Otherwise stop after this many bytes
+            // have been laid out, trimming the run that crosses the limit. Keeps a
+            // 10 Hz redraw of a whole block from building ~8000 segments per tick.
+            long remaining = maxRenderBytes == 0 ? long.MaxValue : maxRenderBytes;
+
             bool firstRun = true;
             int i = 0;
-            while (i < ordered.Count)
+            while (i < ordered.Count && remaining > 0)
             {
                 uint runBase = ordered[i].Address;
                 var runData = new List<byte>(ordered[i].Data);
@@ -209,13 +225,19 @@ namespace DDR4_TestingApp
                     i++;
                 }
 
+                // Trim this run to whatever render budget is left.
+                byte[] runArr = runData.ToArray();
+                if (runArr.Length > remaining)
+                    Array.Resize(ref runArr, (int)remaining);
+                remaining -= runArr.Length;
+
                 // Blank line between non-contiguous runs so the tables don't abut.
                 if (!firstRun)
                     segments.Add(new HexTableSegment("\n", isLabel: false));
                 firstRun = false;
 
                 segments.AddRange(
-                    BuildHexTableSegments(runBase, runData.ToArray(), unitSize, rowSize));
+                    BuildHexTableSegments(runBase, runArr, unitSize, rowSize));
             }
 
             return segments;
