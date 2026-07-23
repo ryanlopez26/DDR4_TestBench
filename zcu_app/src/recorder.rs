@@ -37,6 +37,9 @@ pub fn init() -> std::io::Result<()> {
             Some("txt") => {
                 //Ignore as this is most likely a test config summary
             }
+            Some("bin") => {
+
+            }
             _ => eprintln!("invalid file type in zcuLogs: {}", path.display()),
         }
     }

@@ -45,6 +45,7 @@ pub struct DynamicCmd {
 #[repr(C)]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DumpCmd {
+    pub block_offset: u32,
     pub num_blocks: u32,
     pub comparison_mode: bool
 }

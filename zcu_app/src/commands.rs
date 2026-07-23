@@ -1012,7 +1012,7 @@ pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd, v_cmd: &VerifyCmd) {
     let mut num_errors: u64 = 0;
     let mut page_addr: u32 = 0;
 
-    for blk_ind in (0..config.num_blocks).step_by(config.block_factor as usize) {
+    for blk_ind in (cmd.block_offset..config.num_blocks).step_by(config.block_factor as usize) {
         // usize math to avoid the u32 overflow we discussed
         let block_start = blk_ind * config.block_size ;
         let block_end   = block_start + config.block_size;
