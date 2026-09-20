@@ -7,8 +7,8 @@
    "Color Coded_ScaleFactor":"0.61759",
    "Color Coded_TopLeft":"-159,-5",
    "Default View_Layers":"/rst_ps8_0_100M_peripheral_aresetn:true|/zynq_ultra_ps_e_0_pl_resetn1:true|/ddr4_0_c0_ddr4_ui_clk:true|/zynq_ultra_ps_e_0_pl_clk0:true|/rst_ddr4_0_266M_peripheral_aresetn:true|",
-   "Default View_ScaleFactor":"0.974216",
-   "Default View_TopLeft":"128,411",
+   "Default View_ScaleFactor":"1.01808",
+   "Default View_TopLeft":"-255,285",
    "Display-IntfOthers":"true",
    "Display-IntfTypeAXIMM":"true",
    "Display-PortTypeClock":"true",
@@ -40,8 +40,8 @@ pagesize -pg 1 -db -bbox -sgen -130 0 1250 200
 #  -string -flagsOSRD
 preplace port ddr4_sdram_0 -pg 1 -lvl 5 -x 1710 -y 550 -defaultsOSRD
 preplace port clk_300mhz -pg 1 -lvl 0 -x -10 -y 750 -defaultsOSRD
-preplace portBus led_0 -pg 1 -lvl 4 -x 1440 -y 110 -defaultsOSRD -top
-preplace portBus beam_signal -pg 1 -lvl 0 -x -10 -y 230 -defaultsOSRD
+preplace portBus led_0 -pg 1 -lvl 4 -x 1440 -y 150 -defaultsOSRD -top
+preplace portBus beam_signal -pg 1 -lvl 3 -x 1240 -y 150 -defaultsOSRD -top
 preplace inst zynq_ultra_ps_e_0 -pg 1 -lvl 1 -x 320 -y 550 -defaultsOSRD
 preplace inst smartconnect_0 -pg 1 -lvl 2 -x 820 -y 540 -defaultsOSRD
 preplace inst debug_leds_0 -pg 1 -lvl 4 -x 1540 -y 470 -defaultsOSRD
@@ -50,22 +50,22 @@ preplace inst ilconcat_0 -pg 1 -lvl 4 -x 1540 -y 260 -defaultsOSRD
 preplace inst proc_sys_reset_DDR -pg 1 -lvl 2 -x 820 -y 1170 -defaultsOSRD
 preplace inst proc_sys_reset_PL -pg 1 -lvl 1 -x 320 -y 850 -defaultsOSRD
 preplace inst util_vector_logic_4 -pg 1 -lvl 2 -x 820 -y 690 -defaultsOSRD
-preplace netloc beam_signal_1 1 0 4 NJ 230 NJ 230 NJ 230 NJ
-preplace netloc ddr4_0_c0_ddr4_ui_clk 1 1 3 650 450 NJ 450 1390
-preplace netloc ddr4_0_c0_init_calib_complete 1 3 1 1410 250n
-preplace netloc debug_leds_0_led 1 4 1 1680 120n
-preplace netloc ilconcat_0_dout 1 1 4 620J 430 NJ 430 1380J 550 1670
-preplace netloc ilvector_logic_1_Res 1 0 2 20 740 620
+preplace netloc beam_signal_1 1 3 1 1360 160n
+preplace netloc ddr4_0_c0_ddr4_ui_clk 1 1 3 650 630 NJ 630 1370
+preplace netloc ddr4_0_c0_init_calib_complete 1 3 1 1380 490n
+preplace netloc debug_leds_0_led 1 3 2 1410 190 1680
+preplace netloc ilconcat_0_dout 1 1 4 620J 450 NJ 450 1360J 550 1670
+preplace netloc ilvector_logic_1_Res 1 0 2 30 740 620
 preplace netloc proc_sys_reset_DDR_peripheral_aresetn 1 2 1 1000 790n
-preplace netloc proc_sys_reset_PL_peripheral_aresetn 1 1 1 640 570n
+preplace netloc proc_sys_reset_PL_peripheral_aresetn 1 1 1 630 570n
 preplace netloc util_vector_logic_4_Res 1 2 1 990 690n
-preplace netloc zynq_ultra_ps_e_0_pl_clk0 1 0 4 10 450 630 440 NJ 440 1370
+preplace netloc zynq_ultra_ps_e_0_pl_clk0 1 0 4 20 450 610 440 NJ 440 1380
 preplace netloc clk_300mhz_1 1 0 3 NJ 750 NJ 750 NJ
-preplace netloc ddr4_0_C0_DDR4 1 3 2 NJ 720 1690J
+preplace netloc ddr4_0_C0_DDR4 1 3 2 NJ 730 1690J
 preplace netloc smartconnect_0_M00_AXI 1 2 1 1000 540n
 preplace netloc zynq_ultra_ps_e_0_M_AXI_HPM0_FPD 1 1 1 N 510
 levelinfo -pg 1 -10 320 820 1200 1540 1710
-pagesize -pg 1 -db -bbox -sgen -170 0 1860 1270
+pagesize -pg 1 -db -bbox -sgen -180 0 1860 1270
 "
 }
 {
