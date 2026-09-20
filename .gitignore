@@ -30,6 +30,7 @@ EDF/build/.hw-description/
 */*.hw/
 */*.ip_user_files/
 */*.hbs
+*/*.srcs/utils_*
 
 # Vivado log and journal files
 */*.log
