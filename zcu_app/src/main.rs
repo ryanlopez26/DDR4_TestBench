@@ -1,4 +1,4 @@
-
+use std::{sync::RwLock, thread::{self, JoinHandle}};
 mod server;
 mod types;
 mod rand;
@@ -10,18 +10,34 @@ mod chip;
 mod vram;
 mod gpio;
 mod record;
+mod run;
 mod task_engine;
-mod recorder;
+mod archive;
 mod tools;
+
+static THREADS: RwLock<Vec<JoinHandle<()>>> = RwLock::new(Vec::new()); 
+static PM: RwLock<PowerManager> = RwLock::new(PowerManager { power_request: 0, safe: false });
+
+
+// External power control
+pub struct PowerManager {
+
+    // Run request (0 = active, 1 = shutdown, 2 = reboot)
+    pub power_request: u8,
+
+    // Safeguard status - Whether or not it is safe to request power change
+    pub safe: bool
+}
+
 
 fn main() {
 
-    println!("ZCU Server V3");
+    println!("ZCU Server V3 - NSRL Edition");
 
     //Attempt to load configuration file
     config::load();
     
-    //Initially memory provider
+    //Load the memory provider
     if crate::config::SIMULATION_MODE {
         //Initalize simulated ram
         vram::init().unwrap();
@@ -38,7 +54,21 @@ fn main() {
     }
 
     //Initialize data recorder
-    recorder::init().unwrap();
+    archive::init();
+
+    //Task Engine
+    {
+        //Spawn a new thread for the task engine
+        let mut threads = THREADS.write().unwrap();
+
+        threads.push(
+            thread::spawn(
+                || {
+                    task_engine::engine_main();
+                }
+            )
+        );
+    }
 
     //Start ZCU server
     server::run("0.0.0.0:8080").unwrap();    

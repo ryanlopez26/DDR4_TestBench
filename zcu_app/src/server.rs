@@ -23,12 +23,16 @@
 
 use std::io::{self, Read, Write};
 use std::net::{TcpListener, TcpStream, ToSocketAddrs};
+use std::ops::Deref;
+use std::thread;
 
 use bincode::Options;
 use serde::de::DeserializeOwned;
 
-use crate::types::{ConfigCmd, DumpCmd, DynamicCmd, UUIDCmd, VerifyCmd, WriteCmd};
-use crate::config::*;
+use crate::record::RecordType;
+use crate::task_engine::TaskRequest;
+use crate::types::{ConfigCmd, DumpCmd, DynamicCmd, GetCaptureCmd, GetRecordCmd, GetRunCmd, SaveRunCmd, VerifyCmd, WriteCmd};
+use crate::{THREADS, archive, config::*, task_engine};
 
 // --- framing helpers -------------------------------------------------------
 
@@ -111,59 +115,59 @@ pub fn send_response(stream: &mut TcpStream, cmd: u8, payload: Vec<u8>) -> io::R
     stream.write_all(&packet)
 }
 
-// --- connection handler ----------------------------------------------------
-
-fn handle_client(mut stream: TcpStream) -> io::Result<()> {
+// Connection handler
+fn handle_client(mut stream: TcpStream) {
     
-    let peer = stream.peer_addr()?;
+    let peer = stream.peer_addr().unwrap();
 
 
     println!("[+] Client connected: {}", peer);
 
-    // The settings used in the last verify operation (needed for differential dump)
-    let mut last_verify_parameters: VerifyCmd = VerifyCmd { pattern: 0, seed: 0, uuid: 0};
-
     loop {
         // --- SYNC ---
-        let sync = read_u32_be(&mut stream)?;
+        let sync = read_u32_be(&mut stream).unwrap();
         if sync != SYNC_MARKER {
             eprintln!(
                 "[!] {}: bad SYNC 0x{:08X}, expected 0x{:08X} — dropping connection",
                 peer, sync, SYNC_MARKER
             );
-            return Ok(());
+            return;
         }
 
         // --- CMD ---
-        let cmd = read_u8(&mut stream)?;
+        let cmd = read_u8(&mut stream).unwrap();
 
         // --- LENGTH ---
-        let length = read_u16_be(&mut stream)? as usize;
+        let length = read_u16_be(&mut stream).unwrap();
 
         // --- PAYLOAD ---
-        let payload = read_n(&mut stream, length)?;
+        let payload = read_n(&mut stream, length as usize).unwrap();
 
         // --- TERM ---
-        let term = read_u32_be(&mut stream)?;
+        let term = read_u32_be(&mut stream).unwrap();
         if term != TERM_MARKER {
             eprintln!(
                 "[!] {}: bad TERM 0x{:08X}, expected 0x{:08X} — dropping connection",
                 peer, term, TERM_MARKER
             );
-            return Ok(());
+            return;
         }
 
         // Dispatch on CMD. Each arm hands `payload` to serde via bincode.
         match cmd {
             CMD_WRITE => match parse_payload::<WriteCmd>(&payload) {
                 Ok(w) => {
-                    println!(
-                        "[{}] Write {{ pattern: 0x{:02X}, seed: 0x{:016X} }}",
-                        peer, w.pattern, w.seed
-                    );
-                    
-                    //Execute command
-                    crate::commands::write_command(&mut stream, w);
+
+                    // Lock task engine command
+                    let mut tcmd = task_engine::CMD.write().unwrap();
+
+                    // Add command to task engine
+                    tcmd.task_queue.push(
+                        TaskRequest {
+                            rtype: RecordType::Write,
+                            rid: w.uuid,
+                        }
+                    );                    
 
                 }
                 Err(e) => eprintln!("[!] {}: invalid Write payload: {}", peer, e),
@@ -171,31 +175,38 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
 
             CMD_VERIFY => match parse_payload::<VerifyCmd>(&payload) {
                 Ok(v) => {
-                    println!(
-                        "[{}] Verify {{ pattern: 0x{:02X}, seed: 0x{:016X}}}",
-                        peer, v.pattern, v.seed
-                    );
 
-                    //Save parameters
-                    last_verify_parameters = v.clone();
-                    
-                    //Execute command
-                    crate::commands::verify_command(&mut stream, v);
+                    // Lock task engine command
+                    let mut tcmd = task_engine::CMD.write().unwrap();
+
+                    // Add command to task engine
+                    tcmd.task_queue.push(
+                        TaskRequest {
+                            rtype: RecordType::Verify,
+                            rid: v.uuid,
+                        }
+                    );             
+
                 }
                 Err(e) => eprintln!("[!] {}: invalid Verify payload: {}", peer, e),
             },
 
-            CMD_DUMP => match parse_payload::<DumpCmd>(&payload) {
-                Ok(d) => {
-                    // println!(
-                    //     "[{}] Dump {{ offset: 0x{:08X}, num_pages: {}, comparison_mode: {} }}",
-                    //     peer, d.offset_start, d.num_pages, d.comparison_mode
-                    // );
+            CMD_READ => match parse_payload::<DumpCmd>(&payload) {
+                Ok(r) => {
 
-                    //Execute command
-                    crate::commands::dump_command(&mut stream, d, &last_verify_parameters);
+                    // Lock task engine command
+                    let mut tcmd = task_engine::CMD.write().unwrap();
+
+                    // Add command to task engine
+                    tcmd.task_queue.push(
+                        TaskRequest {
+                            rtype: RecordType::Read,
+                            rid: r.uuid,
+                        }
+                    );             
+
                 }
-                Err(e) => eprintln!("[!] {}: invalid Dump payload: {}", peer, e),
+                Err(e) => eprintln!("[!] {}: invalid Read payload: {}", peer, e),
             },
 
             CMD_CONFIG => match parse_payload::<ConfigCmd>(&payload) {
@@ -214,35 +225,74 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
 
             CMD_DYNAMIC => match parse_payload::<DynamicCmd>(&payload) {
                 Ok(c) => {
-                    println!(
-                        "[{}] Dynamic {{ pattern: 0x{:02X}, seed: 0x{:016X}, sample_size_in_bytes: {}, wait_for_beam: {}, trigger_threshold: {} }}",
-                        peer, c.pattern, c.seed, c.sample_size_in_bytes, c.wait_for_beam, c.trigger_threshold
-                    );
 
-                    //Execute command
-                    crate::commands::dynamic_command(&mut stream, c);
+                    // Lock task engine command
+                    let mut tcmd = task_engine::CMD.write().unwrap();
+
+                    // Add command to task engine
+                    tcmd.task_queue.push(
+                        TaskRequest {
+                            rtype: RecordType::Dynamic,
+                            rid: c.uuid,
+                        }
+                    );             
+
                 }
                 Err(e) => eprintln!("[!] {}: invalid Dynamic payload: {}", peer, e),
             },
-
-            CMD_UUID => match parse_payload::<UUIDCmd>(&payload) {
-                Ok(c) => {
-                    println!(
-                        "[{}] UUID Validate {{ uuid: {} }}",
-                        peer,
-                        c.uuid
-                    );
-
-                    //Execute command
-                    crate::commands::uuid_command(&mut stream, c);
-                }
-                Err(e) => eprintln!("[!] {}: invalid UUID payload: {}", peer, e),
-            },
-
             CMD_INFO => {
                 crate::commands::info_command(&mut stream);
             },
+            CMD_GENRUN => {
+                crate::commands::genrun_command(&mut stream);
+            },
+            CMD_GENRECORD => {
+                crate::commands::genrecord_command(&mut stream);
+            },
+            CMD_SAVERUN => match parse_payload::<SaveRunCmd>(&payload) {
+                Ok(c) => {
+                    // Save run
+                    crate::commands::saverun_command(&mut stream, c);   
+                }
+                Err(e) => eprintln!("[!] {}: invalid save run payload: {}", peer, e),
+            },
+            CMD_ABORT => {
+                // Lock task engine command
+                let mut tcmd = task_engine::CMD.write().unwrap();
 
+                // Set abort signal
+                tcmd.abort_task = true;
+            },
+            CMD_GETRECORD => match parse_payload::<GetRecordCmd>(&payload) {
+                Ok(c) => {
+
+                    // Send record to client
+                    crate::commands::getrecord_command(&mut stream, c);   
+
+                }
+                Err(e) => eprintln!("[!] {}: invalid save run payload: {}", peer, e),
+            },
+            CMD_GETRUN => match parse_payload::<GetRunCmd>(&payload) {
+                Ok(c) => {
+
+                    // Send run to client
+                    crate::commands::getrun_command(&mut stream, c);   
+
+                }
+                Err(e) => eprintln!("[!] {}: invalid save run payload: {}", peer, e),
+            },
+            CMD_GETCAPTURE => match parse_payload::<GetCaptureCmd>(&payload) {
+                Ok(c) => {
+
+                    // Send capture to client
+                    crate::commands::getcapture_command(&mut stream, c);   
+
+                }
+                Err(e) => eprintln!("[!] {}: invalid save run payload: {}", peer, e),
+            },
+            CMD_ENGINESTATUS => {
+                crate::commands::enginestatus_command(&mut stream);
+            },
             other => eprintln!("[!] {}: unknown CMD 0x{:02X}", peer, other),
         }
     }
@@ -258,15 +308,20 @@ pub fn run<A: ToSocketAddrs>(addr: A) -> io::Result<()> {
     for incoming in listener.incoming() {
         match incoming {
             Ok(stream) => {
-                let peer = stream.peer_addr().ok();
-                match handle_client(stream) {
-                    Ok(()) => println!("[-] client {:?} disconnected", peer),
-                    Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => {
-                        println!("[-] client {:?} disconnected", peer);
-                    }
-                    Err(e) => eprintln!("[!] client {:?} error: {}", peer, e),
-                }
-                // Loop continues; next client is accepted only now.
+
+                // A client connected! 
+
+                //Spawn a new client handler thread
+                let mut threads = THREADS.write().unwrap();
+
+                threads.push(
+                    thread::spawn(
+                        || {
+                            handle_client(stream);
+                        }
+                    )
+                );
+                
             }
             Err(e) => eprintln!("[!] accept error: {}", e),
         }

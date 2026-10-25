@@ -1,7 +1,7 @@
 use std::{fs, sync::{LazyLock, RwLock}};
 use serde::Serialize;
 
-use crate::types::ConfigCmd;
+use crate::{rand, types::ConfigCmd};
 
 
 pub const SIMULATION_MODE: bool = false; // If true, the app will simulate read/write operations instead of performing real hardware access. Useful for testing and development without hardware.
@@ -11,11 +11,20 @@ pub const TERM_MARKER: u32 = 0xCAFE_BABE;
 
 pub const CMD_WRITE: u8 = 0x01;
 pub const CMD_VERIFY: u8 = 0x02;
-pub const CMD_DUMP: u8 = 0x03;
+pub const CMD_READ: u8 = 0x03;
 pub const CMD_CONFIG: u8 = 0x04;
 pub const CMD_DYNAMIC: u8 = 0x05;
 pub const CMD_INFO: u8 = 0x06;
-pub const CMD_UUID: u8 = 0x07;
+pub const CMD_GENRUN: u8 = 0x07;
+pub const CMD_GENRECORD: u8 = 0x08;
+pub const CMD_SAVERUN: u8 = 0x09;
+pub const CMD_ABORT: u8 = 0x0A;
+pub const CMD_GETRECORD: u8 = 0x0B;
+pub const CMD_GETRUN: u8 = 0x0C;
+pub const CMD_GETCAPTURE: u8 = 0x0D;
+pub const CMD_ENGINESTATUS: u8 = 0x0E;
+pub const CMD_GETPOWERMODE: u8 = 0x0F;
+
 pub const PAGE_SIZE: usize = 1024; // Size of data pages for dump responses
 
 pub const UPDATE_FREQUENCY_MS: f32 = 100.0; // Frequency of progress updates during long operations
@@ -32,57 +41,58 @@ pub static CONFIG: LazyLock<RwLock<ConfigCmd>> = LazyLock::new(|| {
         fpga_auto_config: false,
         pattern_seed: 0,
         data_pattern: 0,
+        sefi_threshold: 0.0,
+        automated_sefi_mode: false,
     })
 });
 
 pub fn save(){
 
-    //Attempt to get read lock
-    match CONFIG.try_read() {
-        Ok(c) => {
+    //Get read lock
+    let c = CONFIG.read().unwrap();
 
-            //Write the structure to a file
-            match fs::write("config.bin", bincode::serialize::<ConfigCmd>(&*c).unwrap()) {
-                Ok(_) => {
-                    println!("Saved configuration!");
-                },
-                Err(e) => {
-                    println!("Failed to save configuration: {:?}", e);
-                },
-            }
+    //Write the structure to a file
+    match fs::write("config.bin", bincode::serialize::<ConfigCmd>(&c).unwrap()) {
+        Ok(_) => {
+            println!("Saved configuration!");
         },
-        Err(_) => todo!(),
+        Err(e) => {
+            println!("Failed to save configuration: {:?}", e);
+        },
     }
+
+    //Reload RNG
+    rand::set_seed(c.pattern_seed);
 }
 
 pub fn load(){
 
-    //Attempt to get read lock
-    match CONFIG.try_write() {
-        Ok(mut c) => {
+    //Get read lock
+    let mut c = CONFIG.write().unwrap();
 
-            match fs::read("config.bin") {
+    match fs::read("config.bin") {
 
-                Ok(contents) => {
+        Ok(contents) => {
 
-                    //Attempt to convert bytes to struct config
-                    match(bincode::deserialize::<ConfigCmd>(&contents)){
-                        Ok(data ) => {
-                            *c = data;
-                            
-                            //Attempt to load configuration
-                            println!("Configuration loaded!");
-                        },
-                        Err(_) => {println!("Configuration file is invalid. Not loaded.")},
-                    }
-
-
+            //Attempt to convert bytes to struct config
+            match bincode::deserialize::<ConfigCmd>(&contents) {
+                Ok(data ) => {
+                    *c = data;
+                    
+                    //Attempt to load configuration
+                    println!("Configuration loaded!");
                 },
-                Err(e) => {
-                    println!("Failed to locate configuration file: {:?}", e);
-                },
+                Err(_) => {println!("Configuration file is invalid. Not loaded.")},
             }
+
+
         },
-        Err(_) => todo!(),
+        Err(e) => {
+            println!("Failed to locate configuration file: {:?}", e);
+        },
     }
+
+    //Reload RNG
+    rand::set_seed(c.pattern_seed);
+
 }

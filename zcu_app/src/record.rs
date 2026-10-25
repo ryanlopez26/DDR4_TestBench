@@ -46,8 +46,8 @@ pub struct Record {
     pub err_bins: Option<[u64; 9]>,
 
     // For SEFI test
-    pub time_to_sefi: f64,
-    pub exposure_time_ms: Option<f64>,
+    pub time_to_sefi: Option<f64>,
+    pub exposure_time: Option<f64>,
 
 
     // ============================= Data Logs ================================

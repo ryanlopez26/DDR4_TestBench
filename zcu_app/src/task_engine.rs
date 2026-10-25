@@ -1,8 +1,9 @@
 use std::{path::Path, sync::{LazyLock, RwLock}, time::{Instant, SystemTime, UNIX_EPOCH}};
 use gpio_cdev::LineDirection::In;
+use libc::abort;
 use serde::{Deserialize, Serialize};
 
-use crate::{gpio, record::{self, Record}, tools::get_epoch, types::ConfigCmd};
+use crate::{PM, archive, gpio, record::{self, Record}, tools::{self, get_epoch}, types::ConfigCmd};
 use std::{thread, time::Duration};
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -11,16 +12,18 @@ use std::io::{BufWriter, Write};
 // PARAMS
 const UPDATE_FREQUENCY: Duration = Duration::from_millis(200);
 const SIGNAL_HOLD_REQUIREMENT: Duration = Duration::from_millis(200);
-
+const TERMINATION_DELAY_FOR_SEFI_TEST: Duration = Duration::from_millis(3000);
 
 // Task request
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TaskRequest {
 
     //Type of record that is desired
-    rtype: record::RecordType,
+    pub rtype: record::RecordType,
 
     //UUID to give the record
-    rid: u16
+    pub rid: u16
 }
 
 // Engine command 
@@ -28,10 +31,10 @@ pub struct TaskRequest {
 pub struct EngineCommand {
     
     // Task queue
-    task_queue: Vec<TaskRequest>,
+    pub task_queue: Vec<TaskRequest>,
 
     // Task abort (abandon the current task)
-    abort_task: bool,
+    pub abort_task: bool,
 
 }
 
@@ -40,12 +43,12 @@ pub struct EngineCommand {
 pub struct EngineStatus {
 
     // Record of the request currently underway
-    active_record: Option<record::Record>,
+    pub active_record: Option<record::Record>,
 
     // Status of the engine
-    is_idle: bool,
-    task_runtime: f64,
-    task_progress: f64
+    pub is_idle: bool,
+    pub task_runtime: f64,
+    pub task_progress: f64
 }
 
 // Global vars for engine
@@ -62,13 +65,13 @@ pub static STATUS: RwLock<EngineStatus> = RwLock::new(
 );
 
 // Abort checker
-fn must_abort() -> bool {
+fn abort_check() -> bool {
 
     //Obtain lock on command variable
     let cmd = CMD.read().unwrap();
 
     // Return status
-    cmd.abort_task
+    cmd.abort_task 
 
 }
 
@@ -80,14 +83,36 @@ pub fn engine_main(){
     let mut rec: Option<Record> = None;
 
     // Last abort check
-    let mut last_abort_check = Instant::now();
     let mut last_update = Instant::now();
 
     // Local copy of the config
     let mut config: ConfigCmd;
 
     // Begin main process loop
-    loop{
+    'main: loop{
+
+        //Clear the status
+        {
+            let mut sts = STATUS.write().unwrap();
+
+            sts.active_record = None;
+            sts.is_idle = true;
+            sts.task_progress = 0.0;
+            sts.task_runtime = 0.0;
+        }
+
+        // Check if we need to change power states
+        if PM.read().unwrap().power_request > 0 {
+            
+            // Power change requested!
+
+            // Umount disks
+            tools::unmount_dvr();
+
+            // Mark the system as safe now
+            PM.write().unwrap().safe = true;
+
+        }
 
         //Check the queue for a task to do
         {
@@ -99,8 +124,11 @@ pub fn engine_main(){
             //Lock cmd variable
             let mut cmd = CMD.write().unwrap();
 
-            // Check if there is nothing to do
-            if cmd.task_queue.len() == 0 {
+            // Reinitialize the system
+            cmd.abort_task = false;
+
+            // Check if there is nothing to do or the system is in safe mode
+            if cmd.task_queue.len() == 0 || PM.read().unwrap().safe {
 
                 // Nothing to do, release lock and wait
                 drop(cmd);
@@ -123,15 +151,21 @@ pub fn engine_main(){
                 aborted: false,
                 adj_err_bins: Some([0,0,0,0,0,0,0,0]),
                 err_bins: Some([0,0,0,0,0,0,0,0,0]),
-                time_to_sefi: 0.0,
-                exposure_time_ms: Some(0.0),
+                time_to_sefi: None,
+                exposure_time: None,
                 log_timestamp: Vec::new(),
-                log_bytes_processed: Vec::new(),
-                log_bytes_errored: Vec::new(),
                 log_error_rate: Vec::new(),
                 log_current_address: Vec::new(),
                 log_beam_signal: Vec::new(),
                 log_sefi_detected: Vec::new(),
+                correct_bits: 0,
+                incorrect_bits: 0,
+                processed_bits: 0,
+                log_bits_processed: Vec::new(),
+                log_bits_incorrect: Vec::new(),
+                log_bits_correct: Vec::new(),
+                log_adj_err_bins: Vec::new(),
+                log_err_bins: Vec::new(),
             });
 
         }
@@ -142,7 +176,7 @@ pub fn engine_main(){
 
 
                 // Create capture file for dump 
-                let cap_path = Path::new("/dvr/captures").join(format!("{:04X}.bin", r.rid)); 
+                let cap_path = Path::new("/dvr/captures").join(format!("{:04X}.cap", r.rid)); 
                 let cap_file = File::create(&cap_path).unwrap();
                 let mut cap_buf = BufWriter::with_capacity(config.block_size as usize, cap_file);
 
@@ -163,9 +197,6 @@ pub fn engine_main(){
                             let block_start = blk_ind * config.block_size ;
                             let block_end   = block_start + config.block_size;
 
-                            //Bit counts
-                            let mut bad_bits: f64 = 0.0;
-
                             for addr in block_start..block_end {
                               
                                //Copy into capture buffer
@@ -176,7 +207,7 @@ pub fn engine_main(){
                                     Err(e) => {
                                         eprintln!("[!] Error reading chip at {:#x}: {:?}", addr, e);
                                         cap_buf.write_all(&[0xFE]);
-                                        bad_bits += 8.0;
+                                        r.incorrect_bits += 8;
                                     }
                                 }
 
@@ -188,9 +219,10 @@ pub fn engine_main(){
 
                                     //Record datapoints
                                     r.log_timestamp.push(start.elapsed().as_secs_f64());
-                                    r.log_bits_errored.push(bad_bits);
+                                    r.log_bits_incorrect.push(r.incorrect_bits);
                                     r.log_beam_signal.push(gpio::get_beam_signal());
                                     r.log_current_address.push(block_end);
+                                    r.log_bits_incorrect.push(r.incorrect_bits);
 
                                     //Lock the status struct
                                     let mut s = STATUS.write().unwrap();
@@ -199,6 +231,21 @@ pub fn engine_main(){
                                     s.active_record = Some(r.clone());
                                     s.task_progress = (blk_ind / config.num_blocks) as f64;
                                     s.task_runtime = (r.time_started - get_epoch()) as f64;
+
+                                    //Check if we must abort
+                                    if abort_check() {
+
+                                        // Must abort right now
+                                        r.time_ended = get_epoch();
+                                        r.time_duration = r.time_ended - r.time_started;
+                                        r.aborted = true;
+
+                                        // Submit whatever we have
+                                        archive::submit_record(r.clone());
+
+                                        //Reset the FSM
+                                        continue 'main;
+                                    }
 
                                 }
                                 
@@ -228,14 +275,17 @@ pub fn engine_main(){
                                 //Verify the actual contents against the expected
                                 match crate::chip::read(&config, addr) {
                                     Ok(actual) => {
+
+                                        // Save the XOR'd version to the capture file
+                                        cap_buf.write_all(&[actual ^ expected]);
+
+
                                         if actual != expected {
                                             
                                             let diff_mask        = actual ^ expected;
                                             let diff_bits: usize = (diff_mask).count_ones() as usize;
                                             let adj_bits         = diff_mask & (diff_mask >> 1);
 
-                                            // Save the XOR'd version to the capture file
-                                            cap_buf.write_all(&[diff_mask]);
 
                                             //Overall metrics
                                             r.correct_bits += 8 - diff_bits as u64;
@@ -314,6 +364,21 @@ pub fn engine_main(){
                                     s.task_progress = (blk_ind / config.num_blocks) as f64;
                                     s.task_runtime = (r.time_started - get_epoch()) as f64;
 
+                                    //Check if we must abort
+                                    if abort_check() {
+
+                                        // Must abort right now
+                                        r.time_ended = get_epoch();
+                                        r.time_duration = r.time_ended - r.time_started;
+                                        r.aborted = true;
+
+                                        // Submit whatever we have
+                                        archive::submit_record(r.clone());
+
+                                        //Reset the FSM
+                                        continue 'main;
+                                    }
+
                                 }
                                 
 
@@ -382,6 +447,20 @@ pub fn engine_main(){
                                     s.task_progress = (blk_ind / config.num_blocks) as f64;
                                     s.task_runtime = (r.time_started - get_epoch()) as f64;
 
+                                    //Check if we must abort
+                                    if abort_check() {
+
+                                        // Must abort right now
+                                        r.time_ended = get_epoch();
+                                        r.time_duration = r.time_ended - r.time_started;
+                                        r.aborted = true;
+
+                                        // Submit whatever we have
+                                        archive::submit_record(r.clone());
+
+                                        //Reset the FSM
+                                        continue 'main;
+                                    }
                                 }
                                 
                             }
@@ -399,52 +478,14 @@ pub fn engine_main(){
                         let mut b_last_low = Instant::now();
                         let mut b_last_high = Instant::now();
 
+                        // Threshold counters
+                        let mut samples_total: u64 = 0;
+                        let mut samples_bad: u64 = 0;
 
+                        // Beam start time
+                        let mut beam_start_instant = Instant::now();
+                     
                         // Main process loop for dynamic process
-                        loop {
-
-                            // Get beam signal 
-                            let b = gpio::get_beam_signal();
-
-                            // Update timers
-                            match b {
-                                true =>  {b_last_high = Instant::now();},
-                                false => {b_last_low  = Instant::now();},
-                            }
-
-                            // Check if we are waiting for beam capture
-                            if !have_started {
-
-                                // Wait for beam capture
-                                if b && b_last_low.elapsed() > SIGNAL_HOLD_REQUIREMENT {
-                                    
-                                }
-
-
-
-                            }
-                            
-
-                            
-
-
-
-
-
-                        }
-
-                    
-                        //Begin test
-                        let exposure_start_instant = SystemTime::now();
-                        let mut last_sample_instant = SystemTime::now();
-                        rsp.exposure_started = true;
-
-                        //Rate calculation
-                        let mut bits_sampled: u64 = 0;
-                        let mut bits_errored: u64 = 0;
-
-
-                        //Exposure present - Perform test
                         loop {
 
                             // Iterate over number of blocks
@@ -453,53 +494,68 @@ pub fn engine_main(){
                                 //Iterate over bytes in block
                                 for addr in (blk_ind * config.block_size)..((blk_ind + 1) * config.block_size){
 
-                                    // Perform write and verify operation
-                                    {
 
-                                        //Update current address
-                                        rsp.current_address = addr;
+                                    // Get beam signal 
+                                    let b = gpio::get_beam_signal();
 
-                                        //Value to test
-                                        let v = match cmd.pattern {
-                                            0 => {
-                                                // Zero mode
-                                                0x00
-                                            },
-                                            1 => {
-                                                // All ones
-                                                0xFF
-                                            },
-                                            2 => {
-                                                // Random
-                                                crate::rand::rand(addr)
-                                            },
+                                    // Update timers
+                                    match b {
+                                        true =>  {b_last_high = Instant::now();},
+                                        false => {b_last_low  = Instant::now();},
+                                    }
+
+                                    // Check if we are waiting for beam capture
+                                    if !have_started {
+
+                                        // Wait for beam capture
+                                        if b && b_last_low.elapsed() > SIGNAL_HOLD_REQUIREMENT {
+                                            
+                                            //Start the dynamic test
+                                            have_started = true;
+                                            beam_start_instant = Instant::now();
+
+                                        }
+
+                                    } else {
+
+                                        // We are currently running the test
+
+                                        //Expected value
+                                        let expected = match config.data_pattern {
+                                            0 => 0, // All zeros
+                                            1 => 0xFF, // All ones
+                                            2 => crate::rand::rand(addr), // Pseudorandom pattern based on seed
                                             _ => {
-                                                eprintln!("[!] Invalid pattern in DynamicCmd: {}", cmd.pattern);
-                                                return;
-                                            }};
-                                        
-                                        //Write test value to byte
-                                        chip::write(&config, addr, v).unwrap();
+                                                0
+                                            }
+                                        };            
 
-                                        //Read back and verify the value
+
+                                        //Write the contents to the chip
+                                        crate::chip::write(&config, addr, expected);
+
+                                        //Verify the actual contents against the expected
                                         match crate::chip::read(&config, addr) {
                                             Ok(actual) => {
-                                                
-                                                //Log if enabled
-                                                if config.enable_logging {stream_log.push(actual ^ v); };
 
-                                                if actual != v {
-                                                    crate::dbg_log!(
-                                                        "dynamic_command: mismatch at offset {:#x} expected={:#04X}, actual={:#04X}",
-                                                        i, v, actual
-                                                    );
+                                                // Save the XOR'd version to the capture file
+                                                cap_buf.write_all(&[actual ^ expected]);
 
-                                                    let diff_mask        = actual ^ v;
+                                                if actual != expected {
+                                                    
+                                                    let diff_mask        = actual ^ expected;
                                                     let diff_bits: usize = (diff_mask).count_ones() as usize;
                                                     let adj_bits         = diff_mask & (diff_mask >> 1);
 
+                                                    //Something went wrong
+                                                    samples_bad += 1;
+
+                                                    //Overall metrics
+                                                    r.correct_bits += 8 - diff_bits as u64;
+                                                    r.incorrect_bits += diff_bits as u64;
+
                                                     //Collect statistics
-                                                    rsp.err_bins[diff_bits] += 1;
+                                                    r.err_bins.unwrap()[diff_bits] += 1;
                                                     
                                                     //Detect multi-bit upset
                                                     if diff_bits > 1 {
@@ -522,7 +578,7 @@ pub fn engine_main(){
 
                                                                 //Commit result if there is one
                                                                 if c > 0 { 
-                                                                    rsp.adj_err_bins[c] += 1; 
+                                                                    r.adj_err_bins.unwrap()[c] += 1; 
                                                                     c = 0;
                                                                 }
                                                             }
@@ -531,217 +587,112 @@ pub fn engine_main(){
                                                         
                                                         //Commit just in case any pending result
                                                         if c > 0 { 
-                                                            rsp.adj_err_bins[c] += 1; 
+                                                            r.adj_err_bins.unwrap()[c] += 1; 
                                                         }
 
                                                     } else {
                                                         //Optimization trick to prevent extensive check
-                                                        rsp.adj_err_bins[0] += 1;
+                                                        r.adj_err_bins.unwrap()[0] += 1;
                                                     }
 
-                                                    //Rate calculation
-                                                    bits_sampled += 8;
-                                                    bits_errored += diff_bits as u64;
-
-
-
                                                 } else {
-                                                    bits_sampled += 8;
+                                                    r.correct_bits += 8;
                                                 }
                                             },
                                             Err(e) => {
-                                                bits_sampled += 8;
-                                                bits_errored += 8;
-                                                crate::dbg_log!("dynamic_command: chip read error at offset {:#x}: {:?} (counted as 8 errored bits)", i, e);
+                                                samples_bad += 1;
                                             }
                                         };
 
-                                        //Totals
-                                        rsp.total_bytes += 1;
+                                        //Increase the total byte count for the sample
+                                        samples_total += 1;
+
 
                                     }
+                                    
 
-                                    // Perform rate calculation
-                                    {
-                                        if bits_sampled >= cmd.sample_size_in_bytes as u64 * 8 {
-                                            
-                                            let secs = last_sample_instant.elapsed().unwrap().as_secs_f32();
-                                            rsp.error_rate_per_second = if secs > 0.0 { bits_errored as f32 / secs } else { 0.0 };
-                                            rsp.error_rate_percent = bits_errored as f32 / bits_sampled as f32;
-                                            rsp.error_rate = bits_errored as f32;
+                                    //Check if we need to update
+                                    if last_update.duration_since(Instant::now()) > UPDATE_FREQUENCY {
 
-                                            crate::dbg_log!(
-                                                "dynamic_command: sample window closed error_rate={} bits, error_percent={:.6} ({}/{} bits), error_rate_per_second={:.2}",
-                                                rsp.error_rate, rsp.error_rate_percent, bits_errored, bits_sampled, rsp.error_rate_per_second
-                                            );
+                                        //Reset watchdog
+                                        last_update = Instant::now();
 
-                                            //Clear sampling vars
-                                            bits_sampled = 0;
-                                            bits_errored = 0;
-                                            last_sample_instant = SystemTime::now();
 
-                                            rsp.adj_err_bins = [0,0,0,0,0,0,0,0];
-                                            rsp.err_bins = [0,0,0,0,0,0,0,0,0];
+                                        //Only if beam
+                                        if have_started {
 
-                                            //Check if a SEFI has been detected
-                                            if (rsp.error_rate_percent > cmd.trigger_threshold) && !rsp.sefi_detected {
+                                            // Additional processing since we have beam
 
-                                                //First SEFI trigger
-                                                rsp.sefi_detected = true;
+                                            //Calculate error ratio
+                                            let ratio = (samples_bad as f64) / (samples_total as f64);
 
-                                                //Record time this took to occur
-                                                rsp.time_to_sefi = exposure_start_instant.elapsed().unwrap().as_millis() as f32;
+                                            r.exposure_time = Some(beam_start_instant.elapsed().as_secs_f64());
 
-                                                //End test if beam detection is disabled
-                                                if !cmd.wait_for_beam {
-                                                    rsp.test_completed = true;
-                                                } 
+                                            //Check if ratio exceeds limit
+                                            if ratio >= config.sefi_threshold &&
+                                               r.time_to_sefi.is_none()
+                                            {
 
-                                                crate::dbg_log!(
-                                                    "dynamic_command: SEFI detected error_rate={:.4} > threshold={:.4}, time_to_sefi={}ms",
-                                                    rsp.error_rate, cmd.trigger_threshold, rsp.time_to_sefi
-                                                );
-                                            }
-                                        }
-                                    }
+                                                //SEFI Occurred
+                                                r.time_to_sefi = Some(beam_start_instant.elapsed().as_secs_f64());
 
-                                    // Perform beam check (if enabled)
-                                    {
-                                        //Check if beam has gone inactive
-                                        if !gpio::get_beam_signal() && cmd.wait_for_beam {
-                                            crate::dbg_log!("dynamic_command: beam signal went low, ending test");
-                                            rsp.test_completed = true;
-                                        }
-                                    }
-
-                                    //Update required timings
-                                    {
-                                        //If beam is still active, increase exposure time
-                                        if gpio::get_beam_signal() || !cmd.wait_for_beam {
-                                            rsp.exposure_time_ms = exposure_start_instant.elapsed().unwrap().as_millis() as f32;
-                                        }
-
-                                        //Increase total test time
-                                        if !rsp.test_completed {
-                                            rsp.total_time_ms = first_start_instant.elapsed().unwrap().as_millis() as f32;
-                                        }
-                                    }
-
-                                    // Perform progress update (if needed) - Progress update performed early if test is over
-                                    {
-                                        if last_update_instant.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS || rsp.test_completed {
-                                            
-
-                                            //Update response structure
-                                            rsp.beam_signal = gpio::get_beam_signal();
-                                            rsp.controller_calibrated = gpio::get_calibration_signal();
-                                            rsp.ui_clock = gpio::get_ui_clock_signal();
-                                            rsp.pl_clock = gpio::get_pl_clock_signal();
-                                            rsp.fpga_loaded = gpio::get_fpga_loaded_status();
-
-                                            let payload = crate::server::codec().serialize(&rsp).unwrap();
-
-                                            if let Err(e) = send_response(stream, CMD_DYNAMIC, payload) {
-                                                eprintln!("[!] Failed to send progress update: {}", e);
-                                                return;
                                             }
 
-                                            //Create log
-                                            if config.enable_logging {
+                                        }                                      
 
-                                                recorder::log(vec![
-                                                    rsp.exposure_time_ms.to_string(),
-                                                    rsp.total_time_ms.to_string(),
-                                                    rsp.total_bytes.to_string(),
-                                                    rsp.error_rate.to_string(),
-                                                    rsp.error_rate_per_second.to_string(),
-                                                    rsp.error_rate_percent.to_string(), 
-                                                    cmd.trigger_threshold.to_string(),
-                                                    rsp.beam_signal.to_string(),
-                                                    rsp.controller_calibrated.to_string(),
-                                                    rsp.exposure_started.to_string(),
-                                                    rsp.sefi_detected.to_string(),
-                                                    rsp.time_to_sefi.to_string(),
-                                                    rsp.test_completed.to_string(),
-                                                    rsp.pass_counter.to_string(),
-                                                    rsp.current_address.to_string(),
-                                                    rsp.start_address.to_string(),
-                                                    rsp.end_address.to_string(),
-                                                    rsp.adj_err_bins[0].to_string(), 
-                                                    rsp.adj_err_bins[1].to_string(),
-                                                    rsp.adj_err_bins[2].to_string(),
-                                                    rsp.adj_err_bins[3].to_string(),
-                                                    rsp.adj_err_bins[4].to_string(),
-                                                    rsp.adj_err_bins[5].to_string(),
-                                                    rsp.adj_err_bins[6].to_string(),
-                                                    rsp.adj_err_bins[7].to_string(),
-                                                    rsp.err_bins[0].to_string(),
-                                                    rsp.err_bins[1].to_string(),
-                                                    rsp.err_bins[2].to_string(),
-                                                    rsp.err_bins[3].to_string(),
-                                                    rsp.err_bins[4].to_string(),
-                                                    rsp.err_bins[5].to_string(),
-                                                    rsp.err_bins[6].to_string(),
-                                                    rsp.err_bins[7].to_string(),
-                                                    rsp.err_bins[8].to_string()
-                                                ]);
-
-                                            }
-                                            
-                                            //Reset timer for next update
-                                            last_update_instant = SystemTime::now();
-                                
-                                        }
-                                    }
-
-                                    //Check if the test is over
-                                    if rsp.test_completed {
-
-                                        crate::dbg_log!(
-                                            "dynamic_command: test complete — sefi_detected={}, time_to_sefi={}ms, passes={}, total_bytes={}, exposure_time={}ms, total_time={}ms, err_bins={:?}, adj_err_bins={:?}",
-                                            rsp.sefi_detected, rsp.time_to_sefi, rsp.pass_counter, rsp.total_bytes,
-                                            rsp.exposure_time_ms, rsp.total_time_ms, rsp.err_bins, rsp.adj_err_bins
-                                        );
-
-                                        if config.enable_logging {
-                                            
-                                            //Commit log file
-                                            recorder::write(cmd.uuid).unwrap();
-
-                                            //Generate test summary file
-                                            recorder::write_summary(cmd.uuid, vec![
-                                                format!("{:?}", config),
-                                                format!("{:?}", cmd),
-                                                format!("{:?}", rsp),
-                                            ]).unwrap();
-
-                                            recorder::write_raw(cmd.uuid, stream_log).unwrap();
-
+                                        //Record datapoints
+                                        r.log_timestamp.push(start.elapsed().as_secs_f64());
+                                        r.log_bits_incorrect.push(r.incorrect_bits);
+                                        r.log_bits_correct.push(r.correct_bits);
+                                        r.log_beam_signal.push(gpio::get_beam_signal());
+                                        r.log_current_address.push(blk_ind * config.block_size);
+                                        r.log_err_bins.push(r.err_bins.unwrap());
+                                        r.log_adj_err_bins.push(r.adj_err_bins.unwrap());
+                                        
+                                        match r.time_to_sefi {
+                                            Some(_) => {r.log_sefi_detected.push(true);},
+                                            None =>  {r.log_sefi_detected.push(false);},
                                         }
 
-                                        //End test
-                                        return;
+                                        //Lock the status struct
+                                        let mut s = STATUS.write().unwrap();
+
+                                        //Update the status struct
+                                        s.active_record = Some(r.clone());
+                                        s.task_progress = (blk_ind / config.num_blocks) as f64;
+                                        s.task_runtime = (r.time_started - get_epoch()) as f64;
+                                                                                //Check if we must abort
+                                        if abort_check() {
+
+                                            // Must abort right now
+                                            r.time_ended = get_epoch();
+                                            r.time_duration = r.time_ended - r.time_started;
+                                            r.aborted = true;
+
+                                            // Submit whatever we have
+                                            archive::submit_record(r.clone());
+
+                                            //Reset the FSM
+                                            continue 'main;
+                                        }
+
                                     }
-                                            
+
+                                    //Check if test should be ended
+                                    if !b && b_last_high.elapsed() > TERMINATION_DELAY_FOR_SEFI_TEST && have_started {
+
+                                        //Beam is now gone and termination time has expired
+                                        break;
+
+                                    }
 
                                 }
                             }
-                            
-                            //Increment pass count
-                            rsp.pass_counter += 1;
-
-                            crate::dbg_log!(
-                                "dynamic_command: completed full chip sweep #{} (total_bytes={}, sefi_detected={})",
-                                rsp.pass_counter, rsp.total_bytes, rsp.sefi_detected
-                            );
-
                         }
 
+                    }
 
 
-
-
-                    },
                 }
 
                 //Mark finish times

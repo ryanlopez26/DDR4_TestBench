@@ -1,5 +1,6 @@
-use bytemuck::{Pod, Zeroable};
 use serde::{Deserialize, Serialize};
+
+use crate::{record::Record, run::Run, task_engine::TaskRequest};
 
 // NOTE: `#[repr(C)]` controls the *in-memory* layout (for FFI / unsafe casts).
 // It does NOT control how serde + bincode lays bytes on the wire — that is
@@ -11,52 +12,60 @@ use serde::{Deserialize, Serialize};
 #[repr(C)]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct WriteCmd {
-    pub pattern: u8,
-    pub seed: u64,
+    pub uuid: u16
 }
 
 #[repr(C)]
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct VerifyCmd {
-    pub uuid: u16,
-    pub pattern: u8,
-    pub seed: u64,
+    pub uuid: u16
 }
 
 #[repr(C)]
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct DynamicCmd {
+pub struct SaveRunCmd {
+    pub run: Run
+}
 
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ReadCmd {
+    pub uuid: u16
+}
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct DumpCmd {
+    pub uuid: u16,
+}
+
+
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct DynamicCmd {
     //UUID
     pub uuid: u16,
-
-    //Pattern generation
-    pub pattern: u8,
-    pub seed: u64,
-
-    //Test configuration
-    pub sample_size_in_bytes: u32,
-    pub wait_for_beam: bool,
-
-    //SEFI Thresholds
-    pub trigger_threshold: f32,
 }
 
-
 #[repr(C)]
-#[derive(Debug, Deserialize, Serialize)]
-pub struct DumpCmd {
-    pub block_offset: u32,
-    pub num_blocks: u32,
-    pub comparison_mode: bool
-}
-
-
-#[repr(C)]
-#[derive(Debug, Deserialize, Serialize)]
-pub struct UUIDCmd {
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct GetRecordCmd {
     pub uuid: u16,
 }
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct GetCaptureCmd {
+    pub uuid: u16,
+}
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct GetRunCmd {
+    pub id: u16,
+}
+
 
 // Configuration Structure
 
@@ -72,6 +81,9 @@ pub struct ConfigCmd {
     pub block_size: u32,
     pub block_factor: u32,
 
+    // SEFI Threshold
+    pub sefi_threshold: f64,
+
     // Data Mode
     pub data_pattern: u8,
     pub pattern_seed: u64,
@@ -80,6 +92,9 @@ pub struct ConfigCmd {
     pub is_x16: bool,
     pub enabled_byte_lanes: u8,
     pub fpga_auto_config: bool,
+
+    // Automated Dynamic Mode
+    pub automated_sefi_mode: bool,
 }
 
 
@@ -97,9 +112,52 @@ pub struct InfoRsp {
 
 #[repr(C)]
 #[derive(Debug, Deserialize, Serialize)]
-pub struct UUIDRsp {
+pub struct genRecordRsp {
+    pub uuid: u16
+}
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct genRunRsp {
+    pub id: u16
+}
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GetRecordRsp {
+    pub record: Option<Record>
+}
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct SaveRunRsp {
     pub success: bool,
 }
 
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GetRunRsp {
+    pub run: Option<Run>
+}
 
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GetCaptureRsp {
+    pub capture: Option<Vec<u8>>
+}
 
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GetPowerModeRsp {
+    pub request_poweroff: bool,
+    pub request_reboot: bool
+}
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct EngineStatusRsp {
+    pub active_record: Option<Record>,
+    pub record_progress: f64,
+    pub is_idle: bool,
+    pub queue: Vec<TaskRequest>
+}
