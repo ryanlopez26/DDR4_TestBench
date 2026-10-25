@@ -1,6 +1,6 @@
 use std::{sync::{LazyLock, RwLock}};
 
-use crate::{fpga::LaneStatus::UNKNOWN, gpio, types::ConfigCmd};
+use crate::{fpga::LaneStatus::UNKNOWN, gpio};
 
 
 //Byte lane status

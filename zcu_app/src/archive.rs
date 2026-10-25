@@ -1,13 +1,12 @@
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::sync::{Mutex, RwLock};
+use std::path::Path;
+use std::sync::RwLock;
 
 use crate::record::Record;
 use crate::run::Run;
-use crate::{PM, PowerManager, tools};
+use crate::{PM, tools};
 
 
-pub static LOGDIR: &str = "/dvr/";
 
 // Collection of all runs
 pub static RUN_LOG: RwLock<Vec<Run>> = RwLock::new(Vec::new());

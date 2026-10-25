@@ -1,5 +1,4 @@
 use std::{fs, sync::{LazyLock, RwLock}};
-use serde::Serialize;
 
 use crate::{rand, types::ConfigCmd};
 

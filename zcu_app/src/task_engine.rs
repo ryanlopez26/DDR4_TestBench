@@ -1,6 +1,4 @@
-use std::{path::Path, sync::{LazyLock, RwLock}, time::{Instant, SystemTime, UNIX_EPOCH}};
-use gpio_cdev::LineDirection::In;
-use libc::abort;
+use std::{path::Path, sync::RwLock, time::Instant};
 use serde::{Deserialize, Serialize};
 
 use crate::{PM, archive, gpio, record::{self, Record}, tools::{self, get_epoch}, types::ConfigCmd};
@@ -202,11 +200,10 @@ pub fn engine_main(){
                                //Copy into capture buffer
                                 match crate::chip::read(&config, addr) {
                                     Ok(byte) => {
-                                        cap_buf.write_all(&[byte]);
+                                        cap_buf.write_all(&[byte]).unwrap();
                                     },
-                                    Err(e) => {
-                                        eprintln!("[!] Error reading chip at {:#x}: {:?}", addr, e);
-                                        cap_buf.write_all(&[0xFE]);
+                                    Err(_) => {
+                                        cap_buf.write_all(&[0xFE]).unwrap();
                                         r.incorrect_bits += 8;
                                     }
                                 }
@@ -277,7 +274,7 @@ pub fn engine_main(){
                                     Ok(actual) => {
 
                                         // Save the XOR'd version to the capture file
-                                        cap_buf.write_all(&[actual ^ expected]);
+                                        cap_buf.write_all(&[actual ^ expected]).unwrap();
 
 
                                         if actual != expected {
@@ -336,7 +333,7 @@ pub fn engine_main(){
                                             r.correct_bits += 8;
                                         }
                                     },
-                                    Err(e) => {
+                                    Err(_e) => {
                                         
                                     }
                                 };
@@ -418,7 +415,7 @@ pub fn engine_main(){
                                     Ok(_) => {
                                         r.processed_bits += 8;
                                     },
-                                    Err(e) => {
+                                    Err(_e) => {
                                         r.incorrect_bits += 8;
                                         return;
                                     }
@@ -532,14 +529,14 @@ pub fn engine_main(){
 
 
                                         //Write the contents to the chip
-                                        crate::chip::write(&config, addr, expected);
+                                        _ = crate::chip::write(&config, addr, expected);
 
                                         //Verify the actual contents against the expected
                                         match crate::chip::read(&config, addr) {
                                             Ok(actual) => {
 
                                                 // Save the XOR'd version to the capture file
-                                                cap_buf.write_all(&[actual ^ expected]);
+                                                _ = cap_buf.write_all(&[actual ^ expected]);
 
                                                 if actual != expected {
                                                     
@@ -599,7 +596,7 @@ pub fn engine_main(){
                                                     r.correct_bits += 8;
                                                 }
                                             },
-                                            Err(e) => {
+                                            Err(_e) => {
                                                 samples_bad += 1;
                                             }
                                         };

@@ -23,7 +23,6 @@
 
 use std::io::{self, Read, Write};
 use std::net::{TcpListener, TcpStream, ToSocketAddrs};
-use std::ops::Deref;
 use std::thread;
 
 use bincode::Options;
@@ -32,7 +31,7 @@ use serde::de::DeserializeOwned;
 use crate::record::RecordType;
 use crate::task_engine::TaskRequest;
 use crate::types::{ConfigCmd, DumpCmd, DynamicCmd, GetCaptureCmd, GetRecordCmd, GetRunCmd, SaveRunCmd, VerifyCmd, WriteCmd};
-use crate::{THREADS, archive, config::*, task_engine};
+use crate::{THREADS, config::*, task_engine};
 
 // --- framing helpers -------------------------------------------------------
 
@@ -292,6 +291,9 @@ fn handle_client(mut stream: TcpStream) {
             },
             CMD_ENGINESTATUS => {
                 crate::commands::enginestatus_command(&mut stream);
+            },
+            CMD_GETPOWERMODE => {
+                crate::commands::getpowermode_command(&mut stream);
             },
             other => eprintln!("[!] {}: unknown CMD 0x{:02X}", peer, other),
         }

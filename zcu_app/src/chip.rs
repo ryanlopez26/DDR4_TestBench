@@ -5,8 +5,7 @@
 use crate::types::ConfigCmd;
 use std::fmt;
 
-/// Errors that can arise from a per-chip read/write.
-#[derive(Debug, Clone)]
+
 pub enum ChipError {
     /// A field in `ConfigCmd` is structurally invalid.
     InvalidConfig(&'static str),
@@ -28,7 +27,7 @@ impl fmt::Display for ChipError {
     }
 }
 
-impl std::error::Error for ChipError {}
+
 
 // /// Translate a virtual per-chip offset into the physical PL-DDR4 byte offset.
 // /// All validation happens here so `read` and `write` can't diverge.
@@ -82,9 +81,9 @@ impl std::error::Error for ChipError {}
 // }
 
 /// Write a byte to the virtual address space of the configured chip.
-pub fn write(config: &ConfigCmd, offset: u32, value: u8) -> Result<(), ChipError> {
+pub fn write(_config: &ConfigCmd, offset: u32, value: u8) -> Result<(), ChipError> {
 
-    let mut true_offset = offset;
+    let true_offset = offset;
 
     // //Check if chip select is enabled
     // if config.enable_chip_select {true_offset = map_offset(config, offset)?;}
@@ -100,10 +99,10 @@ pub fn write(config: &ConfigCmd, offset: u32, value: u8) -> Result<(), ChipError
 }
 
 /// Read a byte from the virtual address space of the configured chip.
-pub fn read(config: &ConfigCmd, offset: u32) -> Result<u8, ChipError> {
+pub fn read(_config: &ConfigCmd, offset: u32) -> Result<u8, ChipError> {
 
 
-    let mut true_offset = offset;
+    let true_offset = offset;
 
     // //Check if chip select is enabled
     // if config.enable_chip_select {true_offset = map_offset(config, offset)?;}
