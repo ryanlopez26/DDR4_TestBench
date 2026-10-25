@@ -114,7 +114,10 @@ pub fn send_response(stream: &mut TcpStream, cmd: u8, payload: Vec<u8>) -> io::R
 // --- connection handler ----------------------------------------------------
 
 fn handle_client(mut stream: TcpStream) -> io::Result<()> {
+    
     let peer = stream.peer_addr()?;
+
+
     println!("[+] Client connected: {}", peer);
 
     // The settings used in the last verify operation (needed for differential dump)

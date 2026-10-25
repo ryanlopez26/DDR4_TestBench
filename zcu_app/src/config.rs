@@ -1,4 +1,6 @@
-use std::sync::{LazyLock, RwLock};
+use std::{fs, sync::{LazyLock, RwLock}};
+use serde::Serialize;
+
 use crate::types::ConfigCmd;
 
 
@@ -6,9 +8,6 @@ pub const SIMULATION_MODE: bool = false; // If true, the app will simulate read/
 
 pub const SYNC_MARKER: u32 = 0xDEAD_BEEF;
 pub const TERM_MARKER: u32 = 0xCAFE_BABE;
-
-//Scaling block factor (8KB)
-pub const SCALING_BLOCK_SIZE: u32  = 0x0000_2000;
 
 pub const CMD_WRITE: u8 = 0x01;
 pub const CMD_VERIFY: u8 = 0x02;
@@ -24,9 +23,66 @@ pub const UPDATE_FREQUENCY_MS: f32 = 100.0; // Frequency of progress updates dur
 //Global configuration variable, protected by a RwLock for concurrent access. Initialized with default values.
 pub static CONFIG: LazyLock<RwLock<ConfigCmd>> = LazyLock::new(|| {
     RwLock::new(ConfigCmd {         // x16 default
-        block_size : 0x0010_0000, //  1MB default
-        block_factor : 1,
-        num_blocks : 0x0000_0100, // Test 256MB
-        enable_logging: true
+        block_size :    0x0010_0000, //  1MB default
+        block_factor :  1,
+        num_blocks :    0x0000_0100, // Test 256MB
+        enable_logging: true,
+        is_x16: false,
+        enabled_byte_lanes: 0xFF, 
+        fpga_auto_config: false,
+        pattern_seed: 0,
+        data_pattern: 0,
     })
 });
+
+pub fn save(){
+
+    //Attempt to get read lock
+    match CONFIG.try_read() {
+        Ok(c) => {
+
+            //Write the structure to a file
+            match fs::write("config.bin", bincode::serialize::<ConfigCmd>(&*c).unwrap()) {
+                Ok(_) => {
+                    println!("Saved configuration!");
+                },
+                Err(e) => {
+                    println!("Failed to save configuration: {:?}", e);
+                },
+            }
+        },
+        Err(_) => todo!(),
+    }
+}
+
+pub fn load(){
+
+    //Attempt to get read lock
+    match CONFIG.try_write() {
+        Ok(mut c) => {
+
+            match fs::read("config.bin") {
+
+                Ok(contents) => {
+
+                    //Attempt to convert bytes to struct config
+                    match(bincode::deserialize::<ConfigCmd>(&contents)){
+                        Ok(data ) => {
+                            *c = data;
+                            
+                            //Attempt to load configuration
+                            println!("Configuration loaded!");
+                        },
+                        Err(_) => {println!("Configuration file is invalid. Not loaded.")},
+                    }
+
+
+                },
+                Err(e) => {
+                    println!("Failed to locate configuration file: {:?}", e);
+                },
+            }
+        },
+        Err(_) => todo!(),
+    }
+}

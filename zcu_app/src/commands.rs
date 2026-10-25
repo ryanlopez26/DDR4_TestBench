@@ -6,7 +6,7 @@ use std::time::SystemTime;
 
 use bincode::Options;
 
-use crate::{chip, gpio, recorder, types::*};
+use crate::{chip, config, gpio, recorder, types::*};
 
 use crate::server::send_response;
 use crate::config::*;
@@ -30,7 +30,27 @@ use crate::config::*;
 #[macro_export]
 macro_rules! dbg_log {
     ($($arg:tt)*) => {
-        // `file!():line!()` makes every line traceable back to its call site,
+        // `file!():line!()` makes every line traceable back         exposure_time_ms: 0.0,
+        adj_err_bins: [0, 0, 0, 0, 0, 0, 0, 0],
+        err_bins: [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        total_time_ms: 0.0,
+        total_bytes: 0,
+        error_rate: 0.0,
+        error_rate_per_second: 0.0,
+        error_rate_percent: 0.0,
+        beam_signal: gpio::get_beam_signal(),
+        controller_calibrated: gpio::get_calibration_signal(),
+        exposure_started: false,
+        sefi_detected: false,
+        time_to_sefi: 0.0,
+        test_completed: false,
+        ui_clock: gpio::get_ui_clock_signal(),
+        pl_clock: gpio::get_pl_clock_signal(),
+        fpga_loaded: gpio::get_fpga_loaded_status(),
+        pass_counter: 0,
+        start_address: 0x00000000,
+        end_address: config.num_blocks * config.block_size,
+        current_address: 0x00000000,to its call site,
         // which matters once these are interleaved across commands/threads.
         eprintln!("[dbg {}:{}] {}", file!(), line!(), format_args!($($arg)*));
     };
@@ -44,43 +64,13 @@ macro_rules! dbg_log {
 
 pub fn config_command(stream: &mut TcpStream, cmd: ConfigCmd){
 
-    // crate::dbg_log!(
-    //     "config_command: incoming ConfigCmd chip_index={}, bus_bytes_per_chip={}, chip_size_bytes={} ({:#x}), bus_size_in_bytes={}, enable_chip_select={}, address_multiplier={}, enable_logging={}",
-    //     cmd.chip_index, cmd.bus_bytes_per_chip, cmd.chip_size_bytes, cmd.chip_size_bytes, cmd.bus_size_in_bytes, cmd.enable_chip_select, cmd.address_multiplier, cmd.enable_logging
-    // );
 
-    // //Prevent invalid address multiplier
-    // if  {
+    //Update active configuration
+    let mut c = CONFIG.write().unwrap();
+    *c = cmd;
 
-    //     crate::dbg_log!(
-    //         "config_command: REJECTED address_multiplier==0 (would make step_by(0) panic); config left unchanged, sending failure ACK"
-    //     );
-
-    //     //Invalid status response 
-    //     let payload: Vec<u8> = vec![0];
-    //     send_response(stream, CMD_CONFIG, payload).unwrap();
-
-    //     //Failed
-    //     return;
-
-    // }
-
-    //Load new configuration settings
-    {
-        let mut config = CONFIG.write().unwrap();
-        config.enable_logging = cmd.enable_logging;
-        config.block_factor = cmd.block_factor;
-        config.block_size  = cmd.block_size;
-        config.num_blocks = cmd.num_blocks;
-
-        // Log the full config as actually applied, so the active geometry the
-        // loops will read is visible (this handler DID just write every field).
-        // crate::dbg_log!(
-        //     "config_command: applied CONFIG chip_index={}, bus_bytes_per_chip={}, chip_size_bytes={} ({:#x}), bus_size_in_bytes={}, enable_chip_select={}, address_multiplier={}, enable_logging={}",
-        //     config.chip_index, config.bus_bytes_per_chip, config.chip_size_bytes, config.chip_size_bytes,
-        //     config.bus_size_in_bytes, config.enable_chip_select, config.address_multiplier, config.enable_logging
-        // );
-    }
+    //Save configuration to persistent storage
+    config::save();
 
     //Status response 
     let payload: Vec<u8> = vec![0];
@@ -735,344 +725,12 @@ pub fn write_command(stream: &mut TcpStream, cmd: WriteCmd){
 
 pub fn verify_command(stream: &mut TcpStream, cmd: VerifyCmd){
 
-    //Load configuration
-    let config = CONFIG.read().unwrap();
 
-    crate::dbg_log!(
-        "verify_command: uuid={}, seed={:#018X}, pattern={}, chip_size_bytes={} ({:#x}), address_multiplier={}",
-        cmd.uuid, cmd.seed, cmd.pattern, config.chip_size_bytes, config.chip_size_bytes, config.address_multiplier
-    );
-
-    //Setup timers
-    let start_time = SystemTime::now();
-    let mut time_since_last_update = SystemTime::now();
-
-    //Init the pseudo-random generator with the provided seed
-    crate::rand::set_seed(cmd.seed);
-
-    //Create response structure
-    let mut rsp = VerifyRsp {
-        time_spent_ms: 0.0,
-        percent_complete: 0.0,
-        num_correct: 0,
-        num_incorrect: 0,
-        adj_err_bins: [0, 0, 0, 0, 0, 0, 0, 0],
-        err_bins: [0, 0, 0, 0, 0, 0, 0, 0, 0],
-        current_address: 0x00000000,
-        start_address: 0x00000000,
-        end_address: config.num_blocks * config.block_size,
-     };
-
-    // Setup log
-    if config.enable_logging {
-    recorder::new(vec!["Time (ms)", 
-        "Start Address",
-        "End Address",
-        "Current Address", 
-        "Percent Complete", 
-        "# Correct Bits", 
-        "# Incorrect Bits", 
-        "adj_err[0]", 
-        "adj_err[1]",
-        "adj_err[2]",
-        "adj_err[3]",
-        "adj_err[4]",
-        "adj_err[5]",
-        "adj_err[6]",
-        "adj_err[7]",
-        "num_err[0]", 
-        "num_err[1]",
-        "num_err[2]",
-        "num_err[3]",
-        "num_err[4]",
-        "num_err[5]",
-        "num_err[6]",
-        "num_err[7]",
-        "num_err[8]"
-        ]);
-    }
-
-
-
-    // Iterate over number of blocks
-    for blk_ind in (0..config.num_blocks).step_by(config.block_factor as usize) {
-
-        //Iterate over bytes in block
-        for addr in (blk_ind * config.block_size)..((blk_ind + 1) * config.block_size){
-
-            //Check if a periodic progress update is due
-            if time_since_last_update.elapsed().unwrap().as_millis() as f32 >= UPDATE_FREQUENCY_MS {
-
-                //Calculate status
-                let elapsed = start_time.elapsed().unwrap().as_millis() as f32;
-                let percent_complete = (blk_ind as f32 / config.num_blocks as f32) * 100.0;  
-
-                crate::dbg_log!(
-                    "verify_command: progress offset={:#x}, {:.1}% complete, errors={}, correct={}",
-                    addr, percent_complete, rsp.num_incorrect, rsp.num_correct
-                );
-
-                //Update bytes verified and percent complete in response structure
-                rsp.current_address = addr;
-                rsp.time_spent_ms = elapsed;
-                rsp.percent_complete = percent_complete;
-
-                let payload = crate::server::codec().serialize(&rsp).unwrap();
-
-                if let Err(e) = send_response(stream, CMD_VERIFY, payload) {
-                    eprintln!("[!] Failed to send progress update: {}", e);
-                    return;
-                }
-                
-                //Create log entry
-                if config.enable_logging {
-                recorder::log(vec![rsp.time_spent_ms.to_string(), 
-                    format!("{:#010X}", rsp.start_address), 
-                    format!("{:#010X}", rsp.end_address),
-                    format!("{:#010X}", rsp.current_address),
-                    rsp.percent_complete.to_string(), 
-                    rsp.num_correct.to_string(), 
-                    rsp.num_incorrect.to_string(), 
-                    rsp.adj_err_bins[0].to_string(), 
-                    rsp.adj_err_bins[1].to_string(),
-                    rsp.adj_err_bins[2].to_string(),
-                    rsp.adj_err_bins[3].to_string(),
-                    rsp.adj_err_bins[4].to_string(),
-                    rsp.adj_err_bins[5].to_string(),
-                    rsp.adj_err_bins[6].to_string(),
-                    rsp.adj_err_bins[7].to_string(),
-                    rsp.err_bins[0].to_string(),
-                    rsp.err_bins[1].to_string(),
-                    rsp.err_bins[2].to_string(),
-                    rsp.err_bins[3].to_string(),
-                    rsp.err_bins[4].to_string(),
-                    rsp.err_bins[5].to_string(),
-                    rsp.err_bins[6].to_string(),
-                    rsp.err_bins[7].to_string(),
-                    rsp.err_bins[8].to_string()
-                    ]);
-                }
-
-                //Reset timer for next update
-                time_since_last_update = SystemTime::now();
-            }
-
-            //Expected value
-            let expected = match cmd.pattern {
-                0 => 0, // All zeros
-                1 => 0xFF, // All ones
-                2 => crate::rand::rand(addr), // Pseudorandom pattern based on seed
-                _ => {
-                    eprintln!("[!] Invalid pattern in VerifyCmd: {}", cmd.pattern);
-                    return;
-                }
-            };
-
-            //Determine the expected contents to verify against
-            match crate::chip::read(&config, addr) {
-                Ok(actual) => {
-                    if actual != expected {
-                        crate::dbg_log!(
-                            "verify_command: mismatch at offset {:#x} expected={:#x}, actual={:#x}",
-                            addr, expected, actual
-                        );
-                        
-                        let diff_mask        = actual ^ expected;
-                        let diff_bits: usize = (diff_mask).count_ones() as usize;
-                        let adj_bits         = diff_mask & (diff_mask >> 1);
-
-                        //Overall metrics
-                        rsp.num_correct += 8 - diff_bits as u64;
-                        rsp.num_incorrect += diff_bits as u64;
-
-                        //Collect statistics
-                        rsp.err_bins[diff_bits] += 1;
-                        
-                        //Detect multi-bit upset
-                        if diff_bits > 1 {
-
-                            //Counter 
-                            let mut c: usize = 0;
-
-                            //We need to count more carefully, this is CPU intensive though :(
-                            for i in 0..8 {
-                                
-                                //Check if bit is set
-                                if adj_bits & (1 << i) != 0 {
-                                    
-                                    //Bit is set
-                                    c += 1;
-
-                                } else {
-                                    
-                                    //Bit is not set
-
-                                    //Commit result if there is one
-                                    if c > 0 { 
-                                        rsp.adj_err_bins[c] += 1; 
-                                        c = 0;
-                                    }
-                                }
-                                
-                            }
-                            
-                            //Commit just in case any pending result
-                            if c > 0 { 
-                                rsp.adj_err_bins[c] += 1; 
-                            }
-
-                        } else {
-                            //Optimization trick to prevent extensive check
-                            rsp.adj_err_bins[0] += 1;
-                        }
-
-                    } else {
-                        rsp.num_correct += 8;
-                    }
-                },
-                Err(e) => {
-                    crate::dbg_log!("verify_command: chip read error at offset {:#x}: {:?}", addr, e);
-                }
-            };
-
-        }
-
-    }
-
-    // Sweep finished. Send a final 100%-complete frame so the client's
-    // "read until percent_complete >= 100" loop can terminate — the periodic
-    // frames above never reach 100 (percent is blk_ind/num_blocks, and blk_ind
-    // stops short of num_blocks). Mirrors the final-response pattern in
-    // write_command. Without this, the client blocks forever waiting for a
-    // completion frame while the server blocks waiting for the next command.
-    rsp.current_address = rsp.end_address;
-    rsp.time_spent_ms = start_time.elapsed().unwrap().as_millis() as f32;
-    rsp.percent_complete = 100.0;
-
-    let payload = crate::server::codec().serialize(&rsp).unwrap();
-    if let Err(e) = send_response(stream, CMD_VERIFY, payload) {
-        eprintln!("[!] Failed to send final Verify response: {}", e);
-        return;
-    }
-
-    crate::dbg_log!(
-        "verify_command: complete — 100% at offset {:#x}, num_correct={}, num_incorrect={}, err_bins={:?}, adj_err_bins={:?}, elapsed={}ms",
-        rsp.current_address, rsp.num_correct, rsp.num_incorrect,
-        rsp.err_bins, rsp.adj_err_bins, rsp.time_spent_ms
-    );
-
-    if config.enable_logging {
-        //Commit log file
-        recorder::write(cmd.uuid).unwrap();
-
-        //Generate test summary file
-        recorder::write_summary(cmd.uuid, vec![
-            format!("{:?}", config),
-            format!("{:?}", cmd),
-            format!("{:?}", rsp),
-        ]).unwrap();
-    }
     
 }
 
-use std::time::Instant;
+pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd) {
 
-fn flush_page(
-    stream: &mut TcpStream,
-    block_data: &mut Vec<u8>,
-    num_errors: &mut u64,      // match your DumpRsp field types
-    page_addr: u32,          // ditto — cast if address is u32
-    start: Instant ) -> Result<(), ()> 
-    {
-    if block_data.is_empty() {
-        return Ok(());
-    }
-    let rsp = DumpRsp {
-        num_errors: *num_errors,
-        address: page_addr,
-        time_spent_ms: start.elapsed().as_millis() as f32,
-    };
-    let mut payload = crate::server::codec().serialize(&rsp).unwrap();
-    payload.extend_from_slice(block_data);
 
-    block_data.clear();
-    *num_errors = 0;
 
-    send_response(stream, CMD_DUMP, payload).map_err(|e| {
-        eprintln!("[!] Failed to send dump response: {}", e);
-    })
-}
-
-pub fn dump_command(stream: &mut TcpStream, cmd: DumpCmd, v_cmd: &VerifyCmd) {
-    let config = CONFIG.read().unwrap();
-    let start = Instant::now();
-
-    crate::dbg_log!(
-        "dump_command: offset_start={:#x}, num_pages={}, comparison_mode={}, PAGE_SIZE={}, pattern={} (last Verify: uuid={}, seed={:#018X})",
-        cmd.offset_start, cmd.num_pages, cmd.comparison_mode, PAGE_SIZE, v_cmd.pattern, v_cmd.uuid, v_cmd.seed
-    );
-
-    crate::rand::set_seed(v_cmd.seed);
-
-    // These must persist across byte iterations.
-    let mut block_data: Vec<u8> = Vec::with_capacity(PAGE_SIZE);
-    let mut num_errors: u64 = 0;
-    let mut page_addr: u32 = 0;
-
-    for blk_ind in (cmd.block_offset..(cmd.block_offset + cmd.num_blocks)).step_by(config.block_factor as usize) {
-        // usize math to avoid the u32 overflow we discussed
-        let block_start = blk_ind * config.block_size ;
-        let block_end   = block_start + config.block_size;
-
-        for addr in block_start..block_end {
-            if block_data.is_empty() {
-                page_addr = addr; // record where this page begins
-            }
-
-            if cmd.comparison_mode {
-                match crate::chip::read(&config, addr) {
-                    Ok(byte) => {
-                        let expected = match v_cmd.pattern {
-                            0 => 0x00,
-                            1 => 0xFF,
-                            2 => crate::rand::rand(addr as u32),
-                            _ => {
-                                eprintln!("[!] Invalid pattern in VerifyCmd: {}", v_cmd.pattern);
-                                return;
-                            }
-                        };
-                        block_data.push(expected ^ byte);
-                    }
-                    Err(e) => {
-                        eprintln!("[!] Error reading chip at {:#x}: {:?}", addr, e);
-                        block_data.push(0xFE);
-                        num_errors += 1;
-                    }
-                }
-            } else {
-                match crate::chip::read(&config, addr) {
-                    Ok(byte) => block_data.push(byte),
-                    Err(e) => {
-                        eprintln!("[!] Error reading chip at {:#x}: {:?}", addr, e);
-                        block_data.push(0xFE);
-                        num_errors += 1;
-                    }
-                }
-            }
-
-            if block_data.len() >= PAGE_SIZE {
-                if flush_page(stream, &mut block_data, &mut num_errors, page_addr, start).is_err() {
-                    return;
-                }
-            }
-        }
-
-        // Flush the block's trailing partial so it can't spill into the
-        // next (non-contiguous) sampled block.
-        if flush_page(stream, &mut block_data, &mut num_errors, page_addr, start).is_err() {
-            return;
-        }
-    }
-
-    crate::dbg_log!("dump_command: complete in {}ms", start.elapsed().as_millis());
 }
