@@ -30,8 +30,8 @@ use serde::de::DeserializeOwned;
 
 use crate::record::RecordType;
 use crate::task_engine::TaskRequest;
-use crate::types::{ConfigCmd, DumpCmd, DynamicCmd, GetCaptureCmd, GetFPGAImageRsp, GetRecordCmd, GetRunCmd, SaveRunCmd, SetFPGAImageCmd, VerifyCmd, WriteCmd};
-use crate::{THREADS, config::*, task_engine};
+use crate::types::{ConfigCmd, DeleteRecordCmd, DeleteRunCmd, DumpCmd, DynamicCmd, GetCaptureCmd, GetFPGAImageRsp, GetRecordCmd, GetRunCmd, SaveRunCmd, SetFPGAImageCmd, VerifyCmd, WriteCmd};
+use crate::{THREADS, archive, config::*, task_engine};
 
 const MAX_PAYLOAD: u32 = 1 << 20;
 
@@ -313,6 +313,9 @@ fn handle_client(mut stream: TcpStream) {
             CMD_GETFPGAIMAGE => {
                 crate::commands::getfpga_command(&mut stream);   
             },
+            CMD_GETFPGAIMAGES => {
+                crate::commands::getfpgaimages_command(&mut stream); 
+            },
             CMD_ENGINESTATUS => {
                 crate::commands::enginestatus_command(&mut stream);
             },
@@ -324,6 +327,22 @@ fn handle_client(mut stream: TcpStream) {
             },
             CMD_LISTRUNS => {
                 crate::commands::listruns_command(&mut stream);
+            },
+            CMD_DELRECORD => match parse_payload::<DeleteRecordCmd>(&payload) {
+                Ok(c) => {
+
+                    crate::commands::deleterecord_command(&mut stream, c);
+
+                }
+                Err(e) => eprintln!("[!] {}: invalid delete record params: {}", peer, e),
+            },
+            CMD_DELRUN => match parse_payload::<DeleteRunCmd>(&payload) {
+                Ok(c) => {
+
+                    crate::commands::deleterun_command(&mut stream, c);
+
+                }
+                Err(e) => eprintln!("[!] {}: invalid delete run params: {}", peer, e),
             },
             other => eprintln!("[!] {}: unknown CMD 0x{:02X}", peer, other),
         }

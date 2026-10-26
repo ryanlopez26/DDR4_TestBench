@@ -340,3 +340,39 @@ pub fn listruns_command(stream: &mut TcpStream) {
     //Send response
     send_response(stream, CMD_LISTRUNS, crate::server::codec().serialize(&rsp).unwrap()).unwrap();
 }
+
+
+
+pub fn deleterun_command(stream: &mut TcpStream, c: DeleteRunCmd) {
+
+    // Response struct
+    let rsp = DeleteRunRsp {
+        success: archive::delete_run(c.id),
+    };
+
+    //Send response
+    send_response(stream, CMD_DELRUN, crate::server::codec().serialize(&rsp).unwrap()).unwrap();
+}
+
+
+pub fn getfpgaimages_command(stream: &mut TcpStream) {
+
+    // Response struct
+    let rsp = GetFPGAImagesRsp {
+        images: fpga::list_fpga_images()
+    };
+
+    //Send response
+    send_response(stream, CMD_GETFPGAIMAGES, crate::server::codec().serialize(&rsp).unwrap()).unwrap();
+}
+
+pub fn deleterecord_command(stream: &mut TcpStream, c: DeleteRecordCmd) {
+
+    // Response struct
+    let rsp = DeleteRecordRsp {
+        success: archive::delete_record(c.rid),
+    };
+
+    //Send response
+    send_response(stream, CMD_DELRECORD, crate::server::codec().serialize(&rsp).unwrap()).unwrap();
+}

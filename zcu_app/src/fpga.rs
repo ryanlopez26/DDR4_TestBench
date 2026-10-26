@@ -58,3 +58,52 @@ pub fn flash_fpga(image_name: &str) -> bool {
         }
     }
 }
+
+/// Every FPGA image available in `/dvr/fpga`, reported as the bare name that
+/// `flash_fpga` takes: `/dvr/fpga/memtest.bit.bin` is listed as `memtest`.
+///
+/// Returns an empty Vec when the directory is missing or unreadable, which is
+/// the state while `/dvr` is unmounted in safe mode. An empty list therefore
+/// means "nothing available right now", not necessarily "the card is empty".
+pub fn list_fpga_images() -> Vec<String> {
+    let mut images: Vec<String> = Vec::new();
+
+    let entries = match std::fs::read_dir("/dvr/fpga") {
+        Ok(e) => e,
+        Err(e) => {
+            eprintln!("list_fpga_images: cannot read /dvr/fpga: {e}");
+            return images;
+        }
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+
+        // Mirrors flash_fpga's own check rather than DirEntry::file_type(),
+        // which does not follow symlinks on Unix. Using the same test keeps
+        // the list and what is actually flashable in agreement, and drops a
+        // directory that happens to be named "something.bit.bin".
+        if !path.is_file() {
+            continue;
+        }
+
+        // file_stem() is wrong here: it strips only the final extension, so
+        // "memtest.bit.bin" would come back as "memtest.bit". Strip the whole
+        // compound suffix instead, which also filters out any other file
+        // sitting in the directory (.bit, .bin, .xsa, notes.txt).
+        if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+            if let Some(stem) = name.strip_suffix(".bit.bin") {
+                // Guards against a file named literally ".bit.bin", which
+                // would yield an empty name that flash_fpga rejects anyway.
+                if !stem.is_empty() {
+                    images.push(stem.to_owned());
+                }
+            }
+        }
+    }
+
+    // read_dir order is whatever the filesystem hands back and differs between
+    // boots, so sort for a stable ordering in the client's image list.
+    images.sort_unstable();
+    images
+}

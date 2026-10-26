@@ -212,3 +212,33 @@ pub struct GetFPGAImageRsp {
 pub struct SetFPGAImageRsp {
     pub status: bool
 }
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct DeleteRecordCmd {
+    pub rid: u16
+}
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct DeleteRecordRsp {
+    pub success: bool
+}
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct DeleteRunCmd {
+    pub id: u16
+}
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct DeleteRunRsp {
+    pub success: bool
+}
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct GetFPGAImagesRsp {
+    pub images: Vec<String>
+}

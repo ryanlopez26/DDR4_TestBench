@@ -29,6 +29,7 @@ pub const CMD_LISTRECORDS: u8 = 0x10;
 pub const CMD_LISTRUNS: u8 = 0x11;
 
 pub const CMD_SAVERUN: u8 = 0x09;
+
 pub const CMD_ABORT: u8 = 0x0A;
 
 pub const CMD_ENGINESTATUS: u8 = 0x0E;
@@ -37,6 +38,11 @@ pub const CMD_GETPOWERMODE: u8 = 0x0F;
 
 pub const CMD_GETFPGAIMAGE: u8 = 0x12;
 pub const CMD_SETFPGAIMAGE: u8 = 0x13;
+
+pub const CMD_DELRUN: u8 = 0x14;
+pub const CMD_DELRECORD: u8 = 0x15;
+
+pub const CMD_GETFPGAIMAGES: u8 = 0x16;
 
 
 pub const PAGE_SIZE: usize = 1024; // Size of data pages for dump responses
