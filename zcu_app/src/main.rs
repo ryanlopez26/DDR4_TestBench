@@ -1,4 +1,4 @@
-use std::{sync::RwLock, thread::{self, JoinHandle}};
+use std::{sync::RwLock, thread::{self, JoinHandle}, time::Instant};
 mod server;
 mod types;
 mod rand;
@@ -16,7 +16,7 @@ mod archive;
 mod tools;
 
 static THREADS: RwLock<Vec<JoinHandle<()>>> = RwLock::new(Vec::new()); 
-static PM: RwLock<PowerManager> = RwLock::new(PowerManager { power_request: 0, safe: false });
+static PM: RwLock<PowerManager> = RwLock::new(PowerManager { power_request: 0, safe: false, last_power_check: None });
 
 
 // External power control
@@ -26,8 +26,13 @@ pub struct PowerManager {
     pub power_request: u8,
 
     // Safeguard status - Whether or not it is safe to request power change
-    pub safe: bool
+    pub safe: bool,
+
+    // Last power check
+    pub last_power_check: Option<Instant>
 }
+
+
 
 
 fn main() {

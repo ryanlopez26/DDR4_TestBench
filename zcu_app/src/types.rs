@@ -109,11 +109,17 @@ pub struct ConfigCmd {
 #[repr(C)]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct InfoRsp {
-    pub beam_signal: bool,
+    pub beam_possible: bool,
+    pub beam_active: bool,
+    pub power_services_provided: bool,
     pub controller_calibrated: bool,
     pub ui_clock: bool,
     pub pl_clock: bool,
-    pub fpga_loaded: bool
+    pub fpga_loaded: bool,
+    pub sdram_0: bool,
+    pub sdram_1: bool,
+    pub sdram_2: bool,
+    pub sdram_3: bool,
 }
 
 #[repr(C)]

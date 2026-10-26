@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::net::TcpStream;
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use bincode::Options;
 
@@ -63,12 +64,32 @@ pub fn info_command(stream: &mut TcpStream){
 
     //Create info response struct
     let payload = crate::server::codec().serialize(&InfoRsp {
-        beam_signal: gpio::get_beam_signal(),
         controller_calibrated: gpio::get_calibration_signal(),
         ui_clock: gpio::get_ui_clock_signal(),
         pl_clock: gpio::get_pl_clock_signal(),
         fpga_loaded: gpio::get_fpga_loaded_status(),
+        beam_possible: gpio::get_beam_possible(),
+        beam_active: gpio::get_beam_active(),
+        power_services_provided: {
+                //Check if power services are present
+                match PM.read().unwrap().last_power_check {
+                    Some(last_check) => {
+                        if last_check.duration_since(Instant::now()) < Duration::from_millis(200) {
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                    None => false,
+                }
+        },
+        sdram_0: gpio::get_sdram_select(0),
+        sdram_1: gpio::get_sdram_select(1),
+        sdram_2: gpio::get_sdram_select(2),
+        sdram_3: gpio::get_sdram_select(3),
     }).unwrap();
+
+
 
     //Send ACK response
     send_response(stream, CMD_INFO, payload).unwrap();
@@ -245,7 +266,10 @@ pub fn enginestatus_command(stream: &mut TcpStream) {
 pub fn getpowermode_command(stream: &mut TcpStream) {
 
     //Lock power manager
-    let pm = PM.read().unwrap();
+    let mut pm = PM.write().unwrap();
+
+    //Update last check
+    pm.last_power_check = Some(Instant::now());
 
     let mut rsp = GetPowerModeRsp {
         request_poweroff: false,
