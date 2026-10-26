@@ -2,6 +2,9 @@ use std::{sync::{LazyLock, RwLock}};
 
 use crate::{fpga::LaneStatus::UNKNOWN, gpio};
 
+// Current FPGA image name
+static mut 
+
 
 //Byte lane status
 #[repr(C)]

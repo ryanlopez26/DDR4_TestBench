@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{record::Record, run::Run, task_engine::TaskRequest};
+use crate::{record::{Record, RecordType}, run::Run, task_engine::TaskRequest};
 
 // NOTE: `#[repr(C)]` controls the *in-memory* layout (for FFI / unsafe casts).
 // It does NOT control how serde + bincode lays bytes on the wire — that is
@@ -160,4 +160,34 @@ pub struct EngineStatusRsp {
     pub record_progress: f64,
     pub is_idle: bool,
     pub queue: Vec<TaskRequest>
+}
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ListRunsRsp {
+
+    // Summary of all runs
+    pub id: Vec<u16>,
+    pub time_modified: Vec<u64>,
+    pub sodimm_id: Vec<String>,
+    pub energy: Vec<f64>,
+    pub ion: Vec<String>,
+    pub LET: Vec<f64>,
+    pub description: Vec<String>,
+    pub num_records: Vec<u16>,
+    pub is_complete: Vec<bool>
+}
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ListRecordsRsp {
+
+    // Summary of all records
+    pub rid: Vec<u16>,
+    pub time_started: Vec<u64>,
+    pub time_duration: Vec<u64>,
+    pub completed: Vec<bool>,
+    pub aborted: Vec<bool>,
+    pub rtype: Vec<RecordType>
+
 }

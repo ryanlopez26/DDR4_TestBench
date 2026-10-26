@@ -14,13 +14,23 @@ pub const CMD_READ: u8 = 0x03;
 pub const CMD_CONFIG: u8 = 0x04;
 pub const CMD_DYNAMIC: u8 = 0x05;
 pub const CMD_INFO: u8 = 0x06;
+
+
 pub const CMD_GENRUN: u8 = 0x07;
 pub const CMD_GENRECORD: u8 = 0x08;
-pub const CMD_SAVERUN: u8 = 0x09;
-pub const CMD_ABORT: u8 = 0x0A;
+
+//Individual Entry Operations
 pub const CMD_GETRECORD: u8 = 0x0B;
 pub const CMD_GETRUN: u8 = 0x0C;
 pub const CMD_GETCAPTURE: u8 = 0x0D;
+
+//Entry Summary Operations
+pub const CMD_LISTRECORDS: u8 = 0x10;
+pub const CMD_LISTRUNS: u8 = 0x11;
+
+pub const CMD_SAVERUN: u8 = 0x09;
+pub const CMD_ABORT: u8 = 0x0A;
+
 pub const CMD_ENGINESTATUS: u8 = 0x0E;
 pub const CMD_GETPOWERMODE: u8 = 0x0F;
 

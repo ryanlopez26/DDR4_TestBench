@@ -143,8 +143,8 @@ pub fn engine_main(){
                 time_started: get_epoch(),
                 time_ended: 0,
                 time_duration: 0,
-                rid: cmd.task_queue[0].rid,
-                rtype: cmd.task_queue[0].rtype,
+                rid: cmd.task_queue.first().unwrap().rid,
+                rtype: cmd.task_queue.first().unwrap().rtype,
                 completed: false,
                 aborted: false,
                 adj_err_bins: Some([0,0,0,0,0,0,0,0]),
@@ -166,6 +166,9 @@ pub fn engine_main(){
                 log_err_bins: Vec::new(),
             });
 
+            //Remove the task from the queue
+            cmd.task_queue.remove(0);
+
         }
 
         // Begin task 
@@ -173,6 +176,9 @@ pub fn engine_main(){
             Some(mut r) => {
 
 
+                //We are now busy
+                STATUS.write().unwrap().is_idle = false;
+                
                 // Create capture file for dump 
                 let cap_path = Path::new("/dvr/captures").join(format!("{:04X}.cap", r.rid)); 
                 let cap_file = File::create(&cap_path).unwrap();
@@ -209,7 +215,7 @@ pub fn engine_main(){
                                 }
 
                                 //Check if we need to update
-                                if last_update.duration_since(Instant::now()) > UPDATE_FREQUENCY {
+                                if last_update.elapsed() > UPDATE_FREQUENCY {
 
                                     //Reset watchdog
                                     last_update = Instant::now();
@@ -219,15 +225,15 @@ pub fn engine_main(){
                                     r.log_bits_incorrect.push(r.incorrect_bits);
                                     r.log_beam_signal.push(gpio::get_beam_signal());
                                     r.log_current_address.push(block_end);
-                                    r.log_bits_incorrect.push(r.incorrect_bits);
+                                    r.log_bits_correct.push(r.correct_bits);
 
                                     //Lock the status struct
                                     let mut s = STATUS.write().unwrap();
 
                                     //Update the status struct
                                     s.active_record = Some(r.clone());
-                                    s.task_progress = (blk_ind / config.num_blocks) as f64;
-                                    s.task_runtime = (r.time_started - get_epoch()) as f64;
+                                    s.task_progress = blk_ind as f64 / config.num_blocks as f64 * 100.0;
+                                    s.task_runtime = (get_epoch() - r.time_started) as f64;
 
                                     //Check if we must abort
                                     if abort_check() {
@@ -289,7 +295,7 @@ pub fn engine_main(){
                                             r.incorrect_bits += diff_bits as u64;
 
                                             //Collect statistics
-                                            r.err_bins.unwrap()[diff_bits] += 1;
+                                            r.err_bins.as_mut().unwrap()[diff_bits] += 1;
                                             
                                             //Detect multi-bit upset
                                             if diff_bits > 1 {
@@ -312,7 +318,7 @@ pub fn engine_main(){
 
                                                         //Commit result if there is one
                                                         if c > 0 { 
-                                                            r.adj_err_bins.unwrap()[c] += 1; 
+                                                            r.adj_err_bins.as_mut().unwrap()[c] += 1; 
                                                             c = 0;
                                                         }
                                                     }
@@ -321,7 +327,7 @@ pub fn engine_main(){
                                                 
                                                 //Commit just in case any pending result
                                                 if c > 0 { 
-                                                    r.adj_err_bins.unwrap()[c] += 1; 
+                                                    r.adj_err_bins.as_mut().unwrap()[c] += 1; 
                                                 }
 
                                             } else {
@@ -339,7 +345,7 @@ pub fn engine_main(){
                                 };
 
                                 //Check if we need to update
-                                if last_update.duration_since(Instant::now()) > UPDATE_FREQUENCY {
+                                if last_update.elapsed() > UPDATE_FREQUENCY {
 
                                     //Reset watchdog
                                     last_update = Instant::now();
@@ -358,8 +364,8 @@ pub fn engine_main(){
 
                                     //Update the status struct
                                     s.active_record = Some(r.clone());
-                                    s.task_progress = (blk_ind / config.num_blocks) as f64;
-                                    s.task_runtime = (r.time_started - get_epoch()) as f64;
+                                    s.task_progress = blk_ind as f64 / num_blocks as f64 * 100.0;
+                                    s.task_runtime = (get_epoch() - r.time_started) as f64;
 
                                     //Check if we must abort
                                     if abort_check() {
@@ -408,7 +414,7 @@ pub fn engine_main(){
                                     },
                                     _ => {
                                         eprintln!("[!] Invalid pattern in WriteCmd: {}", config.data_pattern);
-                                        return;
+                                        return;       
                                     }
                                 }
                                 {
@@ -417,12 +423,12 @@ pub fn engine_main(){
                                     },
                                     Err(_e) => {
                                         r.incorrect_bits += 8;
-                                        return;
+   
                                     }
                                 }
 
                                 //Check if we need to update
-                                if last_update.duration_since(Instant::now()) > UPDATE_FREQUENCY {
+                                if last_update.elapsed() > UPDATE_FREQUENCY {
 
                                     //Reset watchdog
                                     last_update = Instant::now();
@@ -441,8 +447,8 @@ pub fn engine_main(){
 
                                     //Update the status struct
                                     s.active_record = Some(r.clone());
-                                    s.task_progress = (blk_ind / config.num_blocks) as f64;
-                                    s.task_runtime = (r.time_started - get_epoch()) as f64;
+                                    s.task_progress = blk_ind as f64 / num_blocks as f64 * 100.0;
+                                    s.task_runtime = (get_epoch() - r.time_started) as f64;
 
                                     //Check if we must abort
                                     if abort_check() {
@@ -483,7 +489,7 @@ pub fn engine_main(){
                         let mut beam_start_instant = Instant::now();
                      
                         // Main process loop for dynamic process
-                        loop {
+                        'dynamic: loop {
 
                             // Iterate over number of blocks
                             for blk_ind in (0..config.num_blocks).step_by(config.block_factor as usize) {
@@ -552,7 +558,7 @@ pub fn engine_main(){
                                                     r.incorrect_bits += diff_bits as u64;
 
                                                     //Collect statistics
-                                                    r.err_bins.unwrap()[diff_bits] += 1;
+                                                    r.err_bins.as_mut().unwrap()[diff_bits] += 1;
                                                     
                                                     //Detect multi-bit upset
                                                     if diff_bits > 1 {
@@ -575,7 +581,7 @@ pub fn engine_main(){
 
                                                                 //Commit result if there is one
                                                                 if c > 0 { 
-                                                                    r.adj_err_bins.unwrap()[c] += 1; 
+                                                                    r.adj_err_bins.as_mut().unwrap()[c] += 1; 
                                                                     c = 0;
                                                                 }
                                                             }
@@ -584,7 +590,7 @@ pub fn engine_main(){
                                                         
                                                         //Commit just in case any pending result
                                                         if c > 0 { 
-                                                            r.adj_err_bins.unwrap()[c] += 1; 
+                                                            r.adj_err_bins.as_mut().unwrap()[c] += 1; 
                                                         }
 
                                                     } else {
@@ -609,7 +615,7 @@ pub fn engine_main(){
                                     
 
                                     //Check if we need to update
-                                    if last_update.duration_since(Instant::now()) > UPDATE_FREQUENCY {
+                                    if last_update.elapsed() > UPDATE_FREQUENCY {
 
                                         //Reset watchdog
                                         last_update = Instant::now();
@@ -656,8 +662,8 @@ pub fn engine_main(){
 
                                         //Update the status struct
                                         s.active_record = Some(r.clone());
-                                        s.task_progress = (blk_ind / config.num_blocks) as f64;
-                                        s.task_runtime = (r.time_started - get_epoch()) as f64;
+                                        s.task_progress = blk_ind as f64 / num_blocks as f64 * 100.0;
+                                        s.task_runtime = (get_epoch() - r.time_started) as f64;
                                                                                 //Check if we must abort
                                         if abort_check() {
 
@@ -679,7 +685,7 @@ pub fn engine_main(){
                                     if !b && b_last_high.elapsed() > TERMINATION_DELAY_FOR_SEFI_TEST && have_started {
 
                                         //Beam is now gone and termination time has expired
-                                        break;
+                                        break 'dynamic;
 
                                     }
 
@@ -696,6 +702,9 @@ pub fn engine_main(){
                 r.time_ended = get_epoch();
                 r.time_duration = r.time_ended - r.time_started;
                 r.completed = true;
+
+                //Submit to archive
+                archive::submit_record(r);
 
                 //Close all files
                 cap_buf.flush().unwrap();

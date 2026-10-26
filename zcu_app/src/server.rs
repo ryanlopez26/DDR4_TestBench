@@ -295,6 +295,12 @@ fn handle_client(mut stream: TcpStream) {
             CMD_GETPOWERMODE => {
                 crate::commands::getpowermode_command(&mut stream);
             },
+            CMD_LISTRECORDS => {
+                crate::commands::listrecords_command(&mut stream);
+            },
+            CMD_LISTRUNS => {
+                crate::commands::listruns_command(&mut stream);
+            },
             other => eprintln!("[!] {}: unknown CMD 0x{:02X}", peer, other),
         }
     }

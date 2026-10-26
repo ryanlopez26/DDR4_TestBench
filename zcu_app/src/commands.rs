@@ -5,6 +5,7 @@ use std::path::Path;
 
 use bincode::Options;
 
+use crate::archive::{RECORD_LOG, RUN_LOG};
 use crate::{PM, archive, config, gpio, task_engine, types::*};
 
 use crate::server::send_response;
@@ -198,4 +199,71 @@ pub fn getpowermode_command(stream: &mut TcpStream) {
 
     //Send response
     send_response(stream, CMD_GETPOWERMODE, crate::server::codec().serialize(&rsp).unwrap()).unwrap();
+}
+
+pub fn listrecords_command(stream: &mut TcpStream) {
+
+    //Records for reading
+    let list = RECORD_LOG.read().unwrap();
+
+    let mut rsp = ListRecordsRsp {
+        rid: vec![],
+        time_started: vec![],
+        time_duration: vec![],
+        completed: vec![],
+        aborted: vec![],
+        rtype: vec![],
+    };
+
+    //Iterate over records
+    for r in &(*list) {
+
+        //Append to response structure
+        rsp.rid.push(r.rid);
+        rsp.time_started.push(r.time_started);
+        rsp.completed.push(r.completed);
+        rsp.aborted.push(r.aborted);
+        rsp.rtype.push(r.rtype);
+        rsp.time_duration.push(r.time_duration);
+
+    } 
+
+    //Send response
+    send_response(stream, CMD_LISTRECORDS, crate::server::codec().serialize(&rsp).unwrap()).unwrap();
+}
+
+pub fn listruns_command(stream: &mut TcpStream) {
+
+    //Runs for reading
+    let list = RUN_LOG.read().unwrap();
+
+    let mut rsp = ListRunsRsp {
+        id: vec![],
+        time_modified:vec![],
+        sodimm_id: vec![],
+        energy: vec![],
+        ion: vec![],
+        LET: vec![],
+        description: vec![],
+        num_records: vec![],
+        is_complete: vec![],
+    };
+
+    //Iterate over runs
+    for r in &(*list) {
+
+        //Append to response structure
+        rsp.id.push(r.id);
+        rsp.time_modified.push(r.time_modified);
+        rsp.sodimm_id.push(r.sodimm_id.clone());
+        rsp.energy.push(r.energy);
+        rsp.ion.push(r.ion.clone());
+        rsp.LET.push(r.LET);
+        rsp.description.push(r.description.clone());
+        rsp.num_records.push(0);
+        rsp.is_complete.push(false);
+    } 
+
+    //Send response
+    send_response(stream, CMD_LISTRUNS, crate::server::codec().serialize(&rsp).unwrap()).unwrap();
 }
