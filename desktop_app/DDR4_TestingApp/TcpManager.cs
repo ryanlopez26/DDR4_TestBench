@@ -80,6 +80,9 @@
 //  0x11  LISTRUNS        (empty)                     -> ListRunsRsp
 //  0x12  GETFPGAIMAGE    (empty)                     -> Option<String>
 //  0x13  SETFPGAIMAGE    String image_name           -> bool success
+//  0x14  DELRUN          u16 id                      -> bool success
+//  0x15  DELRECORD       u16 rid                     -> bool success
+//  0x16  GETFPGAIMAGES   (empty)                     -> Vec<String> images
 //
 // CMD_GETCAPTURE is the one command whose reply is NOT bincode. The server
 // streams the capture file straight from disk to the socket, so the payload is
@@ -636,13 +639,17 @@ namespace DDR4_TestingApp
         private const byte CMD_LISTRUNS = 0x11;
         private const byte CMD_GETFPGAIMAGE = 0x12;
         private const byte CMD_SETFPGAIMAGE = 0x13;
+        private const byte CMD_DELRUN = 0x14;
+        private const byte CMD_DELRECORD = 0x15;
+        private const byte CMD_GETFPGAIMAGES = 0x16;
 
         /// <summary>Frame header: SYNC(4) + CMD(1) + LEN(4).</summary>
         private const int HeaderSize = 9;
 
         /// <summary>
-        /// Must stay &lt;= the server's inbound MAX_PAYLOAD (server.rs). The server
-        /// drops the connection on anything larger, so fail locally instead.
+        /// Mirrors the server's MAX_PAYLOAD (server.rs), which is now enforced: the
+        /// server logs the length and DROPS THE CONNECTION on anything larger, with no
+        /// reply. Fail locally instead so the link survives.
         /// </summary>
         public const int MaxOutboundPayload = 1 << 20;   // 1 MiB
 
@@ -654,6 +661,13 @@ namespace DDR4_TestingApp
 
         /// <summary>Per-command timeout for everything except capture downloads.</summary>
         public static TimeSpan DefaultTimeout { get; set; } = TimeSpan.FromSeconds(15);
+
+        /// <summary>
+        /// Timeout for a delete. Longer than a normal command because the server unlinks
+        /// every child capture under its record lock, and freeing a few hundred MB of
+        /// extents per file is not instant on the eMMC.
+        /// </summary>
+        public static TimeSpan DeleteTimeout { get; set; } = TimeSpan.FromSeconds(60);
 
         /// <summary>
         /// Timeout for a capture download. Reading a few hundred MB off the eMMC and
@@ -954,6 +968,24 @@ namespace DDR4_TestingApp
                 return rows;
             }, DefaultTimeout, ct);
 
+        /// <summary>
+        /// Delete a record's JSON and its capture file. Returns false if the server has
+        /// no such rid, or if a file could not be removed.
+        ///
+        /// A record that is CURRENTLY RUNNING is not in the archive yet, so this returns
+        /// false for it rather than deleting anything — the in-flight capture is safe.
+        /// </summary>
+        public static Task<bool> DeleteRecordAsync(ushort rid, CancellationToken ct = default) =>
+            RunAsync(async t =>
+            {
+                var p = await RequestAsync(CMD_DELRECORD, EncodeU16(rid), CMD_DELRECORD, t)
+                            .ConfigureAwait(false);
+                var r = new BincodeReader(p);
+                bool ok = r.ReadBool();
+                r.ExpectEnd("DeleteRecordRsp");
+                return ok;
+            }, DefaultTimeout, ct);
+
         // ============================== Runs ==============================
 
         /// <summary>Persist a run to /dvr/runs. Returns the server's success flag.</summary>
@@ -1021,6 +1053,32 @@ namespace DDR4_TestingApp
                     };
                 return rows;
             }, DefaultTimeout, ct);
+
+        /// <summary>
+        /// Delete a run, every record it references, and those records' captures.
+        /// Returns false if the server has no such id, or if any file could not be
+        /// removed — note the run entry is dropped even when a child unlink failed, so
+        /// false can mean "mostly deleted". Re-list afterwards rather than assuming.
+        ///
+        /// Unlike <see cref="DeleteRecordAsync"/>, this does NOT check whether a
+        /// referenced record is currently running: the server unlinks child captures by
+        /// id straight from the run's record lists. Deleting a run whose record is still
+        /// in flight destroys that capture while the engine is writing it. Check
+        /// <see cref="GetEngineStatusAsync"/> first.
+        ///
+        /// Takes longer than a normal command: the server holds its record lock while
+        /// unlinking every child capture, which can be hundreds of megabytes each.
+        /// </summary>
+        public static Task<bool> DeleteRunAsync(ushort id, CancellationToken ct = default) =>
+            RunAsync(async t =>
+            {
+                var p = await RequestAsync(CMD_DELRUN, EncodeU16(id), CMD_DELRUN, t)
+                            .ConfigureAwait(false);
+                var r = new BincodeReader(p);
+                bool ok = r.ReadBool();
+                r.ExpectEnd("DeleteRunRsp");
+                return ok;
+            }, DeleteTimeout, ct);
 
         // ============================== Captures ==============================
 
@@ -1130,6 +1188,23 @@ namespace DDR4_TestingApp
             }, DefaultTimeout, ct);
 
         /// <summary>
+        /// Every image available in /dvr/fpga, as the bare stem flash expects
+        /// ("memtest" for memtest.bit.bin). An EMPTY LIST IS AMBIGUOUS: it means the
+        /// directory is empty, missing, or unreadable — the last of which is the normal
+        /// state while /dvr is unmounted in safe mode. Don't present it as "no images".
+        /// </summary>
+        public static Task<string[]> ListFpgaImagesAsync(CancellationToken ct = default) =>
+            RunAsync(async t =>
+            {
+                var p = await RequestAsync(CMD_GETFPGAIMAGES, Array.Empty<byte>(),
+                                           CMD_GETFPGAIMAGES, t).ConfigureAwait(false);
+                var r = new BincodeReader(p);
+                string[] images = r.ReadVecString();
+                r.ExpectEnd("GetFPGAImagesRsp");
+                return images;
+            }, DefaultTimeout, ct);
+
+        /// <summary>
         /// Load /dvr/fpga/&lt;imageName&gt;.bit.bin via fpgautil. Returns false if the
         /// name was rejected, the file was missing, the engine was busy, or fpgautil
         /// failed. After a successful flash the MIG re-trains, so wait for
@@ -1227,10 +1302,21 @@ namespace DDR4_TestingApp
             try
             {
                 await WriteFrameAsync(cmd, payload, ct).ConfigureAwait(false);
-                var (got, body) = await ReadFrameAsync(ct).ConfigureAwait(false);
-                if (got != expect)
-                    throw Fault($"expected reply 0x{expect:X2} to command 0x{cmd:X2}, got 0x{got:X2}");
-                return body;
+                try
+                {
+                    var (got, body) = await ReadFrameAsync(ct).ConfigureAwait(false);
+                    if (got != expect)
+                        throw Fault($"expected reply 0x{expect:X2} to command 0x{cmd:X2}, got 0x{got:X2}");
+                    return body;
+                }
+                catch (OperationCanceledException)
+                {
+                    // The request is already on the wire and the server will answer it
+                    // regardless. Abandoning the read leaves that reply in the socket for
+                    // the NEXT command to misread, so the connection cannot be reused.
+                    Disconnect();
+                    throw;
+                }
             }
             finally { sendLock.Release(); }
         }
