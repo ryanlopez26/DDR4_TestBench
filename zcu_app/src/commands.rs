@@ -74,7 +74,7 @@ pub fn info_command(stream: &mut TcpStream){
                 //Check if power services are present
                 match PM.read().unwrap().last_power_check {
                     Some(last_check) => {
-                        if last_check.duration_since(Instant::now()) < Duration::from_millis(200) {
+                        if last_check.duration_since(Instant::now()) > Duration::from_millis(200) {
                             true
                         } else {
                             false
