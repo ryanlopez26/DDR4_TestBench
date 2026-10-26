@@ -1,12 +1,14 @@
 // ======================= Performs the commands ========================
 
+use std::fs::File;
+use std::io::{self, Write};
 use std::net::TcpStream;
 use std::path::Path;
 
 use bincode::Options;
 
 use crate::archive::{RECORD_LOG, RUN_LOG};
-use crate::{PM, archive, config, gpio, task_engine, types::*};
+use crate::{PM, archive, config, fpga, gpio, task_engine, types::*};
 
 use crate::server::send_response;
 use crate::config::*;
@@ -17,6 +19,7 @@ pub fn config_command(stream: &mut TcpStream, cmd: ConfigCmd){
     //Update active configuration
     let mut c = CONFIG.write().unwrap();
     *c = cmd;
+    drop(c);
 
     //Save configuration to persistent storage
     config::save();
@@ -91,19 +94,42 @@ pub fn getrecord_command(stream: &mut TcpStream, cmd: GetRecordCmd){
     }
 
     //Send response
-    send_response(stream, CMD_GENRECORD, crate::server::codec().serialize(&rsp).unwrap()).unwrap();
+    send_response(stream, CMD_GETRECORD, crate::server::codec().serialize(&rsp).unwrap()).unwrap();
     
 }
 
 pub fn saverun_command(stream: &mut TcpStream, cmd: SaveRunCmd){
 
-    // Submit to run archive
+
     let rsp = SaveRunRsp {
         success: archive::submit_run(cmd.run),
     };    
 
     //Send response
     send_response(stream, CMD_SAVERUN, crate::server::codec().serialize(&rsp).unwrap()).unwrap();
+    
+}
+
+pub fn setfpga_command(stream: &mut TcpStream, cmd: SetFPGAImageCmd){
+
+
+    let rsp = SetFPGAImageRsp {
+        status: fpga::flash_fpga(&cmd.image_name)
+    };    
+
+    //Send response
+    send_response(stream, CMD_SETFPGAIMAGE, crate::server::codec().serialize(&rsp).unwrap()).unwrap();
+    
+}
+
+pub fn getfpga_command(stream: &mut TcpStream){
+
+    let rsp = GetFPGAImageRsp {
+        current_image: fpga::current_image.read().unwrap().clone()
+    };    
+
+    //Send response
+    send_response(stream, CMD_GETFPGAIMAGE, crate::server::codec().serialize(&rsp).unwrap()).unwrap();
     
 }
 
@@ -132,23 +158,70 @@ pub fn getrun_command(stream: &mut TcpStream, cmd: GetRunCmd){
 }
 
 pub fn getcapture_command(stream: &mut TcpStream, cmd: GetCaptureCmd) {
-    // Response struct
-    let mut rsp = GetCaptureRsp {
-        capture: None,
+    let path = Path::new("/dvr/captures").join(format!("{:04X}.cap", cmd.uuid));
+
+    // Safe mode means /dvr is unmounted — report "no capture" rather than touching it.
+    let file = if PM.read().unwrap().safe {
+        None
+    } else {
+        match File::open(&path) {
+            Ok(f) => Some(f),
+            Err(e) => {
+                eprintln!("capture {} unavailable: {e}", path.display());
+                None
+            }
+        }
     };
 
-    if !PM.read().unwrap().safe {
-
-        let path = Path::new("/dvr/captures").join(format!("{:04X}.cap", cmd.uuid));
-        match std::fs::read(&path) {
-            Ok(bytes) => rsp.capture = Some(bytes),
-            Err(e) => eprintln!("capture {} unavailable: {e}", path.display()),
+    // Length up front: 0 means "not found", which replaces the Option tag.
+    let (mut file, length) = match file {
+        Some(f) => {
+            let len = match f.metadata().map(|m| m.len()) {
+                Ok(n) => n,
+                Err(e) => {
+                    eprintln!("capture {} stat failed: {e}", path.display());
+                    0
+                }
+            };
+            match u32::try_from(len) {
+                Ok(n) => (Some(f), n),
+                Err(_) => {
+                    eprintln!("capture {} is {len} bytes, too large to frame", path.display());
+                    (None, 0)
+                }
+            }
         }
-        
+        None => (None, 0),
+    };
+
+    let mut hdr = Vec::with_capacity(9);
+    hdr.extend_from_slice(&SYNC_MARKER.to_be_bytes());
+    hdr.push(CMD_GETCAPTURE);
+    hdr.extend_from_slice(&length.to_be_bytes());
+
+    if let Err(e) = stream.write_all(&hdr) {
+        eprintln!("capture header write failed: {e}");
+        return;
     }
 
-    //Send response
-    send_response(stream, CMD_GETRUN, crate::server::codec().serialize(&rsp).unwrap()).unwrap();
+    if let Some(f) = file.as_mut() {
+        // Streams in ~8 KB chunks; peak memory is the chunk, not the file.
+        match io::copy(&mut io::BufReader::new(f), stream) {
+            Ok(n) if n == length as u64 => {}
+            Ok(n) => {
+                // File shrank or grew under us — the frame is now wrong and the
+                // connection is unrecoverable. Drop it so the client reconnects.
+                eprintln!("capture short write: sent {n} of {length}");
+                return;
+            }
+            Err(e) => {
+                eprintln!("capture body write failed: {e}");
+                return;
+            }
+        }
+    }
+
+    let _ = stream.write_all(&TERM_MARKER.to_be_bytes());
 }
 
 pub fn enginestatus_command(stream: &mut TcpStream) {

@@ -125,8 +125,9 @@ pub fn engine_main(){
             // Reinitialize the system
             cmd.abort_task = false;
 
-            // Check if there is nothing to do or the system is in safe mode
-            if cmd.task_queue.len() == 0 || PM.read().unwrap().safe {
+            // Check if there are any non-start conditions, which include:
+            // No tasks queued, disk is in safe mode (unmounted), or the FPGA isn't setup (prevent deadlock)
+            if cmd.task_queue.len() == 0 || PM.read().unwrap().safe || !gpio::get_calibration_signal() {
 
                 // Nothing to do, release lock and wait
                 drop(cmd);
@@ -364,7 +365,7 @@ pub fn engine_main(){
 
                                     //Update the status struct
                                     s.active_record = Some(r.clone());
-                                    s.task_progress = blk_ind as f64 / num_blocks as f64 * 100.0;
+                                    s.task_progress = blk_ind as f64 / config.num_blocks as f64 * 100.0;
                                     s.task_runtime = (get_epoch() - r.time_started) as f64;
 
                                     //Check if we must abort
@@ -447,7 +448,7 @@ pub fn engine_main(){
 
                                     //Update the status struct
                                     s.active_record = Some(r.clone());
-                                    s.task_progress = blk_ind as f64 / num_blocks as f64 * 100.0;
+                                    s.task_progress = blk_ind as f64 / config.num_blocks as f64 * 100.0;
                                     s.task_runtime = (get_epoch() - r.time_started) as f64;
 
                                     //Check if we must abort
@@ -662,7 +663,7 @@ pub fn engine_main(){
 
                                         //Update the status struct
                                         s.active_record = Some(r.clone());
-                                        s.task_progress = blk_ind as f64 / num_blocks as f64 * 100.0;
+                                        s.task_progress = blk_ind as f64 / config.num_blocks as f64 * 100.0;
                                         s.task_runtime = (get_epoch() - r.time_started) as f64;
                                                                                 //Check if we must abort
                                         if abort_check() {
@@ -693,6 +694,15 @@ pub fn engine_main(){
                             }
                         }
 
+                        // Check if we should conclude the test or reboot the system to perform another (special mode)
+                        if config.automated_sefi_mode {
+
+                            //Request a reboot
+                            PM.write().unwrap().power_request = 2;
+
+
+                        }
+
                     }
 
 
@@ -709,7 +719,10 @@ pub fn engine_main(){
                 //Close all files
                 cap_buf.flush().unwrap();
 
+
+
             },
+                        
             None => {},
         }
 

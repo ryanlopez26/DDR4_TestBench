@@ -30,8 +30,10 @@ use serde::de::DeserializeOwned;
 
 use crate::record::RecordType;
 use crate::task_engine::TaskRequest;
-use crate::types::{ConfigCmd, DumpCmd, DynamicCmd, GetCaptureCmd, GetRecordCmd, GetRunCmd, SaveRunCmd, VerifyCmd, WriteCmd};
+use crate::types::{ConfigCmd, DumpCmd, DynamicCmd, GetCaptureCmd, GetFPGAImageRsp, GetRecordCmd, GetRunCmd, SaveRunCmd, SetFPGAImageCmd, VerifyCmd, WriteCmd};
 use crate::{THREADS, config::*, task_engine};
+
+const MAX_PAYLOAD: u32 = 1 << 20;
 
 // --- framing helpers -------------------------------------------------------
 
@@ -92,7 +94,7 @@ fn parse_payload<T: DeserializeOwned>(payload: &[u8]) -> io::Result<T> {
 /// Returns an error if `payload` is larger than `u16::MAX` (65535) bytes,
 /// since the length field can't represent it.
 pub fn send_response(stream: &mut TcpStream, cmd: u8, payload: Vec<u8>) -> io::Result<()> {
-    let length: u16 = payload.len().try_into().map_err(|_| {
+    let length: u32 = payload.len().try_into().map_err(|_| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
             format!(
@@ -104,7 +106,7 @@ pub fn send_response(stream: &mut TcpStream, cmd: u8, payload: Vec<u8>) -> io::R
     })?;
 
     // 4 (SYNC) + 1 (CMD) + 2 (LENGTH) + payload + 4 (TERM)
-    let mut packet = Vec::with_capacity(11 + payload.len());
+    let mut packet = Vec::with_capacity(13 + payload.len());
     packet.extend_from_slice(&SYNC_MARKER.to_be_bytes());
     packet.push(cmd);
     packet.extend_from_slice(&length.to_be_bytes());
@@ -137,7 +139,19 @@ fn handle_client(mut stream: TcpStream) {
         let cmd = read_u8(&mut stream).unwrap();
 
         // --- LENGTH ---
-        let length = read_u16_be(&mut stream).unwrap();
+        let length = read_u32_be(&mut stream).unwrap();
+
+        // Reject an implausible length before allocating anything. No inbound
+        // command needs more than a few KB; a huge value means a desynced frame
+        // or a bad client, and vec![0u8; length] would either abort the process
+        // on allocation failure or park this thread in read_exact forever.
+        if length > MAX_PAYLOAD {
+            eprintln!(
+                "[!] {}: payload length {} exceeds max {} — dropping connection",
+                peer, length, MAX_PAYLOAD
+            );
+            return;
+        }
 
         // --- PAYLOAD ---
         let payload = read_n(&mut stream, length as usize).unwrap();
@@ -269,7 +283,7 @@ fn handle_client(mut stream: TcpStream) {
                     crate::commands::getrecord_command(&mut stream, c);   
 
                 }
-                Err(e) => eprintln!("[!] {}: invalid save run payload: {}", peer, e),
+                Err(e) => eprintln!("[!] {}: invalid get record payload: {}", peer, e),
             },
             CMD_GETRUN => match parse_payload::<GetRunCmd>(&payload) {
                 Ok(c) => {
@@ -278,16 +292,26 @@ fn handle_client(mut stream: TcpStream) {
                     crate::commands::getrun_command(&mut stream, c);   
 
                 }
-                Err(e) => eprintln!("[!] {}: invalid save run payload: {}", peer, e),
+                Err(e) => eprintln!("[!] {}: invalid get run payload: {}", peer, e),
             },
             CMD_GETCAPTURE => match parse_payload::<GetCaptureCmd>(&payload) {
                 Ok(c) => {
 
-                    // Send capture to client
                     crate::commands::getcapture_command(&mut stream, c);   
 
                 }
-                Err(e) => eprintln!("[!] {}: invalid save run payload: {}", peer, e),
+                Err(e) => eprintln!("[!] {}: invalid get capture params: {}", peer, e),
+            },
+            CMD_SETFPGAIMAGE => match parse_payload::<SetFPGAImageCmd>(&payload) {
+                Ok(c) => {
+
+                    crate::commands::setfpga_command(&mut stream, c);   
+
+                }
+                Err(e) => eprintln!("[!] {}: invalid Set FPGA params: {}", peer, e),
+            },
+            CMD_GETFPGAIMAGE => {
+                crate::commands::getfpga_command(&mut stream);   
             },
             CMD_ENGINESTATUS => {
                 crate::commands::enginestatus_command(&mut stream);

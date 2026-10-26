@@ -34,6 +34,11 @@ pub const CMD_ABORT: u8 = 0x0A;
 pub const CMD_ENGINESTATUS: u8 = 0x0E;
 pub const CMD_GETPOWERMODE: u8 = 0x0F;
 
+
+pub const CMD_GETFPGAIMAGE: u8 = 0x12;
+pub const CMD_SETFPGAIMAGE: u8 = 0x13;
+
+
 pub const PAGE_SIZE: usize = 1024; // Size of data pages for dump responses
 
 pub const UPDATE_FREQUENCY_MS: f32 = 100.0; // Frequency of progress updates during long operations

@@ -1,60 +1,60 @@
-use std::{sync::{LazyLock, RwLock}};
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::sync::RwLock;
 
-use crate::{fpga::LaneStatus::UNKNOWN, gpio};
+use crate::task_engine::STATUS;
 
-// Current FPGA image name
-static mut 
+//Currently loaded FPGA image
+pub static current_image: RwLock<Option<String>> = RwLock::new(None);
 
+/// Loads `/dvr/fpga/<image_name>.bit.bin` into the PL via `fpgautil -b`.
+/// Blocks until fpgautil exits. Returns true only if the image existed and
+/// fpgautil reported success.
+pub fn flash_fpga(image_name: &str) -> bool {
+    // Keep a network-supplied name from escaping /dvr/fpga
+    if image_name.is_empty()
+        || image_name.contains('/')
+        || image_name.contains('\0')
+        || image_name.contains("..")
+    {
+        eprintln!("flash_fpga: rejected image name {image_name:?}");
+        return false;
+    }
 
-//Byte lane status
-#[repr(C)]
-pub enum LaneStatus {
-    VALID,
-    FAILED,
-    UNKNOWN
-}
+    let path: PathBuf = Path::new("/dvr/fpga").join(format!("{image_name}.bit.bin"));
 
-pub struct FpgaState {
-    
-    // Whether or not the FPGA is ready
-    ready: bool,
+    if !path.is_file() {
+        eprintln!("flash_fpga: {} not found", path.display());
+        return false;
+    }
 
-    // Byte lane status 
-    byte_lane_status: [LaneStatus; 8],
+    //Make sure engine is idle before flashing, refuse to flash if busy
+    if !STATUS.read().unwrap().is_idle {
+        //Not idle, abort
+        return false;
+    }
 
-    // Currently enabled lanes
-    byte_lane_enabled: u8,
-
-    // Available memory (bytes)
-    available_memory: u32 
-
-}
-
-pub static FPGA_STATUS: LazyLock<RwLock<FpgaState>> = LazyLock::new(|| {
-    RwLock::new(
-        FpgaState { 
-            ready: false, 
-            byte_lane_enabled: 0xFF,
-            byte_lane_status: [UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN], 
-            available_memory: 0
+    match Command::new("fpgautil").arg("-b").arg(&path).output() {
+        Ok(out) if out.status.success() => {
+            //Update the currently loaded image
+            *current_image.write().unwrap() = Some(image_name.to_owned());
+            true
+        },
+        Ok(out) => {
+            eprintln!(
+                "flash_fpga: fpgautil exited with {} — {}",
+                out.status,
+                String::from_utf8_lossy(&out.stderr).trim()
+            );
+            //Update the currently loaded image
+            *current_image.write().unwrap() = None;
+            false
         }
-    )
-});
-
-
-//Flash the FPGA
-pub fn init(){
-
-    //Obtain RW lock
-    match FPGA_STATUS.try_write(){
-        Ok(mut fpga) => {
-
-            //If current status is ready
-            fpga.ready = gpio::get_fpga_loaded_status();
-
-        },
-        Err(_) => {
-            eprintln!("Fatal fault. FPGA init failed.");
-        },
+        Err(e) => {
+            eprintln!("flash_fpga: failed to spawn fpgautil: {e}");
+            //Update the currently loaded image
+            *current_image.write().unwrap() = None;
+            false
+        }
     }
 }

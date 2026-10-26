@@ -66,6 +66,12 @@ pub struct GetRunCmd {
     pub id: u16,
 }
 
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct SetFPGAImageCmd {
+    pub image_name: String,
+}
+
 
 // Configuration Structure
 
@@ -190,4 +196,19 @@ pub struct ListRecordsRsp {
     pub aborted: Vec<bool>,
     pub rtype: Vec<RecordType>
 
+}
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GetFPGAImageRsp {
+
+    // Provide back the loaded FPGA image name
+    pub current_image: Option<String>
+
+}
+
+#[repr(C)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct SetFPGAImageRsp {
+    pub status: bool
 }

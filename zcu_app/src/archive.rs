@@ -22,7 +22,7 @@ pub fn init() {
 
 
     //Create necessary directories
-    for d in ["/dvr/captures", "/dvr/records", "/dvr/runs"] {
+    for d in ["/dvr/captures", "/dvr/records", "/dvr/runs", "/dvr/fpga"] {
         std::fs::create_dir_all(d).unwrap();
     }
 
